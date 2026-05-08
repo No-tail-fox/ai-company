@@ -22,8 +22,9 @@ function cardClass(section: PortalSection) {
     'order-grid': section.layout === 'order-grid',
     'banner-grid': section.layout === 'banner-row' || section.layout === 'promo',
     'template-list': section.layout === 'template-list',
+    'task-list': section.layout === 'task-list',
     'stat-strip': section.layout === 'stat-strip',
-    'default-grid': !['tool-grid', 'learning-grid', 'order-grid', 'banner-row', 'promo', 'template-list', 'stat-strip'].includes(section.layout)
+    'default-grid': !['tool-grid', 'learning-grid', 'order-grid', 'banner-row', 'promo', 'template-list', 'task-list', 'stat-strip'].includes(section.layout)
   };
 }
 </script>

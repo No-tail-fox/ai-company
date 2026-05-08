@@ -105,11 +105,133 @@ const fallbackPages: PageConfigSummary[] = [
   page('office', 'AI 办公', 'AI办公效率中心', 'PPT、表格、会议、邮件和流程自动化', 'BriefcaseBusiness', 100)
 ];
 
+const DEFAULT_HOME_MENU_KEY = 'basic';
+
+interface HomeMenuRule {
+  key: string;
+  title: string;
+  subtitle: string;
+  icon: string;
+  hint: string;
+  sectionKeys: string[];
+  categories: string[];
+}
+
+const homeMenuRules: Record<string, HomeMenuRule> = {
+  basic: {
+    key: 'basic',
+    title: '基础必备',
+    subtitle: 'AI 入门课、常用工具和快速上手任务',
+    icon: 'Flame',
+    hint: '入门任务',
+    sectionKeys: ['quick_start', 'learning_center'],
+    categories: ['基础必备']
+  },
+  growth: {
+    key: 'growth',
+    title: '学习成长',
+    subtitle: '进阶课程、打卡社群、学习路径和案例拆解',
+    icon: 'Sprout',
+    hint: '进阶打卡',
+    sectionKeys: ['growth_path', 'learning_center', 'communities'],
+    categories: ['学习成长']
+  },
+  orders: {
+    key: 'orders',
+    title: '接单变现',
+    subtitle: '接单服务、报价模板、交付案例和变现训练',
+    icon: 'ReceiptText',
+    hint: '报价交付',
+    sectionKeys: ['order_center', 'earning_templates'],
+    categories: ['接单变现']
+  },
+  resources: {
+    key: 'resources',
+    title: '资源对接',
+    subtitle: '社群入口、资源合作、活动横幅和资料库',
+    icon: 'Handshake',
+    hint: '社群资源',
+    sectionKeys: ['resource_hub', 'communities', 'banners'],
+    categories: ['资源对接']
+  },
+  projects: {
+    key: 'projects',
+    title: '项目共创',
+    subtitle: '项目招募、团队协作、定制服务和共创案例',
+    icon: 'PanelsTopLeft',
+    hint: '协作招募',
+    sectionKeys: ['project_cocreation', 'order_center'],
+    categories: ['项目共创']
+  },
+  workspace: {
+    key: 'workspace',
+    title: '应用工作台',
+    subtitle: '常用 AI 工具矩阵、任务入口和最近使用',
+    icon: 'LayoutGrid',
+    hint: '工具启动',
+    sectionKeys: ['workspace_tools', 'task_board'],
+    categories: ['应用工作台']
+  },
+  toolkit: {
+    key: 'toolkit',
+    title: '专业工具包',
+    subtitle: '模板列表、行业工具、效率组件和排行榜',
+    icon: 'BriefcaseBusiness',
+    hint: '模板排行',
+    sectionKeys: ['toolkit', 'template_ranking', 'banners'],
+    categories: ['专业工具包']
+  }
+};
+
 export function formatUsageCount(count: number): string {
   if (count >= 10000) {
     return `${(count / 10000).toFixed(1)}万次使用`;
   }
   return `${count}次使用`;
+}
+
+export function shouldShowHomeSidebar(pageKey: string): boolean {
+  return pageKey === 'home';
+}
+
+export function getHomeMenuHint(menuKey: string): string {
+  return (homeMenuRules[menuKey] ?? homeMenuRules[DEFAULT_HOME_MENU_KEY]).hint;
+}
+
+export function createHomeMenuPageConfig(pageConfig: PortalPageConfig, menuKey: string): PortalPageConfig {
+  if (!shouldShowHomeSidebar(pageConfig.page.pageKey)) {
+    return pageConfig;
+  }
+
+  const rule = homeMenuRules[menuKey] ?? homeMenuRules[DEFAULT_HOME_MENU_KEY];
+  const sections = pageConfig.sections
+    .map((sectionItem) => filterHomeSection(sectionItem, rule))
+    .filter((sectionItem): sectionItem is PortalSection => Boolean(sectionItem));
+
+  return {
+    ...pageConfig,
+    page: {
+      ...pageConfig.page,
+      title: rule.title,
+      subtitle: rule.subtitle,
+      icon: rule.icon
+    },
+    sections: sections.length > 0 ? sections : pageConfig.sections
+  };
+}
+
+function filterHomeSection(sectionItem: PortalSection, rule: HomeMenuRule): PortalSection | null {
+  const matchesSection = rule.sectionKeys.includes(sectionItem.sectionKey);
+  const matchedItems = sectionItem.items.filter((itemItem) => rule.categories.includes(itemItem.category));
+
+  if (!matchesSection && matchedItems.length === 0) {
+    return null;
+  }
+
+  return {
+    ...sectionItem,
+    items: matchedItems.length > 0 ? matchedItems : sectionItem.items
+  };
 }
 
 export function buildAssistantRanking(assistants: AssistantCard[]): AssistantCard[] {
@@ -142,21 +264,74 @@ export function createFallbackPortalConfig(): PortalConfig {
         item('learn-01', 'course', '《0基础AI通识课》', '12 大核心渠道从认知到上手一站式通关', '基础必备', 'FileVideo', '/workspace/course', false, 0),
         item('learn-02', 'course', '《AI 实战必修课》', '办公/剪辑/写作全场景效率翻倍', '基础必备', 'MonitorPlay', '/workspace/course', true, 0),
         item('learn-03', 'course', '《AI 商业变现课》', '内容创作 + 电商营销全链路落地盈利', '接单变现', 'ScanSearch', '/workspace/course', true, 0),
-        item('learn-04', 'course', '《AI 爆款内容创作》', '短视频脚本、标题、封面和投放流程', 'AI营销', 'Presentation', '/workspace/course', true, 20)
+        item('learn-04', 'course', '《AI 爆款内容创作》', '短视频脚本、标题、封面和投放流程', 'AI营销', 'Presentation', '/workspace/course', true, 20),
+        item('learn-05', 'course', '《AI 进阶实战营》', '从工具使用到项目交付的系统训练', '学习成长', 'NotebookTabs', '/workspace/course/advanced', true, 30),
+        item('learn-06', 'course', '《AI 项目交付训练》', '拆解真实客户需求并完成可复用方案', '项目共创', 'BriefcaseBusiness', '/workspace/course/project', true, 30)
       ]),
       section('section-orders', 'home', 'order_center', 'OPC 接单中心', 'order-grid', [
         item('order-01', 'service', 'AI创作订单', 'PPT、文案、图片与短视频交付', '接单变现', 'Feather', '/workspace/orders', true, 20),
         item('order-02', 'service', 'AI自动化定制', '为客户定制办公自动化流程', '项目共创', 'FileText', '/workspace/automation', true, 50),
-        item('order-03', 'service', 'AI电商优化', '商品标题、详情页与客服话术', 'AI电商', 'WandSparkles', '/workspace/ecommerce', true, 30)
+        item('order-03', 'service', 'AI电商优化', '商品标题、详情页与客服话术', 'AI电商', 'WandSparkles', '/workspace/ecommerce', true, 30),
+        item('order-04', 'service', '报价单生成器', '按任务类型生成报价、周期和交付边界', '接单变现', 'ReceiptText', '/workspace/quotes', true, 10),
+        item('order-05', 'service', '项目共创招募', '匹配设计、剪辑、运营和开发协作者', '项目共创', 'PanelsTopLeft', '/workspace/projects', true, 0)
       ]),
       section('section-communities', 'home', 'communities', '兴趣社群', 'banner-row', [
         item('comm-01', 'community', '入门交流群', '新人答疑、工具清单和上手路线', '社群', 'MessageCircle', '/community/starter', false, 0),
-        item('comm-02', 'community', '学习打卡群', '每日任务、案例拆解和作业反馈', '社群', 'GraduationCap', '/community/study', true, 0),
-        item('comm-03', 'community', '接单变现群', '接单案例、报价模板和交付流程', '社群', 'Handshake', '/community/orders', true, 0)
+        item('comm-02', 'community', '学习打卡群', '每日任务、案例拆解和作业反馈', '学习成长', 'GraduationCap', '/community/study', true, 0),
+        item('comm-03', 'community', '接单变现群', '接单案例、报价模板和交付流程', '接单变现', 'Handshake', '/community/orders', true, 0),
+        item('comm-04', 'community', '资源对接群', '工具资源、客户线索和行业资料交换', '资源对接', 'Network', '/community/resources', true, 0)
       ]),
       section('section-banners', 'home', 'banners', '热门活动', 'promo', [
         item('banner-01', 'banner', '热门模板上新！', '一键轻松取用办公模板', '运营活动', 'Gift', '/templates', true, 0),
-        item('banner-02', 'banner', '商业计划书模板', '融资路演、商业策划、项目计划', '模板', 'ChartColumn', '/templates/business', true, 0)
+        item('banner-02', 'banner', '商业计划书模板', '融资路演、商业策划、项目计划', '专业工具包', 'ChartColumn', '/templates/business', true, 0),
+        item('banner-03', 'banner', '资源内测邀请', '优先体验新的合作资源和资料包', '资源对接', 'Sparkles', '/resources/trial', false, 0)
+      ]),
+      section('section-quick-start', 'home', 'quick_start', '新人快速上手', 'task-list', [
+        item('quick-01', 'task', '配置个人 AI 工具箱', '完成账号、常用模型和提示词收藏', '基础必备', 'LayoutGrid', '/workspace/setup', false, 0),
+        item('quick-02', 'task', '完成首个提示词任务', '用模板生成一份可交付内容', '基础必备', 'Sparkles', '/workspace/first-task', false, 0),
+        item('quick-03', 'task', '领取新手资料包', '下载工具清单、学习路线和案例库', '基础必备', 'Download', '/resources/starter-kit', false, 0)
+      ]),
+      section('section-growth-path', 'home', 'growth_path', '进阶成长路径', 'learning-grid', [
+        item('growth-01', 'course', '每日 30 分钟训练营', '围绕真实场景拆成可执行任务', '学习成长', 'Clock3', '/learning/daily', true, 0),
+        item('growth-02', 'case', '优秀作业拆解', '学习高质量提示词和交付结构', '学习成长', 'ScanSearch', '/learning/cases', true, 10),
+        item('growth-03', 'course', '行业案例复盘', '短视频、电商、办公和法务案例库', '学习成长', 'NotebookTabs', '/learning/reviews', true, 10)
+      ]),
+      section('section-earning-templates', 'home', 'earning_templates', '接单交付模板', 'template-list', [
+        item('earning-01', 'template', '报价沟通模板', '快速明确需求、报价和修改次数', '接单变现', 'ReceiptText', '/templates/quote', true, 0),
+        item('earning-02', 'template', '交付验收清单', '按项目节点检查文件、说明和售后', '接单变现', 'ShieldCheck', '/templates/delivery', true, 0),
+        item('earning-03', 'template', '复购跟进话术', '交付后持续运营客户关系', '接单变现', 'MessageCircle', '/templates/follow-up', true, 0)
+      ]),
+      section('section-resource-hub', 'home', 'resource_hub', '资源对接库', 'banner-row', [
+        item('resource-01', 'resource', '工具优惠合集', '模型、剪辑、设计和办公工具权益', '资源对接', 'Gift', '/resources/tools', false, 0),
+        item('resource-02', 'resource', '行业资料库', '可复用的运营、法务和电商资料', '资源对接', 'FileText', '/resources/library', true, 0),
+        item('resource-03', 'resource', '合作需求广场', '发布资源、客户线索和合作需求', '资源对接', 'Handshake', '/resources/market', true, 0)
+      ]),
+      section('section-project-cocreation', 'home', 'project_cocreation', '项目共创广场', 'order-grid', [
+        item('project-01', 'project', '短视频矩阵共创', '脚本、剪辑、投放成员组队交付', '项目共创', 'FileVideo', '/projects/video', true, 0),
+        item('project-02', 'project', '企业知识库搭建', '资料整理、流程设计和助手配置', '项目共创', 'Workflow', '/projects/knowledge-base', true, 0),
+        item('project-03', 'project', 'AI办公改造案例', '用自动化流程帮助团队降本增效', '项目共创', 'BriefcaseBusiness', '/projects/office', true, 0)
+      ]),
+      section('section-workspace-tools', 'home', 'workspace_tools', '常用工作台', 'tool-grid', [
+        item('workspace-01', 'tool', 'PPT 生成工作台', '从大纲到页面自动生成', '应用工作台', 'Presentation', '/workspace/ppt', false, 0),
+        item('workspace-02', 'tool', '视频脚本工作台', '选题、脚本、分镜一站式处理', '应用工作台', 'MonitorPlay', '/workspace/video-script', false, 0),
+        item('workspace-03', 'tool', '电商运营工作台', '标题、详情和客服话术生成', '应用工作台', 'WandSparkles', '/workspace/ecommerce', true, 10),
+        item('workspace-04', 'tool', '合同审查工作台', '检查风险条款和修改建议', '应用工作台', 'Scale', '/workspace/legal', true, 10)
+      ]),
+      section('section-task-board', 'home', 'task_board', '任务入口', 'stat-strip', [
+        item('task-01', 'task', '最近使用', '继续上次的工具和内容生成任务', '应用工作台', 'Clock3', '/workspace/recent', false, 0),
+        item('task-02', 'task', '待交付项目', '查看接单任务、素材和交付节点', '应用工作台', 'BriefcaseBusiness', '/workspace/deliveries', true, 0),
+        item('task-03', 'task', '素材库', '管理上传图片、模板和提示词资产', '应用工作台', 'CloudUpload', '/workspace/assets', true, 0)
+      ]),
+      section('section-toolkit', 'home', 'toolkit', '专业工具包', 'template-list', [
+        item('toolkit-01', 'template', '商业计划书套件', '路演大纲、财务假设和页面结构', '专业工具包', 'ChartColumn', '/toolkit/business-plan', true, 0),
+        item('toolkit-02', 'template', '短视频脚本套件', '选题、分镜、标题和口播脚本', '专业工具包', 'FileVideo', '/toolkit/video-script', true, 0),
+        item('toolkit-03', 'template', '合同审查清单', '常见风险条款和修改建议模板', '专业工具包', 'Scale', '/toolkit/legal', true, 0),
+        item('toolkit-04', 'template', '办公自动化组件', '表格、邮件和审批流程提示词', '专业工具包', 'Workflow', '/toolkit/office', true, 0)
+      ]),
+      section('section-template-ranking', 'home', 'template_ranking', '工具包排行榜', 'ranking-list', [
+        item('rank-01', 'ranking', 'PPT 提案模板', '近 7 日 12.8 万次使用', '专业工具包', 'Presentation', '/toolkit/ranking/ppt', false, 0),
+        item('rank-02', 'ranking', '报价单模板', '近 7 日 8.6 万次使用', '专业工具包', 'ReceiptText', '/toolkit/ranking/quote', false, 0),
+        item('rank-03', 'ranking', '短视频分镜模板', '近 7 日 7.9 万次使用', '专业工具包', 'MonitorPlay', '/toolkit/ranking/video', false, 0)
       ])
     ]
   };

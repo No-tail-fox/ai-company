@@ -3,7 +3,6 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   Bell,
-  ChevronDown,
   CircleUserRound,
   CloudUpload,
   Download,
@@ -16,16 +15,30 @@ import {
 import DynamicPage from '../components/DynamicPage.vue';
 import { fetchPortalConfig, fetchPortalPage } from '../services/api';
 import { getIcon } from '../services/icons';
-import { createFallbackPageConfig, createFallbackPortalConfig, type PortalConfig, type PortalItem, type PortalPageConfig } from '../services/viewModel';
+import {
+  createFallbackPageConfig,
+  createFallbackPortalConfig,
+  createHomeMenuPageConfig,
+  getHomeMenuHint,
+  shouldShowHomeSidebar,
+  type PortalConfig,
+  type PortalItem,
+  type PortalPageConfig
+} from '../services/viewModel';
 
 const route = useRoute();
 const router = useRouter();
 const portal = ref<PortalConfig>(createFallbackPortalConfig());
 const pageConfig = ref<PortalPageConfig>(createFallbackPageConfig('home'));
+const activeHomeMenuKey = ref('basic');
 const selectedTool = ref('AI 接单陪跑工作台');
 const promptText = ref('帮我生成一套适合新手学习 AI 接单的 7 天训练计划。');
 
 const activePageKey = computed(() => String(route.params.pageKey || 'home'));
+const showHomeSidebar = computed(() => shouldShowHomeSidebar(activePageKey.value));
+const displayPageConfig = computed(() =>
+  showHomeSidebar.value ? createHomeMenuPageConfig(pageConfig.value, activeHomeMenuKey.value) : pageConfig.value
+);
 
 onMounted(async () => {
   portal.value = await fetchPortalConfig();
@@ -48,6 +61,10 @@ function openItem(item: PortalItem) {
 function goPage(pageKey: string) {
   router.push(`/${pageKey}`);
 }
+
+function selectHomeMenu(menuKey: string) {
+  activeHomeMenuKey.value = menuKey;
+}
 </script>
 
 <template>
@@ -59,8 +76,8 @@ function goPage(pageKey: string) {
         <span class="dot green"></span>
       </div>
       <div class="window-tab">
-        <component :is="getIcon(pageConfig.page.icon)" :size="16" />
-        <span>{{ pageConfig.page.label }}</span>
+        <component :is="getIcon(displayPageConfig.page.icon)" :size="16" />
+        <span>{{ displayPageConfig.page.label }}</span>
       </div>
       <div class="window-actions">
         <Gift class="gift" :size="24" />
@@ -96,12 +113,19 @@ function goPage(pageKey: string) {
       </button>
     </nav>
 
-    <div class="app-frame">
-      <aside class="sidebar">
-        <button v-for="nav in portal.leftNav" :key="nav.key" :class="{ active: nav.key === 'basic' }">
+    <div :class="['app-frame', { 'no-sidebar': !showHomeSidebar }]">
+      <aside v-if="showHomeSidebar" class="sidebar">
+        <button
+          v-for="nav in portal.leftNav"
+          :key="nav.key"
+          :class="{ active: activeHomeMenuKey === nav.key }"
+          @click="selectHomeMenu(nav.key)"
+        >
           <component :is="getIcon(nav.icon)" :size="22" />
-          <span>{{ nav.label }}</span>
-          <ChevronDown v-if="nav.key === 'workspace' || nav.key === 'toolkit'" :size="16" />
+          <span class="nav-copy">
+            <strong>{{ nav.label }}</strong>
+            <small>{{ getHomeMenuHint(nav.key) }}</small>
+          </span>
         </button>
         <div class="backup-card">
           <strong>工作&学习文件备份</strong>
@@ -110,7 +134,7 @@ function goPage(pageKey: string) {
       </aside>
 
       <main class="content">
-        <DynamicPage :page-config="pageConfig" @open-item="openItem" />
+        <DynamicPage :page-config="displayPageConfig" @open-item="openItem" />
         <section class="workspace-dock">
           <div>
             <Sparkles :size="22" />

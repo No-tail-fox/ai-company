@@ -1,10 +1,13 @@
 import { expect, test } from 'vitest';
 import {
   buildAssistantRanking,
+  createHomeMenuPageConfig,
   createFallbackPortalConfig,
+  createFallbackPageConfig,
   formatUsageCount,
   normalizePageConfig,
-  normalizePortalConfig
+  normalizePortalConfig,
+  shouldShowHomeSidebar
 } from '../src/services/viewModel';
 
 test('formats usage count with Chinese ten-thousand units', () => {
@@ -27,12 +30,9 @@ test('fallback portal config contains learning, orders and community sections', 
     'legal',
     'office'
   ]);
-  expect(config.homeSections.map((section) => section.sectionKey)).toEqual([
-    'learning_center',
-    'order_center',
-    'communities',
-    'banners'
-  ]);
+  expect(config.homeSections.map((section) => section.sectionKey)).toEqual(
+    expect.arrayContaining(['learning_center', 'order_center', 'communities', 'banners', 'quick_start', 'toolkit'])
+  );
   expect(config.leftNav[0].label).toBe('基础必备');
   expect(config.homeSections[0].items.length).toBeGreaterThan(2);
 });
@@ -64,6 +64,35 @@ test('normalizes portal config pages and page sections from snake case API paylo
     enabled: true
   });
   expect(config.channels[0].key).toBe('marketing');
+});
+
+test('shows the left sidebar only on the home page', () => {
+  expect(shouldShowHomeSidebar('home')).toBe(true);
+  expect(shouldShowHomeSidebar('assistant')).toBe(false);
+  expect(shouldShowHomeSidebar('marketing')).toBe(false);
+});
+
+test('builds distinct home content for different left menu items', () => {
+  const homePage = createFallbackPageConfig('home');
+
+  const basic = createHomeMenuPageConfig(homePage, 'basic');
+  const orders = createHomeMenuPageConfig(homePage, 'orders');
+  const toolkit = createHomeMenuPageConfig(homePage, 'toolkit');
+
+  expect(basic.sections.length).toBeGreaterThanOrEqual(2);
+  expect(orders.sections.length).toBeGreaterThanOrEqual(2);
+  expect(toolkit.sections.length).toBeGreaterThanOrEqual(2);
+  expect(basic.sections.map((section) => section.sectionKey)).not.toEqual(
+    orders.sections.map((section) => section.sectionKey)
+  );
+  expect(orders.sections.flatMap((section) => section.items).some((item) => item.category === '接单变现')).toBe(true);
+  expect(toolkit.sections.flatMap((section) => section.items).some((item) => item.category === '专业工具包')).toBe(true);
+});
+
+test('home menu filtering does not affect non-home pages', () => {
+  const marketing = createFallbackPageConfig('marketing');
+
+  expect(createHomeMenuPageConfig(marketing, 'orders')).toBe(marketing);
 });
 
 test('normalizes a single page config with modular section layouts', () => {

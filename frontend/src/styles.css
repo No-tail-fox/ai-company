@@ -247,6 +247,10 @@ button {
   min-height: calc(100vh - 180px);
 }
 
+.app-frame.no-sidebar {
+  grid-template-columns: 1fr;
+}
+
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -274,8 +278,24 @@ button {
   background: #f0edff;
 }
 
-.sidebar button svg:last-child {
-  margin-left: auto;
+.nav-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.nav-copy strong {
+  font-size: 15px;
+}
+
+.nav-copy small {
+  color: #8a91a3;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sidebar button.active .nav-copy small {
+  color: #7468e8;
 }
 
 .backup-card {
@@ -303,6 +323,10 @@ button {
   position: relative;
   padding: 26px 64px 92px 38px;
   background: #fff;
+}
+
+.app-frame.no-sidebar .content {
+  padding-left: 64px;
 }
 
 .page-hero {
@@ -398,6 +422,10 @@ button {
 
 .template-list {
   grid-template-columns: repeat(2, minmax(260px, 1fr));
+}
+
+.task-list {
+  grid-template-columns: repeat(3, minmax(210px, 1fr));
 }
 
 .default-grid {
