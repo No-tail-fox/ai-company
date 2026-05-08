@@ -1,0 +1,24 @@
+{
+  "name": "opc-ai-community-shell",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node ./node_modules/vite/bin/vite.js --host 127.0.0.1",
+    "build": "node ./node_modules/vue-tsc/bin/vue-tsc.js --noEmit; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; node ./node_modules/vite/bin/vite.js build",
+    "test": "node ./node_modules/vitest/vitest.mjs run"
+  },
+  "dependencies": {
+    "@vitejs/plugin-vue": "5.2.1",
+    "lucide-vue-next": "0.468.0",
+    "vite": "6.0.7",
+    "vue": "3.5.13",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@vue/tsconfig": "0.7.0",
+    "typescript": "5.7.3",
+    "vitest": "2.1.8",
+    "vue-tsc": "2.2.0"
+  }
+}
