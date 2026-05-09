@@ -383,7 +383,7 @@ def test_non_admin_token_cannot_access_admin_routes(session):
     assert response.status_code == 403
 
 
-def test_demo_seed_creates_ten_pages_and_admin_user(session):
+def test_demo_seed_creates_portal_pages_and_admin_user(session):
     ensure_demo_data(session, tenant_id="demo")
 
     client = make_client(session)
@@ -394,6 +394,7 @@ def test_demo_seed_creates_ten_pages_and_admin_user(session):
         "home",
         "assistant",
         "marketing",
+        "image",
         "video",
         "audio",
         "coding",

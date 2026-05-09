@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, Protocol
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -97,3 +98,23 @@ class ChannelRouter:
         self.session.commit()
         raise NoHealthyChannelError(f"all channels failed for route {route_key}: {last_error}")
 
+
+class HttpChannelTransport:
+    def send(self, channel: ApiChannel, route: ChannelRoute, payload: dict[str, Any]) -> dict[str, Any]:
+        headers = {
+            "Authorization": f"Bearer {channel.api_key}",
+            "X-Channel-Key": channel.channel_key,
+            "X-Route-Key": route.route_key,
+        }
+        provider_payload = {
+            **payload,
+            "model": route.backend_model,
+            "route_key": route.route_key,
+        }
+        with httpx.Client(timeout=channel.timeout_seconds) as client:
+            response = client.post(channel.base_url, json=provider_payload, headers=headers)
+            response.raise_for_status()
+            raw = response.json()
+        if isinstance(raw, dict) and isinstance(raw.get("data"), dict):
+            return {**raw, **raw["data"]}
+        return raw if isinstance(raw, dict) else {"raw": raw}

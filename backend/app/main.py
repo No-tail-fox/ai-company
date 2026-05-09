@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.db import get_session, init_db
 from app.models import User
 from app.schemas import (
+    AudioTaskCreate,
     AssistantCreate,
     ContentItemCreate,
     ContentItemUpdate,
@@ -18,15 +19,26 @@ from app.schemas import (
     ContentPageUpdate,
     ContentSectionCreate,
     ContentSectionUpdate,
+    ImageGenerationCreate,
+    ImageTaskPayload,
+    ImageWorkbenchPayload,
     LoginRequest,
     ReorderRequest,
+    VideoGenerationCreate,
+    VideoTaskPayload,
+    VideoWorkbenchPayload,
 )
 from app.seed import ensure_demo_data
+from app.services.audio import AudioProviderError, AudioService
 from app.services.admin_content import AdminContentService
 from app.services.auth import AuthService
+from app.services.channel_router import ChannelTransport, HttpChannelTransport, RouteNotFoundError
+from app.services.image import DEMO_IMAGE_USER_ID, ImageService, ImageUserNotFoundError, ImageValidationError
 from app.services.memberships import MembershipService
 from app.services.portal import PortalService
 from app.services.uploads import UploadService, UploadValidationError
+from app.services.video import DEMO_VIDEO_USER_ID, VideoService, VideoUserNotFoundError, VideoValidationError
+from app.services.wallet import InsufficientBalanceError, WalletNotFoundError
 from app.settings import get_settings
 
 
@@ -55,9 +67,10 @@ async def lifespan(app: FastAPI) -> Iterator[None]:
     yield
 
 
-def create_app() -> FastAPI:
+def create_app(*, audio_transport: ChannelTransport | None = None) -> FastAPI:
     settings = get_settings()
     app = FastAPI(title=settings.app_name, lifespan=lifespan)
+    app.state.audio_transport = audio_transport or HttpChannelTransport()
     storage_dir = Path(settings.storage_dir)
     storage_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/storage", StaticFiles(directory=storage_dir), name="storage")
@@ -98,6 +111,50 @@ def create_app() -> FastAPI:
         db: Session = Depends(get_session),
     ) -> dict:
         return PortalService(db).get_assistant_center(tenant_id=tenant_id, category=category)
+
+    @app.get(f"{settings.api_prefix}/video/workbench", response_model=VideoWorkbenchPayload)
+    def video_workbench(
+        tenant_id: TenantHeader,
+        user_id: str = DEMO_VIDEO_USER_ID,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        try:
+            return VideoService(db).get_workbench(tenant_id=tenant_id, user_id=user_id)
+        except (RouteNotFoundError, WalletNotFoundError, VideoUserNotFoundError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post(f"{settings.api_prefix}/video/generations", status_code=status.HTTP_201_CREATED, response_model=VideoTaskPayload)
+    def create_video_generation(
+        payload: VideoGenerationCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        try:
+            return VideoService(db).create_generation(tenant_id=tenant_id, payload=payload)
+        except (RouteNotFoundError, WalletNotFoundError, VideoUserNotFoundError, VideoValidationError, InsufficientBalanceError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get(f"{settings.api_prefix}/image/workbench", response_model=ImageWorkbenchPayload)
+    def image_workbench(
+        tenant_id: TenantHeader,
+        user_id: str = DEMO_IMAGE_USER_ID,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        try:
+            return ImageService(db).get_workbench(tenant_id=tenant_id, user_id=user_id)
+        except (RouteNotFoundError, WalletNotFoundError, ImageUserNotFoundError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post(f"{settings.api_prefix}/image/generations", status_code=status.HTTP_201_CREATED, response_model=ImageTaskPayload)
+    def create_image_generation(
+        payload: ImageGenerationCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        try:
+            return ImageService(db).create_generation(tenant_id=tenant_id, payload=payload)
+        except (RouteNotFoundError, WalletNotFoundError, ImageUserNotFoundError, ImageValidationError, InsufficientBalanceError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get(f"{settings.api_prefix}/memberships/status")
     def membership_status(
@@ -391,6 +448,38 @@ def create_app() -> FastAPI:
             return await UploadService().save_image(tenant_id=tenant_id, upload=file)
         except UploadValidationError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post(f"{settings.api_prefix}/audio/uploads", status_code=status.HTTP_201_CREATED)
+    async def upload_audio(
+        tenant_id: TenantHeader,
+        file: UploadFile = File(...),
+    ) -> dict:
+        try:
+            return await UploadService().save_audio(tenant_id=tenant_id, upload=file)
+        except UploadValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post(f"{settings.api_prefix}/audio/tasks", status_code=status.HTTP_201_CREATED)
+    def create_audio_task(
+        payload: AudioTaskCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        try:
+            return AudioService(db, app.state.audio_transport).create_task(tenant_id=tenant_id, payload=payload)
+        except RouteNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (InsufficientBalanceError, WalletNotFoundError) as exc:
+            raise HTTPException(status_code=402, detail=str(exc)) from exc
+        except AudioProviderError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    @app.get(f"{settings.api_prefix}/audio/tasks")
+    def list_audio_tasks(
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        return AudioService(db, app.state.audio_transport).list_tasks(tenant_id=tenant_id)
 
     @app.post(f"{settings.api_prefix}/admin/assistants", status_code=status.HTTP_201_CREATED)
     def create_assistant(

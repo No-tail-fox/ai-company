@@ -5,7 +5,9 @@ from datetime import timedelta
 from sqlalchemy.orm import Session
 
 from app.models import (
+    ApiChannel,
     AiAssistant,
+    ChannelRoute,
     ContentItem,
     ContentPage,
     ContentSection,
@@ -49,6 +51,7 @@ def ensure_demo_data(session: Session, *, tenant_id: str = "demo") -> None:
     _add_assistants(session, tenant_id)
     _add_templates(session, tenant_id)
     _add_memberships(session, tenant_id)
+    _add_audio_routes(session, tenant_id)
     session.commit()
 
 
@@ -56,6 +59,7 @@ PAGES = [
     ("page-home", "home", "首页", "常用AI学习中心", "学习、接单、社群和活动的统一入口", "Home", 10),
     ("page-assistant", "assistant", "AI 助理", "智能助理广场", "办公、营销、学习、法务等场景助理集合", "Bot", 20),
     ("page-marketing", "marketing", "AI 营销", "营销增长中心", "从内容生成到投放复盘的一站式工具台", "Megaphone", 30),
+    ("page-image", "image", "AI 图片", "AI图片创作中心", "提示词、模板、批量出图和生成队列", "Image", 35),
     ("page-video", "video", "AI 视频", "AI视频创作中心", "脚本、数字人、剪辑、字幕和渲染队列", "FileVideo", 40),
     ("page-audio", "audio", "AI 音频", "AI音频工作台", "配音、转写、降噪、播客和音色库", "Headphones", 50),
     ("page-coding", "coding", "AI 编程", "AI编程工作台", "代码生成、审查、测试和自动化脚本", "Workflow", 60),
@@ -147,6 +151,20 @@ def _section_definitions() -> list[tuple[str, str, str, str, str, str, int]]:
     for _, page_key, label, title, subtitle, _, order in PAGES:
         if page_key == "home":
             continue
+        if page_key == "audio":
+            sections.extend(
+                [
+                    ("section-audio-workbench", page_key, "workbench", "AI音频工作台", "文本生成、音频处理与任务管理", "audio-workbench", 10),
+                    ("section-audio-stats", page_key, "stats", "音频数据概览", "今日生成、项目数量、时长与成本", "audio-stats", 20),
+                    ("section-audio-tools", page_key, "tools", "音频工具中心", "高频音频能力一键启动", "audio-tools", 30),
+                    ("section-audio-voices", page_key, "voices", "音色库", "真人音色、品牌音色与多语种声音", "audio-voices", 40),
+                    ("section-audio-table", page_key, "recent", "最近音频", "查看生成、转写和处理结果", "audio-table", 50),
+                    ("section-audio-queue", page_key, "queue", "音频任务队列", "处理进度、排队状态和最近任务", "audio-queue", 60),
+                    ("section-audio-resources", page_key, "resources", "音频资源库", "背景音乐、音效库、模板和素材", "audio-resources", 70),
+                    ("section-audio-guides", page_key, "guides", "音频创作指南", "新手教程、音色推荐和制作技巧", "audio-guides", 80),
+                ]
+            )
+            continue
         sections.extend(
             [
                 (f"section-{page_key}-overview", page_key, "overview", title, subtitle, "stat-strip", 10),
@@ -210,18 +228,133 @@ def _item_definitions() -> list[tuple[str, str, str, str, str, str, str, str, st
     ]
     page_tools = {
         "assistant": [("办公助理", "会议纪要、邮件、PPT一键处理", "Users"), ("营销助理", "文案、脚本、投放素材生成", "Megaphone"), ("法务助理", "合同风险与条款解释", "Scale"), ("学习助理", "课程规划和知识点拆解", "GraduationCap")],
-        "marketing": [("爆款文案生成", "标题、卖点、脚本一键生成", "Feather"), ("私域引流方案", "社群、企微和转化路径规划", "Network"), ("投放素材生成", "广告图文和落地页素材", "Megaphone"), ("数据复盘", "转化漏斗和优化建议", "ChartColumn")],
+        "marketing": [
+            ("爆款文案生成", "标题、卖点、脚本一键生成", "Feather"),
+            ("私域引流方案", "社群、企微和转化路径规划", "Network"),
+            ("短视频脚本", "选题、分镜、口播一体生成", "FileVideo"),
+            ("小红书种草", "笔记文案与话题建议", "Megaphone"),
+            ("公众号推文", "长文内容与排版建议", "MessageCircle"),
+            ("邮件营销", "自动生成专业营销邮件", "Mail"),
+            ("SEO 关键词", "搜索词聚合与结构优化", "Search"),
+            ("投放素材", "广告图文和落地页文案", "WandSparkles"),
+            ("数据复盘", "转化漏斗和优化建议", "ChartColumn"),
+        ],
+        "image": [
+            ("一句话生成图片", "输入描述智能生成高质量图片", "Image"),
+            ("商品图生成", "电商主图、场景图和细节图", "Gift"),
+            ("人像写真", "头像、证件照和风格写真", "UserRound"),
+            ("风格迁移", "参考风格快速统一视觉", "WandSparkles"),
+            ("智能抠图", "主体分离、换背景和透明图", "ScanSearch"),
+            ("电商海报", "促销活动和详情页素材", "Megaphone"),
+            ("批量出图", "多尺寸多风格批量生成", "LayoutGrid"),
+        ],
         "video": [("文案生成视频", "输入脚本生成短视频分镜", "MonitorPlay"), ("数字人讲解", "课程、产品和招商讲解", "UserRound"), ("批量剪辑", "批量混剪与智能包装", "FileVideo"), ("智能字幕", "识别、翻译和样式处理", "NotebookTabs")],
-        "audio": [("文本转语音", "多音色自然配音", "Headphones"), ("声音克隆", "品牌音色复用", "CircleUserRound"), ("录音转写", "会议访谈快速成稿", "FileText"), ("AI 配乐", "短视频背景音乐生成", "Sparkles")],
+        "audio": [
+            ("文本转语音", "多音色高拟真配音", "Headphones"),
+            ("声音克隆", "复用品牌或个人音色", "CircleUserRound"),
+            ("播客生成", "一键生成播客旁白内容", "Mic"),
+            ("智能降噪", "去除环境噪音并提升清晰度", "AudioWaveform"),
+            ("录音转写", "会议访谈快速成稿", "FileText"),
+            ("会议纪要", "音频自动整理为结构化纪要", "Users"),
+            ("AI 配乐", "短视频背景音乐生成", "Music"),
+            ("音频剪辑", "裁剪、拼接、变速和淡入淡出", "Scissors"),
+        ],
         "coding": [("代码生成", "按需求生成组件和脚本", "Workflow"), ("代码审查", "发现风险和重构建议", "ScanSearch"), ("单元测试生成", "补齐核心路径测试", "ShieldCheck"), ("接口文档", "从代码整理API说明", "FileText")],
         "writing": [("文章写作", "结构化长文和公众号稿", "Feather"), ("报告生成", "周报、复盘和行业报告", "FileText"), ("简历优化", "经历改写和版式建议", "UserRound"), ("论文润色", "摘要、提纲和表达优化", "NotebookTabs")],
         "ecommerce": [("商品标题优化", "关键词和卖点组合", "WandSparkles"), ("详情页文案", "结构、利益点和FAQ", "FileText"), ("客服话术", "售前售后标准回复", "MessageCircle"), ("店铺诊断", "流量、转化和复购分析", "ChartColumn")],
         "legal": [("合同审查", "识别高风险条款", "ShieldCheck"), ("法律咨询", "常见问题初步分析", "Scale"), ("文书草拟", "通知函、协议和声明", "FileText"), ("证据清单", "按案件场景整理材料", "NotebookTabs")],
         "office": [("PPT 生成", "大纲到页面自动成稿", "Presentation"), ("Excel 公式", "函数、透视和批处理", "Sheet"), ("会议纪要", "录音转结构化纪要", "Users"), ("自动化流程", "表单、审批和通知串联", "Workflow")],
     }
+    marketing_overview_rows = [
+        ("进行中活动", "8", "较昨日 ↑2", "Flame"),
+        ("本月线索总数", "3,245", "较上月 ↑18.6%", "ReceiptText"),
+        ("内容总曝光", "128.6万", "较上月 ↑24.3%", "Megaphone"),
+        ("转化客户数", "236", "较上月 ↑15.2%", "Users"),
+        ("ROI 投入产出比", "4.32", "较上月 ↑0.68", "ChartColumn"),
+    ]
+    marketing_template_rows = [
+        ("新品上市推广文案", "适用于新品发布活动", "Gift"),
+        ("双11促销活动文案", "适用于大促节点推广", "Sparkles"),
+        ("行业解决方案文案", "适用于B2B方案包装", "ChartColumn"),
+        ("品牌故事文案", "适用于品牌表达和官网内容", "FileText"),
+        ("客户案例文案", "适用于案例展示与成交背书", "Presentation"),
+    ]
+    marketing_ranking_rows = [
+        ("微信公众号", "曝光 28.6万", "转化 62", "MessageCircle"),
+        ("小红书", "曝光 18.3万", "转化 48", "Image"),
+        ("抖音", "曝光 15.7万", "转化 32", "MonitorPlay"),
+        ("企业微信", "曝光 12.1万", "转化 14", "Users"),
+        ("知乎", "曝光 6.8万", "转化 9", "Search"),
+    ]
+    audio_route_keys = [
+        "audio_tts",
+        "audio_voice_clone",
+        "audio_podcast",
+        "audio_denoise",
+        "audio_transcription",
+        "audio_meeting_notes",
+        "audio_music",
+        "audio_editor",
+    ]
+    audio_stats = [
+        ("今日生成时长", "3.6 小时", "较昨日 ↑18%", "Clock3"),
+        ("音频项目数", "23 个", "较昨日 ↑27%", "Headphones"),
+        ("总生成时长", "128.7 小时", "较上月 ↑22%", "AudioWaveform"),
+        ("已节省成本", "￥3,256", "较上月 ↑31%", "ChartColumn"),
+    ]
+    audio_voices = [
+        ("知性女声", "温柔 · 知性 · 12.5w 使用", "女声", "CircleUserRound"),
+        ("磁性男声", "成熟 · 沉稳 · 9.8w 使用", "男声", "UserRound"),
+        ("活力女声", "活泼 · 明亮 · 8.7w 使用", "女声", "CircleUserRound"),
+        ("温暖男声", "亲切 · 自然 · 7.2w 使用", "男声", "UserRound"),
+        ("标准童声", "可爱 · 清晰 · 6.1w 使用", "童声", "Sparkles"),
+        ("粤语女声", "粤语 · 亲切 · 5.3w 使用", "方言", "Mic"),
+    ]
+    audio_recent = [
+        ("产品宣传片配音", "00:48 · 知性女声", "已完成", "Headphones"),
+        ("播客第28期", "12:36 · 磁性男声 · 65%", "处理中", "Podcast"),
+        ("AI工具使用教程", "08:22 · 活力女声 · 30%", "处理中", "FileText"),
+        ("市场调研会议", "05:17 · 多人声源", "已完成", "Users"),
+        ("广告配音 - 版本2", "00:30 · 温暖男声", "排队中", "Mic"),
+    ]
+    audio_resources = [
+        ("背景音乐", "2,362 首", "资源", "Music"),
+        ("音效库", "8,745 个", "资源", "Volume2"),
+        ("模板库", "356 个", "资源", "FileText"),
+        ("配音模板", "128 个", "资源", "Headphones"),
+    ]
+    audio_guides = [
+        ("新手入门教程", "从文本配音到导出音频", "指南", "GraduationCap"),
+        ("热门音色推荐", "按场景选择适合音色", "指南", "Star"),
+        ("音频制作技巧", "降噪、节奏和后期建议", "指南", "NotebookTabs"),
+    ]
     for page_key, tool_rows in page_tools.items():
+        if page_key == "audio":
+            items.append(("audio-workbench-main", "section-audio-workbench", "workbench", "文本转语音", "输入文字，选择音色与情感，一键生成自然流畅的语音", "音频工作台", "Headphones", "", "workspace", "audio_tts", 10, False, 120))
+            for index, (title, subtitle, icon) in enumerate(tool_rows, start=1):
+                items.append((f"audio-tool-{index}", "section-audio-tools", "tool", title, subtitle, "音频工具", icon, "", "workspace", audio_route_keys[index - 1], index * 10, index > 4, index * 10))
+            for index, (title, value, trend, icon) in enumerate(audio_stats, start=1):
+                items.append((f"audio-stat-{index}", "section-audio-stats", "stat", title, value, trend, icon, "", "route", "/audio", index * 10, False, 0))
+            for index, (title, subtitle, category, icon) in enumerate(audio_voices, start=1):
+                items.append((f"audio-voice-{index}", "section-audio-voices", "voice", title, subtitle, category, icon, "", "workspace", f"voice-{index}", index * 10, index > 4, 0))
+            for index, (title, subtitle, category, icon) in enumerate(audio_recent, start=1):
+                items.append((f"audio-recent-{index}", "section-audio-table", "audio", title, subtitle, category, icon, "", "route", "/audio", index * 10, False, 0))
+                items.append((f"audio-queue-{index}", "section-audio-queue", "task", title, subtitle, category, icon, "", "route", "/audio", index * 10, False, 0))
+            for index, (title, subtitle, category, icon) in enumerate(audio_resources, start=1):
+                items.append((f"audio-resource-{index}", "section-audio-resources", "resource", title, subtitle, category, icon, "", "route", "/audio/resources", index * 10, index > 2, 0))
+            for index, (title, subtitle, category, icon) in enumerate(audio_guides, start=1):
+                items.append((f"audio-guide-{index}", "section-audio-guides", "guide", title, subtitle, category, icon, "", "route", "/audio/guides", index * 10, False, 0))
+            continue
         for index, (title, subtitle, icon) in enumerate(tool_rows, start=1):
             items.append((f"{page_key}-tool-{index}", f"section-{page_key}-tools", "tool", title, subtitle, "工具", icon, "", "workspace", f"{page_key}-tool-{index}", index * 10, index > 2, index * 5))
+        if page_key == "marketing":
+            for index, (title, value, trend, icon) in enumerate(marketing_overview_rows, start=1):
+                items.append((f"{page_key}-overview-{index}", f"section-{page_key}-overview", "stat", title, value, trend, icon, "", "route", f"/{page_key}", index * 10, False, 0))
+            for index, (title, subtitle, icon) in enumerate(marketing_template_rows, start=1):
+                items.append((f"{page_key}-tpl-{index}", f"section-{page_key}-templates", "template", title, subtitle, "营销模板", icon, "", "workspace", f"{page_key}-template-{index}", index * 10, index > 1, 10))
+            for index, (title, exposure, conversion, icon) in enumerate(marketing_ranking_rows, start=1):
+                items.append((f"{page_key}-rank-{index}", f"section-{page_key}-ranking", "ranking", title, exposure, conversion, icon, "", "workspace", f"{page_key}-rank-{index}", index * 10, False, 0))
+            continue
         for index in range(1, 4):
             items.append((f"{page_key}-overview-{index}", f"section-{page_key}-overview", "stat", ["本周热度", "会员专享", "交付案例"][index - 1], ["使用量持续增长", "高阶模板开放", "沉淀可复用方案"][index - 1], "概览", ["Flame", "Gift", "BriefcaseBusiness"][index - 1], "", "route", f"/{page_key}", index * 10, index == 2, 0))
         for index in range(1, 4):
@@ -243,6 +376,8 @@ def _add_assistants(session: Session, tenant_id: str) -> None:
         ("excel", "Excel 公式助理", "生成公式、函数解释与表格处理方案", "开发助理", "Sheet", 146000, 80, False, 8),
         ("resume", "简历优化助理", "优化简历内容与排版，提升求职竞争力", "生活助理", "UserRound", 93000, 90, True, 10),
         ("image", "图片设计助理", "根据描述生成海报、封面与设计图", "设计助理", "Image", 72000, 100, True, 20),
+        ("study", "学习规划助理", "拆解学习目标，生成每日训练计划", "学习助理", "GraduationCap", 84000, 110, False, 8),
+        ("customer", "客服应答助理", "生成售前售后标准回复和异议处理话术", "客服助理", "MessageCircle", 118000, 120, True, 12),
     ]
     for key, name, description, category, icon, usage, order, required_membership, point_cost in assistants:
         id_ = f"assistant-{key}"
@@ -318,5 +453,79 @@ def _add_memberships(session: Session, tenant_id: str) -> None:
                 status="ACTIVE",
                 started_at=utcnow() - timedelta(days=1),
                 expires_at=utcnow() + timedelta(days=30),
+            )
+        )
+
+
+def _add_audio_routes(session: Session, tenant_id: str) -> None:
+    if session.get(ChannelRoute, "route-video_text_to_video") is None:
+        session.add(
+            ChannelRoute(
+                id="route-video_text_to_video",
+                tenant_id=tenant_id,
+                route_key="video_text_to_video",
+                display_name="文案生成视频",
+                backend_model="demo-video-renderer",
+                channel_type="VIDEO",
+                unit_cost=200,
+                priority=10,
+                enabled=True,
+            )
+        )
+    if session.get(ChannelRoute, "route-image_text_to_image") is None:
+        session.add(
+            ChannelRoute(
+                id="route-image_text_to_image",
+                tenant_id=tenant_id,
+                route_key="image_text_to_image",
+                display_name="一句话生成图片",
+                backend_model="demo-image-renderer",
+                channel_type="IMAGE",
+                unit_cost=80,
+                priority=10,
+                enabled=True,
+            )
+        )
+    routes = [
+        ("audio_tts", "文本转语音", "generic-tts", 120),
+        ("audio_voice_clone", "声音克隆", "generic-voice-clone", 180),
+        ("audio_podcast", "播客生成", "generic-podcast", 160),
+        ("audio_denoise", "智能降噪", "generic-denoise", 80),
+        ("audio_transcription", "录音转写", "generic-transcription", 90),
+        ("audio_meeting_notes", "会议纪要", "generic-meeting-notes", 110),
+        ("audio_music", "AI 配乐", "generic-music", 140),
+        ("audio_editor", "音频剪辑", "generic-editor", 70),
+    ]
+    for order, (route_key, display_name, backend_model, unit_cost) in enumerate(routes, start=1):
+        id_ = f"route-{route_key}"
+        if session.get(ChannelRoute, id_) is None:
+            session.add(
+                ChannelRoute(
+                    id=id_,
+                    tenant_id=tenant_id,
+                    route_key=route_key,
+                    display_name=display_name,
+                    backend_model=backend_model,
+                    channel_type="AUDIO",
+                    unit_cost=unit_cost,
+                    priority=order * 10,
+                    enabled=True,
+                )
+            )
+
+    if session.get(ApiChannel, "channel-demo-audio") is None:
+        session.add(
+            ApiChannel(
+                id="channel-demo-audio",
+                tenant_id=tenant_id,
+                channel_key="demo-audio-http",
+                display_name="通用音频 HTTP 渠道",
+                base_url="https://audio-provider.example.com/generate",
+                api_key="replace-with-provider-key",
+                channel_type="AUDIO",
+                priority=100,
+                enabled=False,
+                health_status="DEGRADED",
+                metadata_json={"note": "填入真实供应商地址和密钥后启用"},
             )
         )

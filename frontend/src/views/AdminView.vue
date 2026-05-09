@@ -20,9 +20,11 @@ import {
   loginAdmin
 } from '../services/api';
 import DynamicPage from '../components/DynamicPage.vue';
+import AudioPage from '../components/AudioPage.vue';
+import MarketingPage from '../components/MarketingPage.vue';
 import { clampPreviewScale, moveRecord, reorderByDrop } from '../services/adminInteractions';
 import { buildItemPayload, buildPagePayload, buildReorderPayload, buildSectionPayload } from '../services/adminForms';
-import type { PageConfigSummary, PortalItem, PortalPageConfig, PortalSection } from '../services/viewModel';
+import { shouldUseAudioPage, shouldUseMarketingPage, type PageConfigSummary, type PortalItem, type PortalPageConfig, type PortalSection } from '../services/viewModel';
 
 type AdminPanel = 'page' | 'section' | 'item' | '';
 
@@ -122,6 +124,8 @@ const previewStageStyle = computed(() => ({
   width: '1120px',
   transform: `scale(${previewScale.value})`
 }));
+const previewUsesMarketingPage = computed(() => Boolean(previewPageConfig.value && shouldUseMarketingPage(previewPageConfig.value.page.pageKey)));
+const previewUsesAudioPage = computed(() => Boolean(previewPageConfig.value && shouldUseAudioPage(previewPageConfig.value.page.pageKey)));
 
 onMounted(async () => {
   if (token.value) {
@@ -544,7 +548,17 @@ async function run(task: () => Promise<void>) {
             </header>
             <div class="preview-canvas">
               <div class="preview-stage" :style="previewStageStyle">
-                <DynamicPage v-if="previewPageConfig" :page-config="previewPageConfig" @open-item="() => undefined" />
+                <MarketingPage
+                  v-if="previewPageConfig && previewUsesMarketingPage"
+                  :page-config="previewPageConfig"
+                  @open-item="() => undefined"
+                />
+                <AudioPage
+                  v-else-if="previewPageConfig && previewUsesAudioPage"
+                  :page-config="previewPageConfig"
+                  @open-item="() => undefined"
+                />
+                <DynamicPage v-else-if="previewPageConfig" :page-config="previewPageConfig" @open-item="() => undefined" />
               </div>
             </div>
           </aside>
@@ -581,6 +595,14 @@ async function run(task: () => Promise<void>) {
                   <option value="banner-row">banner-row</option>
                   <option value="template-list">template-list</option>
                   <option value="ranking-list">ranking-list</option>
+                  <option value="audio-workbench">audio-workbench</option>
+                  <option value="audio-stats">audio-stats</option>
+                  <option value="audio-tools">audio-tools</option>
+                  <option value="audio-voices">audio-voices</option>
+                  <option value="audio-table">audio-table</option>
+                  <option value="audio-queue">audio-queue</option>
+                  <option value="audio-resources">audio-resources</option>
+                  <option value="audio-guides">audio-guides</option>
                 </select>
               </label>
               <label>排序<input v-model.number="sectionForm.sortOrder" type="number" /></label>

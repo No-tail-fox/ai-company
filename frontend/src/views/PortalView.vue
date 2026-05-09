@@ -12,15 +12,30 @@ import {
   Search,
   Sparkles
 } from 'lucide-vue-next';
+import AssistantPage from '../components/AssistantPage.vue';
+import AudioPage from '../components/AudioPage.vue';
 import DynamicPage from '../components/DynamicPage.vue';
-import { fetchPortalConfig, fetchPortalPage } from '../services/api';
+import ImagePage from '../components/ImagePage.vue';
+import MarketingPage from '../components/MarketingPage.vue';
+import VideoPage from '../components/VideoPage.vue';
+import { fetchAssistantCenter, fetchPortalConfig, fetchPortalPage } from '../services/api';
 import { getIcon } from '../services/icons';
 import {
+  createFallbackAssistantCenter,
   createFallbackPageConfig,
   createFallbackPortalConfig,
   createHomeMenuPageConfig,
   getHomeMenuHint,
+  shouldHideWorkspaceDock,
+  shouldUseAudioPage,
+  shouldUseAssistantPage,
+  shouldUseImagePage,
+  shouldUseMarketingPage,
+  shouldUseVideoPage,
   shouldShowHomeSidebar,
+  type AssistantCard,
+  type AssistantCenter,
+  type PromptTemplate,
   type PortalConfig,
   type PortalItem,
   type PortalPageConfig
@@ -29,13 +44,21 @@ import {
 const route = useRoute();
 const router = useRouter();
 const portal = ref<PortalConfig>(createFallbackPortalConfig());
-const pageConfig = ref<PortalPageConfig>(createFallbackPageConfig('home'));
+const pageConfig = ref<PortalPageConfig>(createFallbackPageConfig(String(route.params.pageKey || 'home')));
+const assistantCenter = ref<AssistantCenter>(createFallbackAssistantCenter());
 const activeHomeMenuKey = ref('basic');
 const selectedTool = ref('AI 接单陪跑工作台');
 const promptText = ref('帮我生成一套适合新手学习 AI 接单的 7 天训练计划。');
 
 const activePageKey = computed(() => String(route.params.pageKey || 'home'));
 const showHomeSidebar = computed(() => shouldShowHomeSidebar(activePageKey.value));
+const isAssistantPage = computed(() => shouldUseAssistantPage(activePageKey.value));
+const isAudioPage = computed(() => shouldUseAudioPage(activePageKey.value));
+const isImagePage = computed(() => shouldUseImagePage(activePageKey.value));
+const isMarketingPage = computed(() => shouldUseMarketingPage(activePageKey.value));
+const isVideoPage = computed(() => shouldUseVideoPage(activePageKey.value));
+const hideWorkspaceDock = computed(() => isAudioPage.value || isMarketingPage.value || shouldHideWorkspaceDock(activePageKey.value));
+const hideFloatTools = computed(() => isAudioPage.value || isImagePage.value || isMarketingPage.value || isVideoPage.value);
 const displayPageConfig = computed(() =>
   showHomeSidebar.value ? createHomeMenuPageConfig(pageConfig.value, activeHomeMenuKey.value) : pageConfig.value
 );
@@ -51,11 +74,24 @@ watch(activePageKey, async (pageKey) => {
 
 async function loadPage(pageKey: string) {
   pageConfig.value = await fetchPortalPage(pageKey);
+  if (shouldUseAssistantPage(pageKey)) {
+    assistantCenter.value = await fetchAssistantCenter();
+  }
 }
 
 function openItem(item: PortalItem) {
   selectedTool.value = item.title;
   promptText.value = `请以「${item.title}」身份，帮我完成一个可交付的项目方案。`;
+}
+
+function openAssistant(assistant: AssistantCard) {
+  selectedTool.value = assistant.name;
+  promptText.value = `请以「${assistant.name}」身份，帮我完成一个可交付的项目方案。`;
+}
+
+function openTemplate(template: PromptTemplate) {
+  selectedTool.value = template.title;
+  promptText.value = template.content;
 }
 
 function goPage(pageKey: string) {
@@ -70,11 +106,6 @@ function selectHomeMenu(menuKey: string) {
 <template>
   <div class="desktop-shell">
     <header class="window-bar">
-      <div class="window-dots">
-        <span class="dot red"></span>
-        <span class="dot amber"></span>
-        <span class="dot green"></span>
-      </div>
       <div class="window-tab">
         <component :is="getIcon(displayPageConfig.page.icon)" :size="16" />
         <span>{{ displayPageConfig.page.label }}</span>
@@ -133,9 +164,19 @@ function selectHomeMenu(menuKey: string) {
         </div>
       </aside>
 
-      <main class="content">
-        <DynamicPage :page-config="displayPageConfig" @open-item="openItem" />
-        <section class="workspace-dock">
+      <main :class="['content', { 'audio-content': isAudioPage, 'image-content': isImagePage, 'marketing-content': isMarketingPage, 'video-content': isVideoPage }]">
+        <AssistantPage
+          v-if="isAssistantPage"
+          :center="assistantCenter"
+          @open-assistant="openAssistant"
+          @open-template="openTemplate"
+        />
+        <AudioPage v-else-if="isAudioPage" :page-config="displayPageConfig" @open-item="openItem" />
+        <ImagePage v-else-if="isImagePage" />
+        <MarketingPage v-else-if="isMarketingPage" :page-config="displayPageConfig" @open-item="openItem" />
+        <VideoPage v-else-if="isVideoPage" />
+        <DynamicPage v-else :page-config="displayPageConfig" @open-item="openItem" />
+        <section v-if="!hideWorkspaceDock" class="workspace-dock">
           <div>
             <Sparkles :size="22" />
             <strong>{{ selectedTool }}</strong>
@@ -145,7 +186,7 @@ function selectHomeMenu(menuKey: string) {
         </section>
       </main>
 
-      <aside class="float-tools">
+      <aside v-if="!hideFloatTools" class="float-tools">
         <button><Bell :size="20" /><span>消息</span></button>
         <button><Download :size="20" /><span>下载</span></button>
         <button><Headphones :size="20" /><span>客服</span></button>

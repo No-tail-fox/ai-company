@@ -1,13 +1,26 @@
 import {
   createFallbackAssistantCenter,
+  createFallbackImageWorkbench,
   createFallbackPageConfig,
   createFallbackPortalConfig,
+  createFallbackVideoWorkbench,
+  buildAudioTaskPayload,
   normalizeAssistantCenter,
+  normalizeAudioTask,
+  normalizeImageWorkbench,
   normalizePageConfig,
   normalizePortalConfig,
+  normalizeVideoWorkbench,
   type AssistantCenter,
+  type AudioTask,
+  type AudioTaskPayload,
+  type ImageTask,
+  type ImageWorkbench,
   type PortalConfig,
-  type PortalPageConfig
+  type PortalItem,
+  type PortalPageConfig,
+  type VideoTask,
+  type VideoWorkbench
 } from './viewModel';
 
 const tenantId = 'demo';
@@ -81,6 +94,88 @@ export async function fetchAssistantCenter(): Promise<AssistantCenter> {
   } catch {
     return createFallbackAssistantCenter();
   }
+}
+
+export async function fetchVideoWorkbench(): Promise<VideoWorkbench> {
+  try {
+    return normalizeVideoWorkbench(await request('/api/v1/video/workbench?user_id=demo-user'));
+  } catch {
+    return createFallbackVideoWorkbench();
+  }
+}
+
+export async function createVideoGeneration(prompt: string, requestKey?: string): Promise<VideoTask> {
+  const payload = await request('/api/v1/video/generations', {
+    method: 'POST',
+    body: JSON.stringify({
+      prompt,
+      user_id: 'demo-user',
+      route_key: 'video_text_to_video',
+      request_key: requestKey
+    })
+  });
+  return normalizeVideoWorkbench({
+    tenant_id: 'demo',
+    user_id: 'demo-user',
+    wallet: {},
+    route: {},
+    tasks: [payload]
+  }).tasks[0];
+}
+
+export async function fetchImageWorkbench(): Promise<ImageWorkbench> {
+  try {
+    return normalizeImageWorkbench(await request('/api/v1/image/workbench?user_id=demo-user'));
+  } catch {
+    return createFallbackImageWorkbench();
+  }
+}
+
+export async function createImageGeneration(prompt: string, requestKey?: string): Promise<ImageTask> {
+  const payload = await request('/api/v1/image/generations', {
+    method: 'POST',
+    body: JSON.stringify({
+      prompt,
+      user_id: 'demo-user',
+      route_key: 'image_text_to_image',
+      request_key: requestKey
+    })
+  });
+  return normalizeImageWorkbench({
+    tenant_id: 'demo',
+    user_id: 'demo-user',
+    wallet: {},
+    route: {},
+    tasks: [payload]
+  }).tasks[0];
+}
+
+export async function fetchAudioTasks(): Promise<AudioTask[]> {
+  try {
+    const payload = await request('/api/v1/audio/tasks');
+    return (payload.tasks ?? []).map(normalizeAudioTask);
+  } catch {
+    return [];
+  }
+}
+
+export async function createAudioTask(payload: AudioTaskPayload): Promise<AudioTask> {
+  return normalizeAudioTask(
+    await request('/api/v1/audio/tasks', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+  );
+}
+
+export async function createAudioTaskForTool(tool: PortalItem, prompt: string, voice?: PortalItem, sourceUrl = ''): Promise<AudioTask> {
+  return createAudioTask(buildAudioTaskPayload(tool, prompt, voice, sourceUrl));
+}
+
+export async function uploadAudio(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  return request('/api/v1/audio/uploads', { method: 'POST', body: form, isForm: true });
 }
 
 export async function adminListPages() {
