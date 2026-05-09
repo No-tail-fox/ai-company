@@ -244,6 +244,8 @@ const MARKETING_PAGE_KEY = 'marketing';
 const IMAGE_PAGE_KEY = 'image';
 const AUDIO_PAGE_KEY = 'audio';
 const VIDEO_PAGE_KEY = 'video';
+const CODING_PAGE_KEY = 'coding';
+const WRITING_PAGE_KEY = 'writing';
 
 interface HomeMenuRule {
   key: string;
@@ -348,6 +350,14 @@ export function shouldUseAudioPage(pageKey: string): boolean {
   return pageKey === AUDIO_PAGE_KEY;
 }
 
+export function shouldUseCodingPage(pageKey: string): boolean {
+  return pageKey === CODING_PAGE_KEY;
+}
+
+export function shouldUseWritingPage(pageKey: string): boolean {
+  return pageKey === WRITING_PAGE_KEY;
+}
+
 export function getAudioSection(pageConfig: PortalPageConfig, layout: string): PortalSection | undefined {
   if (!layout.startsWith('audio-')) {
     return undefined;
@@ -375,7 +385,7 @@ export function shouldUseVideoPage(pageKey: string): boolean {
 }
 
 export function shouldHideWorkspaceDock(pageKey: string): boolean {
-  return shouldUseImagePage(pageKey) || shouldUseVideoPage(pageKey);
+  return shouldUseImagePage(pageKey) || shouldUseVideoPage(pageKey) || shouldUseCodingPage(pageKey) || shouldUseWritingPage(pageKey);
 }
 
 export function getHomeMenuHint(menuKey: string): string {

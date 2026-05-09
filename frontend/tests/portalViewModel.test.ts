@@ -18,7 +18,9 @@ import {
   normalizePortalConfig,
   shouldUseAssistantPage,
   shouldUseImagePage,
+  shouldUseCodingPage,
   shouldUseMarketingPage,
+  shouldUseWritingPage,
   shouldUseVideoPage,
   shouldHideWorkspaceDock,
   shouldShowHomeSidebar
@@ -357,6 +359,17 @@ test('uses the dedicated image page and hides the workspace dock only for creati
   expect(shouldUseImagePage('home')).toBe(false);
   expect(shouldShowHomeSidebar('image')).toBe(false);
   expect(shouldHideWorkspaceDock('image')).toBe(true);
+});
+
+test('uses dedicated coding and writing workbench pages', () => {
+  expect(shouldUseCodingPage('coding')).toBe(true);
+  expect(shouldUseCodingPage('writing')).toBe(false);
+  expect(shouldUseWritingPage('writing')).toBe(true);
+  expect(shouldUseWritingPage('coding')).toBe(false);
+  expect(shouldShowHomeSidebar('coding')).toBe(false);
+  expect(shouldShowHomeSidebar('writing')).toBe(false);
+  expect(shouldHideWorkspaceDock('coding')).toBe(true);
+  expect(shouldHideWorkspaceDock('writing')).toBe(true);
 });
 
 test('fallback navigation places AI image between marketing and video', () => {

@@ -17,6 +17,7 @@ import AudioPage from '../components/AudioPage.vue';
 import DynamicPage from '../components/DynamicPage.vue';
 import ImagePage from '../components/ImagePage.vue';
 import MarketingPage from '../components/MarketingPage.vue';
+import TextWorkbenchPage from '../components/TextWorkbenchPage.vue';
 import VideoPage from '../components/VideoPage.vue';
 import { fetchAssistantCenter, fetchPortalConfig, fetchPortalPage } from '../services/api';
 import { getIcon } from '../services/icons';
@@ -29,9 +30,11 @@ import {
   shouldHideWorkspaceDock,
   shouldUseAudioPage,
   shouldUseAssistantPage,
+  shouldUseCodingPage,
   shouldUseImagePage,
   shouldUseMarketingPage,
   shouldUseVideoPage,
+  shouldUseWritingPage,
   shouldShowHomeSidebar,
   type AssistantCard,
   type AssistantCenter,
@@ -57,8 +60,12 @@ const isAudioPage = computed(() => shouldUseAudioPage(activePageKey.value));
 const isImagePage = computed(() => shouldUseImagePage(activePageKey.value));
 const isMarketingPage = computed(() => shouldUseMarketingPage(activePageKey.value));
 const isVideoPage = computed(() => shouldUseVideoPage(activePageKey.value));
+const isCodingPage = computed(() => shouldUseCodingPage(activePageKey.value));
+const isWritingPage = computed(() => shouldUseWritingPage(activePageKey.value));
 const hideWorkspaceDock = computed(() => isAudioPage.value || isMarketingPage.value || shouldHideWorkspaceDock(activePageKey.value));
-const hideFloatTools = computed(() => isAudioPage.value || isImagePage.value || isMarketingPage.value || isVideoPage.value);
+const hideFloatTools = computed(
+  () => isAudioPage.value || isImagePage.value || isMarketingPage.value || isVideoPage.value || isCodingPage.value || isWritingPage.value
+);
 const displayPageConfig = computed(() =>
   showHomeSidebar.value ? createHomeMenuPageConfig(pageConfig.value, activeHomeMenuKey.value) : pageConfig.value
 );
@@ -164,7 +171,18 @@ function selectHomeMenu(menuKey: string) {
         </div>
       </aside>
 
-      <main :class="['content', { 'audio-content': isAudioPage, 'image-content': isImagePage, 'marketing-content': isMarketingPage, 'video-content': isVideoPage }]">
+      <main
+        :class="[
+          'content',
+          {
+            'audio-content': isAudioPage,
+            'image-content': isImagePage,
+            'marketing-content': isMarketingPage,
+            'video-content': isVideoPage,
+            'craft-content': isCodingPage || isWritingPage
+          }
+        ]"
+      >
         <AssistantPage
           v-if="isAssistantPage"
           :center="assistantCenter"
@@ -175,6 +193,7 @@ function selectHomeMenu(menuKey: string) {
         <ImagePage v-else-if="isImagePage" />
         <MarketingPage v-else-if="isMarketingPage" :page-config="displayPageConfig" @open-item="openItem" />
         <VideoPage v-else-if="isVideoPage" />
+        <TextWorkbenchPage v-else-if="isCodingPage || isWritingPage" :page-config="displayPageConfig" />
         <DynamicPage v-else :page-config="displayPageConfig" @open-item="openItem" />
         <section v-if="!hideWorkspaceDock" class="workspace-dock">
           <div>
