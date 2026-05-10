@@ -1,4 +1,4 @@
-export interface PageConfigSummary {
+﻿export interface PageConfigSummary {
   id?: string;
   tenantId?: string;
   pageKey: string;
@@ -10,10 +10,40 @@ export interface PageConfigSummary {
   enabled: boolean;
 }
 
+export type GenerationSurface = 'portal' | 'workbench';
+
 export interface NavItem {
   key: string;
   label: string;
   icon: string;
+}
+
+export interface ModelConfigSummary {
+  id: string;
+  tenantId?: string;
+  modelKey: string;
+  displayName: string;
+  capability?: string;
+  channelId?: string;
+  channelKey?: string;
+  channelName?: string;
+  providerModel?: string;
+  defaultPointCost?: number;
+  enabled?: boolean;
+}
+
+export interface ProviderChannelSummary {
+  id: string;
+  tenantId?: string;
+  channelKey: string;
+  displayName: string;
+  baseUrl: string;
+  apiKeyMask?: string;
+  channelType: string;
+  priority: number;
+  enabled: boolean;
+  healthStatus?: string;
+  timeoutSeconds?: number;
 }
 
 export interface PortalItem {
@@ -34,6 +64,9 @@ export interface PortalItem {
   actionValue: string;
   requiredMembership: boolean;
   pointCost: number;
+  effectivePointCost?: number;
+  modelConfig?: ModelConfigSummary | null;
+  metadata: Record<string, any>;
 }
 
 export interface PortalSection {
@@ -72,8 +105,10 @@ export interface AssistantCard {
   usageCount: number;
   usageCountLabel?: string;
   pointCost: number;
+  effectivePointCost?: number;
   requiredMembership: boolean;
   actionValue: string;
+  modelConfig?: ModelConfigSummary | null;
 }
 
 export interface PromptTemplate {
@@ -82,6 +117,20 @@ export interface PromptTemplate {
   category: string;
   content: string;
   requiredMembership: boolean;
+  effectivePointCost?: number;
+  modelConfig?: ModelConfigSummary | null;
+}
+
+export interface ToolModelBindingSummary {
+  id: string;
+  tenantId?: string;
+  targetType: string;
+  targetKey: string;
+  modelConfigId: string;
+  pointCostOverride?: number | null;
+  effectivePointCost?: number | null;
+  enabled: boolean;
+  modelConfig?: ModelConfigSummary | null;
 }
 
 export interface AssistantCenter {
@@ -98,10 +147,15 @@ export interface AudioTaskPayload {
   prompt: string;
   source_url: string;
   voice_key: string;
+  target_type?: string;
+  target_id?: string;
+  request_key?: string;
+  surface?: GenerationSurface;
 }
 
 export interface AudioTask {
   id: string;
+  surface?: GenerationSurface;
   taskType: string;
   routeKey: string;
   prompt: string;
@@ -157,6 +211,7 @@ export interface VideoTask {
   id: string;
   tenantId: string;
   userId: string;
+  surface?: GenerationSurface;
   taskType: string;
   routeKey: string;
   prompt: string;
@@ -173,6 +228,7 @@ export interface VideoTask {
 export interface VideoWorkbench {
   tenantId: string;
   userId: string;
+  surface?: GenerationSurface;
   wallet: VideoWallet;
   route: VideoRoute;
   tasks: VideoTask[];
@@ -198,6 +254,7 @@ export interface ImageTask {
   id: string;
   tenantId: string;
   userId: string;
+  surface?: GenerationSurface;
   taskType: string;
   routeKey: string;
   prompt: string;
@@ -214,6 +271,7 @@ export interface ImageTask {
 export interface ImageWorkbench {
   tenantId: string;
   userId: string;
+  surface?: GenerationSurface;
   wallet: ImageWallet;
   route: ImageRoute;
   tasks: ImageTask[];
@@ -225,13 +283,169 @@ export interface ImageStatusMeta {
   tone: 'pending' | 'processing' | 'success' | 'failed';
 }
 
+export interface ChatExportFile {
+  id?: string;
+  url: string;
+  storageKey: string;
+  fileName: string;
+  size?: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  tenantId?: string;
+  sessionId?: string;
+  role: string;
+  content: string;
+  sequence: number;
+  createdAt?: string | null;
+  export?: ChatExportFile | null;
+}
+
+export interface ChatSessionSummary {
+  id: string;
+  tenantId?: string;
+  userId?: string;
+  title: string;
+  preview: string;
+  presetRole: string;
+  modelKey: string;
+  status: string;
+  messageCount: number;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface ChatActiveSession extends ChatSessionSummary {
+  messages: ChatMessage[];
+}
+
+export interface ChatModelSummary {
+  id: string;
+  modelKey: string;
+  displayName: string;
+  providerModel?: string;
+  defaultPointCost?: number;
+  channelKey?: string;
+}
+
+export interface ChatWorkbench {
+  tenantId: string;
+  userId: string;
+  sessions: ChatSessionSummary[];
+  activeSession: ChatActiveSession | null;
+  models: ChatModelSummary[];
+}
+
+export interface ChatSessionGroup {
+  key: 'today' | 'yesterday' | 'thisWeek' | 'older';
+  label: string;
+  sessions: ChatSessionSummary[];
+}
+
+export interface ChatSendResult {
+  session: ChatActiveSession;
+  messagesCreated: ChatMessage[];
+}
+
+export interface ChatExportResult {
+  asset: ChatExportFile;
+  message: ChatMessage;
+}
+
+export interface PortalDetailAction {
+  key: string;
+  label: string;
+}
+
+export interface PortalDetailDownload {
+  fileName: string;
+  url: string;
+  storageKey?: string;
+}
+
+export interface PortalDetailFaq {
+  question: string;
+  answer: string;
+}
+
+export interface PortalDetailContent {
+  summary: string;
+  highlights: string[];
+  steps: string[];
+  deliverables: string[];
+  faqs: PortalDetailFaq[];
+  primaryAction: PortalDetailAction;
+  secondaryActions: PortalDetailAction[];
+  download?: PortalDetailDownload | null;
+}
+
+export interface PortalDetailUserState {
+  membershipActive: boolean;
+  locked: boolean;
+  completedActions: string[];
+}
+
+export interface PortalDetailPayload {
+  path: string;
+  kind: string;
+  title: string;
+  subtitle: string;
+  icon: string;
+  requiredMembership: boolean;
+  effectivePointCost: number;
+  items: PortalItem[];
+  detail: PortalDetailContent;
+  userState: PortalDetailUserState;
+}
+
+export interface PortalActionRequest {
+  userId: string;
+  detailPath: string;
+  itemId?: string;
+  actionKey: string;
+}
+
+export interface UserPortalAction {
+  id: string;
+  tenantId?: string;
+  userId?: string;
+  detailPath: string;
+  itemId?: string;
+  actionKey: string;
+  status: string;
+  message: string;
+  result?: Record<string, any>;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface PortalActionResult {
+  status: string;
+  message: string;
+  action: UserPortalAction | null;
+  download?: PortalDetailDownload | null;
+  route?: string | null;
+}
+
+export interface PortalSearchResult {
+  id: string;
+  title: string;
+  subtitle: string;
+  type: string;
+  pageKey: string;
+  path: string;
+  icon: string;
+}
+
 const fallbackPages: PageConfigSummary[] = [
   page('home', '首页', '常用AI学习中心', '学习、接单、社群和活动的统一入口', 'Home', 10),
   page('assistant', 'AI 助理', '智能助理广场', '办公、营销、学习、法务等场景助理集合', 'Bot', 20),
+  page('workbench', '工作台', 'AI 工作台', '真实对话、队列和快捷操作的统一工作区', 'LayoutDashboard', 25),
   page('marketing', 'AI 营销', '营销增长中心', '从内容生成到投放复盘的一站式工具台', 'Megaphone', 30),
   page('image', 'AI 图片', 'AI图片创作中心', '提示词、模板、批量出图和生成队列', 'Image', 35),
   page('video', 'AI 视频', 'AI视频创作中心', '脚本、数字人、剪辑、字幕和渲染队列', 'FileVideo', 40),
-  page('audio', 'AI 音频', 'AI音频工作台', '配音、转写、降噪、播客和音色库', 'Headphones', 50),
+  page('audio', 'AI 音频', 'AI音频创作中心', '配音、转写、降噪、播客和音色库', 'Headphones', 50),
   page('coding', 'AI 编程', 'AI编程工作台', '代码生成、审查、测试和自动化脚本', 'Workflow', 60),
   page('writing', 'AI 写作', 'AI写作中心', '文章、报告、简历、论文和提示词模板', 'Feather', 70),
   page('ecommerce', 'AI 电商', 'AI电商运营中心', '商品内容、客服话术、店铺分析和素材生成', 'WandSparkles', 80),
@@ -246,6 +460,7 @@ const AUDIO_PAGE_KEY = 'audio';
 const VIDEO_PAGE_KEY = 'video';
 const CODING_PAGE_KEY = 'coding';
 const WRITING_PAGE_KEY = 'writing';
+const WORKBENCH_PAGE_KEY = 'workbench';
 
 interface HomeMenuRule {
   key: string;
@@ -338,6 +553,10 @@ export function shouldUseAssistantPage(pageKey: string): boolean {
   return pageKey === 'assistant';
 }
 
+export function shouldUseWorkbenchPage(pageKey: string): boolean {
+  return pageKey === WORKBENCH_PAGE_KEY;
+}
+
 export function shouldUseMarketingPage(pageKey: string): boolean {
   return pageKey === MARKETING_PAGE_KEY;
 }
@@ -369,14 +588,19 @@ export function buildAudioTaskPayload(
   selectedTool: PortalItem,
   prompt: string,
   selectedVoice?: PortalItem,
-  sourceUrl = ''
+  sourceUrl = '',
+  surface: GenerationSurface = 'portal'
 ): AudioTaskPayload {
+  const targetId = selectedTool.actionValue || selectedTool.id;
   return {
     task_type: audioTaskTypeForRoute(selectedTool.actionValue),
     route_key: selectedTool.actionValue,
     prompt,
     source_url: sourceUrl,
-    voice_key: selectedVoice?.actionValue ?? ''
+    voice_key: selectedVoice?.actionValue ?? '',
+    target_type: 'builtin',
+    target_id: targetId,
+    surface
   };
 }
 
@@ -385,7 +609,36 @@ export function shouldUseVideoPage(pageKey: string): boolean {
 }
 
 export function shouldHideWorkspaceDock(pageKey: string): boolean {
-  return shouldUseImagePage(pageKey) || shouldUseVideoPage(pageKey) || shouldUseCodingPage(pageKey) || shouldUseWritingPage(pageKey);
+  return shouldUseCodingPage(pageKey) || shouldUseWritingPage(pageKey);
+}
+
+export function groupChatSessionsByRecency(
+  sessions: ChatSessionSummary[],
+  referenceDate: string | Date = new Date()
+): ChatSessionGroup[] {
+  const reference = startOfDay(new Date(referenceDate));
+  const buckets: ChatSessionGroup[] = [
+    { key: 'today', label: '今天', sessions: [] },
+    { key: 'yesterday', label: '昨天', sessions: [] },
+    { key: 'thisWeek', label: '本周', sessions: [] },
+    { key: 'older', label: '更早', sessions: [] }
+  ];
+
+  sessions.forEach((session) => {
+    const activityAt = new Date(session.updatedAt ?? session.createdAt ?? 0);
+    const diffDays = Math.floor((reference.getTime() - startOfDay(activityAt).getTime()) / 86400000);
+    if (diffDays <= 0) {
+      buckets[0].sessions.push(session);
+    } else if (diffDays === 1) {
+      buckets[1].sessions.push(session);
+    } else if (diffDays <= 6) {
+      buckets[2].sessions.push(session);
+    } else {
+      buckets[3].sessions.push(session);
+    }
+  });
+
+  return buckets.filter((group) => group.sessions.length > 0);
 }
 
 export function getHomeMenuHint(menuKey: string): string {
@@ -606,6 +859,7 @@ export function createFallbackVideoWorkbench(): VideoWorkbench {
   return {
     tenantId: 'demo',
     userId: 'demo-user',
+    surface: 'workbench',
     wallet: {
       balance: 120000,
       frozenBalance: 400
@@ -622,6 +876,7 @@ export function createFallbackImageWorkbench(): ImageWorkbench {
   return {
     tenantId: 'demo',
     userId: 'demo-user',
+    surface: 'workbench',
     wallet: {
       balance: 120000,
       frozenBalance: 160
@@ -631,6 +886,146 @@ export function createFallbackImageWorkbench(): ImageWorkbench {
       unitCost: 80
     },
     tasks: fallbackImageTasks
+  };
+}
+
+export function createFallbackChatWorkbench(): ChatWorkbench {
+  const sessions: ChatSessionSummary[] = [
+    {
+      id: 'chat-demo-weekly',
+      tenantId: 'demo',
+      userId: 'demo-user',
+      title: '项目周报整理',
+      preview: '已生成并附上 Markdown 文件，请查看。',
+      presetRole: '通用助手',
+      modelKey: 'general_text_default',
+      status: 'ACTIVE',
+      messageCount: 6,
+      createdAt: '2026-05-10T14:20:00',
+      updatedAt: '2026-05-10T14:35:00'
+    },
+    {
+      id: 'chat-demo-polish',
+      tenantId: 'demo',
+      userId: 'demo-user',
+      title: '文案润色',
+      preview: '可以进一步强化标题里的行动感。',
+      presetRole: '通用助手',
+      modelKey: 'general_text_default',
+      status: 'ACTIVE',
+      messageCount: 4,
+      createdAt: '2026-05-09T10:12:00',
+      updatedAt: '2026-05-09T10:21:00'
+    },
+    {
+      id: 'chat-demo-meeting',
+      tenantId: 'demo',
+      userId: 'demo-user',
+      title: '会议纪要总结',
+      preview: '已按议题、决策和行动项整理。',
+      presetRole: '通用助手',
+      modelKey: 'general_text_default',
+      status: 'ACTIVE',
+      messageCount: 5,
+      createdAt: '2026-05-07T16:45:00',
+      updatedAt: '2026-05-07T16:45:00'
+    },
+    {
+      id: 'chat-demo-demand',
+      tenantId: 'demo',
+      userId: 'demo-user',
+      title: '产品需求梳理',
+      preview: '建议把导出和权限边界拆成两个验收点。',
+      presetRole: '通用助手',
+      modelKey: 'general_text_default',
+      status: 'ACTIVE',
+      messageCount: 3,
+      createdAt: '2026-05-03T09:18:00',
+      updatedAt: '2026-05-03T09:18:00'
+    }
+  ];
+  const activeSession: ChatActiveSession = {
+    ...sessions[0],
+    messages: [
+      {
+        id: 'chat-demo-msg-1',
+        tenantId: 'demo',
+        sessionId: sessions[0].id,
+        role: 'user',
+        content: '请帮我整理本周项目的进展情况，做一份简要的周报。',
+        sequence: 1,
+        createdAt: '2026-05-10T14:32:00'
+      },
+      {
+        id: 'chat-demo-msg-2',
+        tenantId: 'demo',
+        sessionId: sessions[0].id,
+        role: 'assistant',
+        content: '好的，以下是本周项目进展周报（简要版）：\n\n1. 需求分析：已完成需求澄清，与产品、设计确认核心流程。\n2. 设计进度：完成高保真原型设计，已提交评审并收到反馈。\n3. 开发进度：完成后端接口开发，前端页面完成 3 个核心模块。\n4. 测试进度：完成接口联调测试，发现并修复 12 个问题。\n5. 下周计划：完成剩余接口联调、推进前端模块开发、开展功能测试与性能优化。',
+        sequence: 2,
+        createdAt: '2026-05-10T14:33:00'
+      },
+      {
+        id: 'chat-demo-msg-3',
+        tenantId: 'demo',
+        sessionId: sessions[0].id,
+        role: 'user',
+        content: '请再帮我提炼 3 条需要重点关注的风险点。',
+        sequence: 3,
+        createdAt: '2026-05-10T14:34:00'
+      },
+      {
+        id: 'chat-demo-msg-4',
+        tenantId: 'demo',
+        sessionId: sessions[0].id,
+        role: 'assistant',
+        content: '好的，以下是需要重点关注的风险点：\n\n1. 接口依赖风险：部分接口依赖第三方服务，存在响应不稳定的风险。\n2. 时间进度风险：部分模块开发进度略有延迟，可能影响整体上线时间。\n3. 测试覆盖风险：自动化测试用例覆盖率不足，可能导致回归问题。',
+        sequence: 4,
+        createdAt: '2026-05-10T14:34:00'
+      },
+      {
+        id: 'chat-demo-msg-5',
+        tenantId: 'demo',
+        sessionId: sessions[0].id,
+        role: 'user',
+        content: '请把周报内容导出为 Markdown 格式。',
+        sequence: 5,
+        createdAt: '2026-05-10T14:35:00'
+      },
+      {
+        id: 'chat-demo-msg-6',
+        tenantId: 'demo',
+        sessionId: sessions[0].id,
+        role: 'assistant',
+        content: '已生成并附上 Markdown 文件，请查看。',
+        sequence: 6,
+        createdAt: '2026-05-10T14:35:00',
+        export: {
+          id: 'asset-demo-markdown',
+          url: '/storage/exports/demo/project-weekly-report.md',
+          storageKey: 'exports/demo/project-weekly-report.md',
+          fileName: '项目周报_2026-05-10.md',
+          size: 12700
+        }
+      }
+    ]
+  };
+
+  return {
+    tenantId: 'demo',
+    userId: 'demo-user',
+    sessions,
+    activeSession,
+    models: [
+      {
+        id: 'model-general-text-default',
+        modelKey: 'general_text_default',
+        displayName: 'GPT-4.1',
+        providerModel: 'demo-general-text',
+        defaultPointCost: 10,
+        channelKey: 'demo-general-text'
+      }
+    ]
   };
 }
 
@@ -729,6 +1124,7 @@ export function createFallbackPortalConfig(): PortalConfig {
         item('project-03', 'project', 'AI办公改造案例', '用自动化流程帮助团队降本增效', '项目共创', 'BriefcaseBusiness', '/projects/office', true, 0)
       ]),
       section('section-workspace-tools', 'home', 'workspace_tools', '常用工作台', 'tool-grid', [
+        item('workspace-00', 'tool', 'AI 工作台', '真实对话、图像、视频和音频任务统一入口', '应用工作台', 'LayoutGrid', '/workbench', false, 0),
         item('workspace-01', 'tool', 'PPT 生成工作台', '从大纲到页面自动生成', '应用工作台', 'Presentation', '/workspace/ppt', false, 0),
         item('workspace-02', 'tool', '视频脚本工作台', '选题、脚本、分镜一站式处理', '应用工作台', 'MonitorPlay', '/workspace/video-script', false, 0),
         item('workspace-03', 'tool', '电商运营工作台', '标题、详情和客服话术生成', '应用工作台', 'WandSparkles', '/workspace/ecommerce', true, 10),
@@ -765,9 +1161,15 @@ export function createFallbackPageConfig(pageKey: string): PortalPageConfig {
         ? portal.homeSections
         : pageSummary.pageKey === MARKETING_PAGE_KEY
           ? createMarketingSections(pageSummary)
-          : pageSummary.pageKey === AUDIO_PAGE_KEY
-            ? createFallbackAudioSections()
           : createGenericSections(pageSummary)
+  };
+}
+
+export function createFallbackAudioWorkbenchPageConfig(): PortalPageConfig {
+  return {
+    tenantId: 'demo',
+    page: page('workbench-audio', '音频生成', '音频生成工作台', '提示词、波形编辑、转写片段和导出设置', 'Headphones', 1),
+    sections: createFallbackAudioSections()
   };
 }
 
@@ -850,13 +1252,103 @@ export function normalizeAssistantCenter(payload: any): AssistantCenter {
     featured: (payload.featured ?? []).map(normalizeAssistant),
     assistants,
     ranking: (payload.ranking ?? buildAssistantRanking(assistants)).map(normalizeAssistant),
-    promptTemplates: (payload.prompt_templates ?? payload.promptTemplates ?? []).map((prompt: any) => ({
-      id: prompt.id,
-      title: prompt.title,
-      category: prompt.category,
-      content: prompt.content,
-      requiredMembership: Boolean(prompt.required_membership ?? prompt.requiredMembership)
-    }))
+    promptTemplates: (payload.prompt_templates ?? payload.promptTemplates ?? []).map(normalizePromptTemplate)
+  };
+}
+
+export function normalizeChatWorkbench(payload: any): ChatWorkbench {
+  const activePayload = payload.active_session ?? payload.activeSession ?? null;
+  const activeSession = activePayload ? normalizeChatActiveSession(activePayload) : null;
+  const sessions = (payload.sessions ?? []).map(normalizeChatSessionSummary);
+  return {
+    tenantId: payload.tenant_id ?? payload.tenantId ?? 'demo',
+    userId: payload.user_id ?? payload.userId ?? 'demo-user',
+    sessions: sessions.length > 0 || !activeSession ? sessions : [activeSession],
+    activeSession,
+    models: (payload.models ?? []).map(normalizeChatModel)
+  };
+}
+
+export function normalizeChatSessionSummary(payload: any): ChatSessionSummary {
+  return {
+    id: payload.id ?? '',
+    tenantId: payload.tenant_id ?? payload.tenantId,
+    userId: payload.user_id ?? payload.userId,
+    title: payload.title || '新对话',
+    preview: payload.preview ?? '',
+    presetRole: payload.preset_role ?? payload.presetRole ?? 'assistant',
+    modelKey: payload.model_key ?? payload.modelKey ?? 'general_text_default',
+    status: payload.status ?? 'ACTIVE',
+    messageCount: Number(payload.message_count ?? payload.messageCount ?? payload.messages?.length ?? 0),
+    createdAt: payload.created_at ?? payload.createdAt ?? null,
+    updatedAt: payload.updated_at ?? payload.updatedAt ?? payload.created_at ?? payload.createdAt ?? null
+  };
+}
+
+export function normalizeChatActiveSession(payload: any): ChatActiveSession {
+  const summary = normalizeChatSessionSummary(payload);
+  return {
+    ...summary,
+    messages: (payload.messages ?? []).map(normalizeChatMessage)
+  };
+}
+
+export function normalizeChatMessage(payload: any): ChatMessage {
+  return {
+    id: payload.id ?? '',
+    tenantId: payload.tenant_id ?? payload.tenantId,
+    sessionId: payload.session_id ?? payload.sessionId,
+    role: payload.role ?? 'assistant',
+    content: payload.content ?? '',
+    sequence: Number(payload.sequence ?? 0),
+    createdAt: payload.created_at ?? payload.createdAt ?? null,
+    export: normalizeChatExportFile(payload.export ?? payload.asset)
+  };
+}
+
+export function normalizeChatSendResult(payload: any): ChatSendResult {
+  return {
+    session: normalizeChatActiveSession(payload.session ?? payload.active_session ?? {}),
+    messagesCreated: (payload.messages_created ?? payload.messagesCreated ?? []).map(normalizeChatMessage)
+  };
+}
+
+export function normalizeChatExportResult(payload: any): ChatExportResult {
+  const asset = normalizeChatExportFile(payload.asset) ?? {
+    url: '',
+    storageKey: '',
+    fileName: ''
+  };
+  return {
+    asset,
+    message: normalizeChatMessage({
+      ...(payload.message ?? {}),
+      export: payload.message?.export ?? asset
+    })
+  };
+}
+
+export function normalizeChatExportFile(payload: any): ChatExportFile | null {
+  if (!payload) {
+    return null;
+  }
+  return {
+    id: payload.id,
+    url: payload.url ?? '',
+    storageKey: payload.storage_key ?? payload.storageKey ?? '',
+    fileName: payload.file_name ?? payload.fileName ?? payload.title ?? '',
+    size: payload.size == null ? undefined : Number(payload.size)
+  };
+}
+
+function normalizeChatModel(payload: any): ChatModelSummary {
+  return {
+    id: payload.id ?? payload.model_key ?? payload.modelKey ?? '',
+    modelKey: payload.model_key ?? payload.modelKey ?? 'general_text_default',
+    displayName: payload.display_name ?? payload.displayName ?? 'GPT-4.1',
+    providerModel: payload.provider_model ?? payload.providerModel,
+    defaultPointCost: Number(payload.default_point_cost ?? payload.defaultPointCost ?? 0),
+    channelKey: payload.channel_key ?? payload.channelKey
   };
 }
 
@@ -864,6 +1356,7 @@ export function normalizeVideoWorkbench(payload: any): VideoWorkbench {
   return {
     tenantId: payload.tenant_id ?? payload.tenantId ?? 'demo',
     userId: payload.user_id ?? payload.userId ?? 'demo-user',
+    surface: normalizeGenerationSurface(payload.surface ?? payload.surfaceKey ?? 'portal'),
     wallet: {
       balance: Number(payload.wallet?.balance ?? 0),
       frozenBalance: Number(payload.wallet?.frozen_balance ?? payload.wallet?.frozenBalance ?? 0)
@@ -880,6 +1373,7 @@ export function normalizeImageWorkbench(payload: any): ImageWorkbench {
   return {
     tenantId: payload.tenant_id ?? payload.tenantId ?? 'demo',
     userId: payload.user_id ?? payload.userId ?? 'demo-user',
+    surface: normalizeGenerationSurface(payload.surface ?? payload.surfaceKey ?? 'portal'),
     wallet: {
       balance: Number(payload.wallet?.balance ?? 0),
       frozenBalance: Number(payload.wallet?.frozen_balance ?? payload.wallet?.frozenBalance ?? 0)
@@ -895,6 +1389,7 @@ export function normalizeImageWorkbench(payload: any): ImageWorkbench {
 export function normalizeAudioTask(payload: any): AudioTask {
   return {
     id: payload.id,
+    surface: normalizeGenerationSurface(payload.surface ?? payload.surfaceKey ?? 'portal'),
     taskType: payload.task_type ?? payload.taskType ?? 'TTS',
     routeKey: payload.route_key ?? payload.routeKey ?? 'audio_tts',
     prompt: payload.prompt ?? '',
@@ -907,6 +1402,152 @@ export function normalizeAudioTask(payload: any): AudioTask {
     createdAt: payload.created_at ?? payload.createdAt ?? null,
     updatedAt: payload.updated_at ?? payload.updatedAt ?? null
   };
+}
+
+export function normalizePortalDetail(payload: any): PortalDetailPayload {
+  const effectivePointCostValue = payload.effective_point_cost ?? payload.effectivePointCost;
+  return {
+    path: payload.path ?? '/',
+    kind: payload.kind ?? 'single',
+    title: payload.title ?? '',
+    subtitle: payload.subtitle ?? '',
+    icon: payload.icon ?? 'Sparkles',
+    requiredMembership: Boolean(payload.required_membership ?? payload.requiredMembership),
+    effectivePointCost: effectivePointCostValue == null ? 0 : Number(effectivePointCostValue),
+    items: (payload.items ?? []).map(normalizePortalItem),
+    detail: normalizePortalDetailContent(payload.detail ?? {}),
+    userState: normalizePortalDetailUserState(payload.user_state ?? payload.userState ?? {})
+  };
+}
+
+export function normalizePortalActionResult(payload: any): PortalActionResult {
+  return {
+    status: payload.status ?? '',
+    message: payload.message ?? '',
+    action: payload.action ? normalizePortalUserAction(payload.action) : null,
+    download: normalizePortalDownload(payload.download),
+    route: payload.route ?? null
+  };
+}
+
+export function normalizePortalUserActions(payload: any): UserPortalAction[] {
+  const records = Array.isArray(payload) ? payload : payload?.actions ?? [];
+  return records.map(normalizePortalUserAction);
+}
+
+export function normalizePortalUserAction(payload: any): UserPortalAction {
+  return {
+    id: payload.id ?? '',
+    tenantId: payload.tenant_id ?? payload.tenantId,
+    userId: payload.user_id ?? payload.userId,
+    detailPath: payload.detail_path ?? payload.detailPath ?? '',
+    itemId: payload.item_id ?? payload.itemId ?? '',
+    actionKey: payload.action_key ?? payload.actionKey ?? '',
+    status: payload.status ?? '',
+    message: payload.message ?? '',
+    result: payload.result ?? payload.result_json ?? payload.resultJson ?? {},
+    createdAt: payload.created_at ?? payload.createdAt ?? null,
+    updatedAt: payload.updated_at ?? payload.updatedAt ?? null
+  };
+}
+
+export function normalizePortalSearchResult(payload: any): PortalSearchResult {
+  return {
+    id: payload.id ?? '',
+    title: payload.title ?? '',
+    subtitle: payload.subtitle ?? '',
+    type: payload.type ?? payload.item_type ?? payload.itemType ?? 'item',
+    pageKey: payload.page_key ?? payload.pageKey ?? '',
+    path: payload.path ?? payload.action_value ?? payload.actionValue ?? '/',
+    icon: payload.icon ?? 'Sparkles'
+  };
+}
+
+export function loadWorkbenchDraft<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') {
+    return fallback;
+  }
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) {
+      return fallback;
+    }
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && fallback && typeof fallback === 'object') {
+      return { ...fallback, ...parsed };
+    }
+    return parsed as T;
+  } catch {
+    return fallback;
+  }
+}
+
+export function saveWorkbenchDraft(key: string, value: unknown) {
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  }
+}
+
+function normalizePortalDetailContent(payload: any): PortalDetailContent {
+  return {
+    summary: payload.summary ?? '',
+    highlights: normalizeStringList(payload.highlights),
+    steps: normalizeStringList(payload.steps),
+    deliverables: normalizeStringList(payload.deliverables),
+    faqs: (payload.faqs ?? []).map(normalizePortalFaq).filter((faq: PortalDetailFaq) => faq.question || faq.answer),
+    primaryAction: normalizePortalAction(payload.primary_action ?? payload.primaryAction, 'open', '立即查看'),
+    secondaryActions: (payload.secondary_actions ?? payload.secondaryActions ?? []).map((action: any) =>
+      normalizePortalAction(action, 'favorite', '收藏')
+    ),
+    download: normalizePortalDownload(payload.download)
+  };
+}
+
+function normalizePortalDetailUserState(payload: any): PortalDetailUserState {
+  return {
+    membershipActive: Boolean(payload.membership_active ?? payload.membershipActive),
+    locked: Boolean(payload.locked),
+    completedActions: normalizeStringList(payload.completed_actions ?? payload.completedActions)
+  };
+}
+
+function normalizePortalAction(payload: any, fallbackKey: string, fallbackLabel: string): PortalDetailAction {
+  return {
+    key: payload?.key ?? payload?.action_key ?? payload?.actionKey ?? fallbackKey,
+    label: payload?.label ?? fallbackLabel
+  };
+}
+
+function normalizePortalDownload(payload: any): PortalDetailDownload | null {
+  if (!payload) {
+    return null;
+  }
+  return {
+    fileName: payload.file_name ?? payload.fileName ?? payload.name ?? '',
+    url: payload.url ?? '',
+    storageKey: payload.storage_key ?? payload.storageKey
+  };
+}
+
+function normalizePortalFaq(payload: any): PortalDetailFaq {
+  return {
+    question: payload.question ?? '',
+    answer: payload.answer ?? ''
+  };
+}
+
+function normalizeStringList(value: any): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function normalizeMetadata(value: any): Record<string, any> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
 function normalizePageSummary(payload: any): PageConfigSummary {
@@ -939,6 +1580,8 @@ function normalizeSection(payload: any): PortalSection {
 }
 
 function normalizePortalItem(payload: any): PortalItem {
+  const pointCost = Number(payload.point_cost ?? payload.pointCost ?? 0);
+  const effectivePointCostValue = payload.effective_point_cost ?? payload.effectivePointCost;
   return {
     id: payload.id,
     tenantId: payload.tenant_id ?? payload.tenantId,
@@ -956,12 +1599,17 @@ function normalizePortalItem(payload: any): PortalItem {
     actionType: payload.action_type ?? payload.actionType ?? 'route',
     actionValue: payload.action_value ?? payload.actionValue ?? '',
     requiredMembership: Boolean(payload.required_membership ?? payload.requiredMembership),
-    pointCost: Number(payload.point_cost ?? payload.pointCost ?? 0)
+    pointCost,
+    effectivePointCost: effectivePointCostValue == null ? pointCost : Number(effectivePointCostValue),
+    modelConfig: normalizeModelConfig(payload.model_config ?? payload.modelConfig),
+    metadata: normalizeMetadata(payload.metadata_json ?? payload.metadataJson ?? payload.metadata)
   };
 }
 
 function normalizeAssistant(payload: any): AssistantCard {
   const usageCount = Number(payload.usage_count ?? payload.usageCount ?? 0);
+  const pointCost = Number(payload.point_cost ?? payload.pointCost ?? 0);
+  const effectivePointCostValue = payload.effective_point_cost ?? payload.effectivePointCost;
   return {
     id: payload.id,
     name: payload.name,
@@ -970,10 +1618,84 @@ function normalizeAssistant(payload: any): AssistantCard {
     icon: payload.icon ?? 'Bot',
     usageCount,
     usageCountLabel: payload.usage_count_label ?? payload.usageCountLabel ?? formatUsageCount(usageCount),
-    pointCost: Number(payload.point_cost ?? payload.pointCost ?? 0),
+    pointCost,
+    effectivePointCost: effectivePointCostValue == null ? pointCost : Number(effectivePointCostValue),
     requiredMembership: Boolean(payload.required_membership ?? payload.requiredMembership),
-    actionValue: payload.action_value ?? payload.actionValue ?? ''
+    actionValue: payload.action_value ?? payload.actionValue ?? '',
+    modelConfig: normalizeModelConfig(payload.model_config ?? payload.modelConfig)
   };
+}
+
+function normalizePromptTemplate(payload: any): PromptTemplate {
+  const effectivePointCostValue = payload.effective_point_cost ?? payload.effectivePointCost;
+  return {
+    id: payload.id,
+    title: payload.title,
+    category: payload.category,
+    content: payload.content,
+    requiredMembership: Boolean(payload.required_membership ?? payload.requiredMembership),
+    effectivePointCost: effectivePointCostValue == null ? 0 : Number(effectivePointCostValue),
+    modelConfig: normalizeModelConfig(payload.model_config ?? payload.modelConfig)
+  };
+}
+
+export function normalizeModelConfig(payload: any): ModelConfigSummary | null {
+  if (!payload) {
+    return null;
+  }
+  return {
+    id: payload.id,
+    tenantId: payload.tenant_id ?? payload.tenantId,
+    modelKey: payload.model_key ?? payload.modelKey,
+    displayName: payload.display_name ?? payload.displayName ?? '',
+    capability: payload.capability ?? '',
+    channelId: payload.channel_id ?? payload.channelId,
+    channelKey: payload.channel_key ?? payload.channelKey,
+    channelName: payload.channel_name ?? payload.channelName,
+    providerModel: payload.provider_model ?? payload.providerModel,
+    defaultPointCost: Number(payload.default_point_cost ?? payload.defaultPointCost ?? 0),
+    enabled: Boolean(payload.enabled ?? true)
+  };
+}
+
+export function normalizeProviderChannel(payload: any): ProviderChannelSummary {
+  return {
+    id: payload.id,
+    tenantId: payload.tenant_id ?? payload.tenantId,
+    channelKey: payload.channel_key ?? payload.channelKey,
+    displayName: payload.display_name ?? payload.displayName ?? '',
+    baseUrl: payload.base_url ?? payload.baseUrl ?? '',
+    apiKeyMask: payload.api_key_mask ?? payload.apiKeyMask ?? '',
+    channelType: payload.channel_type ?? payload.channelType ?? '',
+    priority: Number(payload.priority ?? 100),
+    enabled: Boolean(payload.enabled ?? true),
+    healthStatus: payload.health_status ?? payload.healthStatus,
+    timeoutSeconds: Number(payload.timeout_seconds ?? payload.timeoutSeconds ?? 60)
+  };
+}
+
+export function normalizeToolModelBinding(payload: any): ToolModelBindingSummary {
+  return {
+    id: payload.id,
+    tenantId: payload.tenant_id ?? payload.tenantId,
+    targetType: payload.target_type ?? payload.targetType ?? '',
+    targetKey: payload.target_key ?? payload.targetKey ?? '',
+    modelConfigId: payload.model_config_id ?? payload.modelConfigId ?? '',
+    pointCostOverride:
+      payload.point_cost_override === undefined || payload.point_cost_override === null
+        ? payload.pointCostOverride ?? null
+        : Number(payload.point_cost_override),
+    effectivePointCost:
+      payload.effective_point_cost === undefined || payload.effective_point_cost === null
+        ? payload.effectivePointCost ?? null
+        : Number(payload.effective_point_cost),
+    enabled: Boolean(payload.enabled ?? true),
+    modelConfig: normalizeModelConfig(payload.model_config ?? payload.modelConfig)
+  };
+}
+
+function normalizeGenerationSurface(value: any): GenerationSurface {
+  return value === 'workbench' ? 'workbench' : 'portal';
 }
 
 function normalizeVideoTask(payload: any): VideoTask {
@@ -981,6 +1703,7 @@ function normalizeVideoTask(payload: any): VideoTask {
     id: payload.id,
     tenantId: payload.tenant_id ?? payload.tenantId ?? 'demo',
     userId: payload.user_id ?? payload.userId ?? 'demo-user',
+    surface: normalizeGenerationSurface(payload.surface ?? payload.surfaceKey ?? 'portal'),
     taskType: payload.task_type ?? payload.taskType ?? 'VIDEO',
     routeKey: payload.route_key ?? payload.routeKey ?? 'video_text_to_video',
     prompt: payload.prompt ?? '',
@@ -1000,6 +1723,7 @@ function normalizeImageTask(payload: any): ImageTask {
     id: payload.id,
     tenantId: payload.tenant_id ?? payload.tenantId ?? 'demo',
     userId: payload.user_id ?? payload.userId ?? 'demo-user',
+    surface: normalizeGenerationSurface(payload.surface ?? payload.surfaceKey ?? 'portal'),
     taskType: payload.task_type ?? payload.taskType ?? 'IMAGE',
     routeKey: payload.route_key ?? payload.routeKey ?? 'image_text_to_image',
     prompt: payload.prompt ?? '',
@@ -1012,6 +1736,12 @@ function normalizeImageTask(payload: any): ImageTask {
     createdAt: payload.created_at ?? payload.createdAt ?? null,
     updatedAt: payload.updated_at ?? payload.updatedAt ?? null
   };
+}
+
+function startOfDay(value: Date): Date {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date;
 }
 
 function createFallbackAudioSections(): PortalSection[] {
@@ -1180,7 +1910,8 @@ function item(
     pointCost,
     sortOrder: 100,
     enabled: true,
-    tags: []
+    tags: [],
+    metadata: {}
   };
 }
 

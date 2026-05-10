@@ -393,6 +393,7 @@ def test_demo_seed_creates_portal_pages_and_admin_user(session):
     assert page_keys == [
         "home",
         "assistant",
+        "workbench",
         "marketing",
         "image",
         "video",

@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import * as adminForms from '../src/services/adminForms';
 import { buildItemPayload, buildPagePayload, buildReorderPayload, buildSectionPayload } from '../src/services/adminForms';
 
 test('builds page payload expected by admin page API', () => {
@@ -90,5 +91,67 @@ test('builds reorder payload from ordered records', () => {
   expect(buildReorderPayload([{ id: 'item-b' }, { id: 'item-a' }], 'section-a')).toEqual({
     section_id: 'section-a',
     ordered_ids: ['item-b', 'item-a']
+  });
+});
+
+test('builds provider channel payload for model center forms', () => {
+  expect(
+    (adminForms as any).buildProviderChannelPayload({
+      channelKey: 'openai-image',
+      displayName: 'OpenAI 图片渠道',
+      baseUrl: 'https://api.openai.example/v1/images',
+      apiKey: 'sk-secret',
+      channelType: 'IMAGE',
+      priority: 5,
+      enabled: true,
+      timeoutSeconds: 90
+    })
+  ).toEqual({
+    channel_key: 'openai-image',
+    display_name: 'OpenAI 图片渠道',
+    base_url: 'https://api.openai.example/v1/images',
+    api_key: 'sk-secret',
+    channel_type: 'IMAGE',
+    priority: 5,
+    enabled: true,
+    timeout_seconds: 90
+  });
+});
+
+test('builds model config and binding payloads for model center forms', () => {
+  expect(
+    (adminForms as any).buildModelConfigPayload({
+      modelKey: 'image_text_to_image',
+      displayName: 'GPT Image 2',
+      capability: 'IMAGE',
+      channelId: 'channel-image',
+      providerModel: 'gpt-image-2',
+      defaultPointCost: 120,
+      enabled: true
+    })
+  ).toEqual({
+    model_key: 'image_text_to_image',
+    display_name: 'GPT Image 2',
+    capability: 'IMAGE',
+    channel_id: 'channel-image',
+    provider_model: 'gpt-image-2',
+    default_point_cost: 120,
+    enabled: true
+  });
+
+  expect(
+    (adminForms as any).buildToolModelBindingPayload({
+      targetType: 'builtin',
+      targetKey: 'image_text_to_image',
+      modelConfigId: 'model-image',
+      pointCostOverride: 45,
+      enabled: true
+    })
+  ).toEqual({
+    target_type: 'builtin',
+    target_key: 'image_text_to_image',
+    model_config_id: 'model-image',
+    point_cost_override: 45,
+    enabled: true
   });
 });

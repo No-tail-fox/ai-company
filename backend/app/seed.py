@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import timedelta
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -11,9 +13,13 @@ from app.models import (
     ContentItem,
     ContentPage,
     ContentSection,
+    ChatMessage,
+    ChatSession,
     MembershipPlan,
+    ModelConfig,
     PromptTemplate,
     Tenant,
+    ToolModelBinding,
     User,
     UserMembership,
     Wallet,
@@ -52,16 +58,19 @@ def ensure_demo_data(session: Session, *, tenant_id: str = "demo") -> None:
     _add_templates(session, tenant_id)
     _add_memberships(session, tenant_id)
     _add_audio_routes(session, tenant_id)
+    _add_model_configurations(session, tenant_id)
+    _add_chat_runtime(session, tenant_id)
     session.commit()
 
 
 PAGES = [
     ("page-home", "home", "首页", "常用AI学习中心", "学习、接单、社群和活动的统一入口", "Home", 10),
     ("page-assistant", "assistant", "AI 助理", "智能助理广场", "办公、营销、学习、法务等场景助理集合", "Bot", 20),
+    ("page-workbench", "workbench", "工作台", "AI 工作台", "真实对话、队列和快捷操作的统一工作区", "LayoutDashboard", 25),
     ("page-marketing", "marketing", "AI 营销", "营销增长中心", "从内容生成到投放复盘的一站式工具台", "Megaphone", 30),
     ("page-image", "image", "AI 图片", "AI图片创作中心", "提示词、模板、批量出图和生成队列", "Image", 35),
     ("page-video", "video", "AI 视频", "AI视频创作中心", "脚本、数字人、剪辑、字幕和渲染队列", "FileVideo", 40),
-    ("page-audio", "audio", "AI 音频", "AI音频工作台", "配音、转写、降噪、播客和音色库", "Headphones", 50),
+    ("page-audio", "audio", "AI 音频", "AI音频创作中心", "配音、转写、降噪、播客和音色库", "Headphones", 50),
     ("page-coding", "coding", "AI 编程", "AI编程工作台", "代码生成、审查、测试和自动化脚本", "Workflow", 60),
     ("page-writing", "writing", "AI 写作", "AI写作中心", "文章、报告、简历、论文和提示词模板", "Feather", 70),
     ("page-ecommerce", "ecommerce", "AI 电商", "AI电商运营中心", "商品内容、客服话术、店铺分析和素材生成", "WandSparkles", 80),
@@ -110,7 +119,14 @@ def _add_sections(session: Session, tenant_id: str) -> None:
 def _add_items(session: Session, tenant_id: str) -> None:
     items = _item_definitions()
     for id_, section_id, item_type, title, subtitle, category, icon, image_url, action_type, action_value, sort_order, required_membership, point_cost in items:
-        if session.get(ContentItem, id_) is None:
+        metadata = _default_item_metadata(
+            title=title,
+            subtitle=subtitle,
+            category=category,
+            action_value=action_value,
+        )
+        existing = session.get(ContentItem, id_)
+        if existing is None:
             session.add(
                 ContentItem(
                     id=id_,
@@ -127,9 +143,12 @@ def _add_items(session: Session, tenant_id: str) -> None:
                     sort_order=sort_order,
                     required_membership=required_membership,
                     point_cost=point_cost,
+                    metadata_json=metadata,
                     enabled=True,
                 )
             )
+        elif not existing.metadata_json:
+            existing.metadata_json = metadata
 
 
 def _section_definitions() -> list[tuple[str, str, str, str, str, str, int]]:
@@ -150,20 +169,6 @@ def _section_definitions() -> list[tuple[str, str, str, str, str, str, int]]:
     ]
     for _, page_key, label, title, subtitle, _, order in PAGES:
         if page_key == "home":
-            continue
-        if page_key == "audio":
-            sections.extend(
-                [
-                    ("section-audio-workbench", page_key, "workbench", "AI音频工作台", "文本生成、音频处理与任务管理", "audio-workbench", 10),
-                    ("section-audio-stats", page_key, "stats", "音频数据概览", "今日生成、项目数量、时长与成本", "audio-stats", 20),
-                    ("section-audio-tools", page_key, "tools", "音频工具中心", "高频音频能力一键启动", "audio-tools", 30),
-                    ("section-audio-voices", page_key, "voices", "音色库", "真人音色、品牌音色与多语种声音", "audio-voices", 40),
-                    ("section-audio-table", page_key, "recent", "最近音频", "查看生成、转写和处理结果", "audio-table", 50),
-                    ("section-audio-queue", page_key, "queue", "音频任务队列", "处理进度、排队状态和最近任务", "audio-queue", 60),
-                    ("section-audio-resources", page_key, "resources", "音频资源库", "背景音乐、音效库、模板和素材", "audio-resources", 70),
-                    ("section-audio-guides", page_key, "guides", "音频创作指南", "新手教程、音色推荐和制作技巧", "audio-guides", 80),
-                ]
-            )
             continue
         sections.extend(
             [
@@ -211,6 +216,7 @@ def _item_definitions() -> list[tuple[str, str, str, str, str, str, str, str, st
         ("project-01", "section-project-cocreation", "project", "短视频矩阵共创", "脚本、剪辑、投放成员组队交付", "项目共创", "FileVideo", "", "route", "/projects/video", 10, True, 0),
         ("project-02", "section-project-cocreation", "project", "企业知识库搭建", "资料整理、流程设计和助手配置", "项目共创", "Workflow", "", "route", "/projects/knowledge-base", 20, True, 0),
         ("project-03", "section-project-cocreation", "project", "AI办公改造案例", "用自动化流程帮助团队降本增效", "项目共创", "BriefcaseBusiness", "", "route", "/projects/office", 30, True, 0),
+        ("workspace-00", "section-workspace-tools", "tool", "AI 工作台", "真实对话、图像、视频和音频任务统一入口", "应用工作台", "LayoutGrid", "", "route", "/workbench", 5, False, 0),
         ("workspace-01", "section-workspace-tools", "tool", "PPT 生成工作台", "从大纲到页面自动生成", "应用工作台", "Presentation", "", "route", "/workspace/ppt", 10, False, 0),
         ("workspace-02", "section-workspace-tools", "tool", "视频脚本工作台", "选题、脚本、分镜一站式处理", "应用工作台", "MonitorPlay", "", "route", "/workspace/video-script", 20, False, 0),
         ("workspace-03", "section-workspace-tools", "tool", "电商运营工作台", "标题、详情和客服话术生成", "应用工作台", "WandSparkles", "", "route", "/workspace/ecommerce", 30, True, 10),
@@ -329,22 +335,6 @@ def _item_definitions() -> list[tuple[str, str, str, str, str, str, str, str, st
         ("音频制作技巧", "降噪、节奏和后期建议", "指南", "NotebookTabs"),
     ]
     for page_key, tool_rows in page_tools.items():
-        if page_key == "audio":
-            items.append(("audio-workbench-main", "section-audio-workbench", "workbench", "文本转语音", "输入文字，选择音色与情感，一键生成自然流畅的语音", "音频工作台", "Headphones", "", "workspace", "audio_tts", 10, False, 120))
-            for index, (title, subtitle, icon) in enumerate(tool_rows, start=1):
-                items.append((f"audio-tool-{index}", "section-audio-tools", "tool", title, subtitle, "音频工具", icon, "", "workspace", audio_route_keys[index - 1], index * 10, index > 4, index * 10))
-            for index, (title, value, trend, icon) in enumerate(audio_stats, start=1):
-                items.append((f"audio-stat-{index}", "section-audio-stats", "stat", title, value, trend, icon, "", "route", "/audio", index * 10, False, 0))
-            for index, (title, subtitle, category, icon) in enumerate(audio_voices, start=1):
-                items.append((f"audio-voice-{index}", "section-audio-voices", "voice", title, subtitle, category, icon, "", "workspace", f"voice-{index}", index * 10, index > 4, 0))
-            for index, (title, subtitle, category, icon) in enumerate(audio_recent, start=1):
-                items.append((f"audio-recent-{index}", "section-audio-table", "audio", title, subtitle, category, icon, "", "route", "/audio", index * 10, False, 0))
-                items.append((f"audio-queue-{index}", "section-audio-queue", "task", title, subtitle, category, icon, "", "route", "/audio", index * 10, False, 0))
-            for index, (title, subtitle, category, icon) in enumerate(audio_resources, start=1):
-                items.append((f"audio-resource-{index}", "section-audio-resources", "resource", title, subtitle, category, icon, "", "route", "/audio/resources", index * 10, index > 2, 0))
-            for index, (title, subtitle, category, icon) in enumerate(audio_guides, start=1):
-                items.append((f"audio-guide-{index}", "section-audio-guides", "guide", title, subtitle, category, icon, "", "route", "/audio/guides", index * 10, False, 0))
-            continue
         for index, (title, subtitle, icon) in enumerate(tool_rows, start=1):
             items.append((f"{page_key}-tool-{index}", f"section-{page_key}-tools", "tool", title, subtitle, "工具", icon, "", "workspace", f"{page_key}-tool-{index}", index * 10, index > 2, index * 5))
         if page_key == "marketing":
@@ -529,3 +519,382 @@ def _add_audio_routes(session: Session, tenant_id: str) -> None:
                 metadata_json={"note": "填入真实供应商地址和密钥后启用"},
             )
         )
+
+
+def _add_model_configurations(session: Session, tenant_id: str) -> None:
+    _add_provider_channels(session, tenant_id)
+    model_specs = [
+        ("model-general-text-default", "general_text_default", "通用文本模型", "TEXT", "channel-demo-general", "demo-general-text", 10, False),
+        ("model-assistant-text-default", "assistant_text_default", "助理文本模型", "TEXT", "channel-demo-general", "demo-assistant-text", 15, False),
+        ("model-marketing-text-default", "marketing_text_default", "营销文本模型", "TEXT", "channel-demo-general", "demo-marketing-text", 20, False),
+        ("model-ecommerce-text-default", "ecommerce_text_default", "电商文本模型", "TEXT", "channel-demo-general", "demo-ecommerce-text", 30, False),
+        ("model-legal-text-default", "legal_text_default", "法务文本模型", "TEXT", "channel-demo-general", "demo-legal-text", 25, False),
+        ("model-office-text-default", "office_text_default", "办公文本模型", "TEXT", "channel-demo-general", "demo-office-text", 18, False),
+        ("model-coding-text-default", "coding_text_default", "编程文本模型", "TEXT", "channel-demo-general", "demo-coding-text", 28, False),
+        ("model-writing-text-default", "writing_text_default", "写作文本模型", "TEXT", "channel-demo-general", "demo-writing-text", 20, False),
+        ("model-image-text-to-image", "image_text_to_image", "通用图片模型", "IMAGE", "channel-demo-image", "demo-image-renderer", 80, True),
+        ("model-video-text-to-video", "video_text_to_video", "通用视频模型", "VIDEO", "channel-demo-video", "demo-video-renderer", 200, True),
+        ("model-audio-tts", "audio_tts", "文本转语音", "AUDIO", "channel-demo-audio", "generic-tts", 120, True),
+        ("model-audio-voice-clone", "audio_voice_clone", "声音克隆", "AUDIO", "channel-demo-audio", "generic-voice-clone", 180, True),
+        ("model-audio-podcast", "audio_podcast", "播客生成", "AUDIO", "channel-demo-audio", "generic-podcast", 160, True),
+        ("model-audio-denoise", "audio_denoise", "智能降噪", "AUDIO", "channel-demo-audio", "generic-denoise", 80, True),
+        ("model-audio-transcription", "audio_transcription", "录音转写", "AUDIO", "channel-demo-audio", "generic-transcription", 90, True),
+        ("model-audio-meeting-notes", "audio_meeting_notes", "会议纪要", "AUDIO", "channel-demo-audio", "generic-meeting-notes", 110, True),
+        ("model-audio-music", "audio_music", "AI 配乐", "AUDIO", "channel-demo-audio", "generic-music", 140, True),
+        ("model-audio-editor", "audio_editor", "音频剪辑", "AUDIO", "channel-demo-audio", "generic-editor", 70, True),
+    ]
+    for id_, model_key, display_name, capability, channel_id, provider_model, default_cost, enabled in model_specs:
+        if session.get(ModelConfig, id_) is None:
+            session.add(
+                ModelConfig(
+                    id=id_,
+                    tenant_id=tenant_id,
+                    model_key=model_key,
+                    display_name=display_name,
+                    capability=capability,
+                    channel_id=channel_id,
+                    provider_model=provider_model,
+                    default_point_cost=default_cost,
+                    enabled=enabled,
+                )
+            )
+    session.flush()
+    _add_text_routes(session, tenant_id)
+    _add_tool_model_bindings(session, tenant_id)
+
+
+def _add_text_routes(session: Session, tenant_id: str) -> None:
+    for model in session.scalars(
+        select(ModelConfig).where(
+            ModelConfig.tenant_id == tenant_id,
+            ModelConfig.capability == "TEXT",
+        )
+    ):
+        route_id = f"route-{model.model_key}"
+        if session.get(ChannelRoute, route_id) is None:
+            session.add(
+                ChannelRoute(
+                    id=route_id,
+                    tenant_id=tenant_id,
+                    route_key=model.model_key,
+                    display_name=model.display_name,
+                    backend_model=model.provider_model,
+                    channel_type="TEXT",
+                    unit_cost=model.default_point_cost,
+                    priority=5,
+                    enabled=model.enabled,
+                )
+            )
+
+
+def _add_chat_runtime(session: Session, tenant_id: str) -> None:
+    chat_id = "demo-workbench-chat"
+    if session.get(ChatSession, chat_id) is None:
+        session.add(
+            ChatSession(
+                id=chat_id,
+                tenant_id=tenant_id,
+                user_id="demo-user",
+                title="项目周报整理",
+                preset_role="assistant",
+                model_key="general_text_default",
+                status="ACTIVE",
+            )
+        )
+
+    messages = [
+        ("chat-demo-msg-1", "user", "整理本周项目进展并输出要点。", 1),
+        ("chat-demo-msg-2", "assistant", "已整理为项目周报，可继续补充数据或导出 Markdown。", 2),
+    ]
+    for id_, role, content, sequence in messages:
+        if session.get(ChatMessage, id_) is None:
+            session.add(
+                ChatMessage(
+                    id=id_,
+                    tenant_id=tenant_id,
+                    session_id=chat_id,
+                    role=role,
+                    content=content,
+                    sequence=sequence,
+                )
+            )
+
+
+def _add_provider_channels(session: Session, tenant_id: str) -> None:
+    channels = [
+        ("channel-demo-general", "demo-general-text", "通用文本渠道", "https://text-provider.example.com/generate", "replace-with-provider-key", "TEXT", 90, False),
+        ("channel-demo-image", "demo-image-http", "通用图片渠道", "https://image-provider.example.com/generate", "replace-with-provider-key", "IMAGE", 10, True),
+        ("channel-demo-video", "demo-video-http", "通用视频渠道", "https://video-provider.example.com/generate", "replace-with-provider-key", "VIDEO", 20, True),
+        ("channel-demo-audio", "demo-audio-http", "通用音频 HTTP 渠道", "https://audio-provider.example.com/generate", "replace-with-provider-key", "AUDIO", 100, False),
+    ]
+    for id_, channel_key, display_name, base_url, api_key, channel_type, priority, enabled in channels:
+        existing = next(
+            (
+                obj
+                for obj in session.new
+                if isinstance(obj, ApiChannel)
+                and obj.tenant_id == tenant_id
+                and obj.channel_key == channel_key
+            ),
+            None,
+        )
+        if existing is None:
+            existing = session.scalar(
+                select(ApiChannel).where(
+                    ApiChannel.tenant_id == tenant_id,
+                    ApiChannel.channel_key == channel_key,
+                )
+            )
+        if existing is None:
+            session.add(
+                ApiChannel(
+                    id=id_,
+                    tenant_id=tenant_id,
+                    channel_key=channel_key,
+                    display_name=display_name,
+                    base_url=base_url,
+                    api_key=api_key,
+                    channel_type=channel_type,
+                    priority=priority,
+                    enabled=enabled,
+                    health_status="HEALTHY" if enabled else "DEGRADED",
+                    metadata_json={"note": "填入真实供应商地址和密钥后启用"} if not enabled else None,
+                )
+            )
+
+
+def _add_tool_model_bindings(session: Session, tenant_id: str) -> None:
+    model_by_key = {
+        model.model_key: model
+        for model in session.scalars(
+            select(ModelConfig).where(ModelConfig.tenant_id == tenant_id)
+        )
+    }
+    if not model_by_key:
+        return
+
+    content_sections = {
+        section.id: section.area
+        for section in session.scalars(select(ContentSection).where(ContentSection.tenant_id == tenant_id))
+    }
+
+    def bind(target_type: str, target_key: str, model_key: str, point_cost: int | None = None) -> None:
+        model = model_by_key.get(model_key)
+        if model is None:
+            return
+        binding_id = _binding_id(tenant_id, target_type, target_key)
+        if session.get(ToolModelBinding, binding_id) is not None:
+            return
+        session.add(
+            ToolModelBinding(
+                id=binding_id,
+                tenant_id=tenant_id,
+                target_type=target_type,
+                target_key=target_key,
+                model_config_id=model.id,
+                point_cost_override=point_cost,
+                enabled=True,
+            )
+        )
+
+    for item in session.scalars(select(ContentItem).where(ContentItem.tenant_id == tenant_id)):
+        area = content_sections.get(item.section_id, "home")
+        model_key = _model_key_for_area(area, item.action_value)
+        bind("content_item", item.id, model_key, item.point_cost)
+
+    for assistant in session.scalars(select(AiAssistant).where(AiAssistant.tenant_id == tenant_id)):
+        model_key = _model_key_for_assistant(assistant.category)
+        bind("assistant", assistant.id, model_key, assistant.point_cost)
+
+    for template in session.scalars(select(PromptTemplate).where(PromptTemplate.tenant_id == tenant_id)):
+        model_key = _model_key_for_template(template.category)
+        bind("prompt_template", template.id, model_key, 0)
+
+    image_bindings = [
+        ("builtin", "image_text_to_image", "image_text_to_image", 80),
+        ("builtin", "image_action_product", "image_text_to_image", 80),
+        ("builtin", "image_action_portrait", "image_text_to_image", 80),
+        ("builtin", "image_action_style", "image_text_to_image", 80),
+        ("builtin", "image_action_cutout", "image_text_to_image", 80),
+        ("builtin", "image_action_poster", "image_text_to_image", 80),
+        ("builtin", "image_action_batch", "image_text_to_image", 80),
+        ("builtin", "image_template_product", "image_text_to_image", 80),
+        ("builtin", "image_template_social", "image_text_to_image", 80),
+        ("builtin", "image_template_ecommerce", "image_text_to_image", 80),
+        ("builtin", "image_template_portrait", "image_text_to_image", 80),
+        ("builtin", "image_template_festival", "image_text_to_image", 80),
+        ("builtin", "image_template_interior", "image_text_to_image", 80),
+    ]
+    for target_type, target_key, model_key, cost in image_bindings:
+        bind(target_type, target_key, model_key, cost)
+
+    video_bindings = [
+        ("builtin", "video_text_to_video", "video_text_to_video", 200),
+        ("builtin", "video_action_avatar", "video_text_to_video", 200),
+        ("builtin", "video_action_product", "video_text_to_video", 200),
+        ("builtin", "video_action_batch", "video_text_to_video", 200),
+        ("builtin", "video_action_subtitle", "video_text_to_video", 200),
+        ("builtin", "video_action_voice", "video_text_to_video", 200),
+        ("builtin", "video_template_product", "video_text_to_video", 200),
+        ("builtin", "video_template_promo", "video_text_to_video", 200),
+        ("builtin", "video_template_knowledge", "video_text_to_video", 200),
+        ("builtin", "video_template_brand", "video_text_to_video", 200),
+        ("builtin", "video_template_festival", "video_text_to_video", 200),
+        ("builtin", "video_template_vlog", "video_text_to_video", 200),
+    ]
+    for target_type, target_key, model_key, cost in video_bindings:
+        bind(target_type, target_key, model_key, cost)
+
+    coding_bindings = [
+        ("builtin", "coding_action_generation", "coding_text_default", 28),
+        ("builtin", "coding_action_bugfix", "coding_text_default", 28),
+        ("builtin", "coding_action_review", "coding_text_default", 28),
+        ("builtin", "coding_action_tests", "coding_text_default", 28),
+        ("builtin", "coding_action_docs", "coding_text_default", 28),
+        ("builtin", "coding_action_script", "coding_text_default", 28),
+        ("builtin", "coding_template_backend", "coding_text_default", 28),
+        ("builtin", "coding_template_frontend", "coding_text_default", 28),
+        ("builtin", "coding_template_sql", "coding_text_default", 28),
+        ("builtin", "coding_template_python", "coding_text_default", 28),
+        ("builtin", "coding_template_test", "coding_text_default", 28),
+        ("builtin", "coding_template_devops", "coding_text_default", 28),
+    ]
+    for target_type, target_key, model_key, cost in coding_bindings:
+        bind(target_type, target_key, model_key, cost)
+
+    writing_bindings = [
+        ("builtin", "writing_action_article", "writing_text_default", 20),
+        ("builtin", "writing_action_official_account", "writing_text_default", 20),
+        ("builtin", "writing_action_xiaohongshu", "writing_text_default", 20),
+        ("builtin", "writing_action_report", "writing_text_default", 20),
+        ("builtin", "writing_action_thesis", "writing_text_default", 20),
+        ("builtin", "writing_action_resume", "writing_text_default", 20),
+        ("builtin", "writing_template_hot_titles", "writing_text_default", 20),
+        ("builtin", "writing_template_outline", "writing_text_default", 20),
+        ("builtin", "writing_template_resume", "writing_text_default", 20),
+        ("builtin", "writing_template_brand_story", "writing_text_default", 20),
+        ("builtin", "writing_template_mail", "writing_text_default", 20),
+        ("builtin", "writing_template_speech", "writing_text_default", 20),
+    ]
+    for target_type, target_key, model_key, cost in writing_bindings:
+        bind(target_type, target_key, model_key, cost)
+
+
+def _default_item_metadata(*, title: str, subtitle: str, category: str, action_value: str) -> dict:
+    action_key = _seed_action_key(action_value=action_value, category=category)
+    download = None
+    if action_key in {"download", "claim"}:
+        safe_key = action_value.strip("/").replace("/", "-") or "resource"
+        download = {
+            "fileName": f"{safe_key}.md",
+            "url": f"/storage/resources/{safe_key}.md",
+            "storageKey": f"resources/{safe_key}.md",
+        }
+    return {
+        "detail": {
+            "summary": subtitle or f"{title} 的完整说明与站内操作入口。",
+            "highlights": [
+                f"适合「{category or '通用'}」场景",
+                "支持站内状态记录",
+                "可由管理端继续调整详情内容",
+            ],
+            "steps": [
+                "查看适用场景和交付物",
+                "确认会员权限和使用成本",
+                "点击主按钮完成站内动作",
+            ],
+            "deliverables": [
+                "站内动作记录",
+                "后续可继续跟进的入口",
+            ],
+            "faqs": [
+                {"question": "这是真实支付吗？", "answer": "当前版本只做站内状态闭环，不接入真实支付。"},
+                {"question": "内容可以配置吗？", "answer": "可在管理端卡片详情字段中调整。"},
+            ],
+            "primaryAction": {"key": action_key, "label": _seed_action_label(action_key)},
+            "secondaryActions": [{"key": "favorite", "label": "收藏"}],
+            "download": download,
+        }
+    }
+
+
+def _seed_action_key(*, action_value: str, category: str) -> str:
+    if "resources" in action_value or "download" in action_value or "资料" in category or "资源" in category:
+        return "download"
+    if "community" in action_value or "社群" in category:
+        return "join"
+    if "orders" in action_value or "projects" in action_value or "接单" in category or "项目" in category:
+        return "apply"
+    if "template" in action_value or "toolkit" in action_value or "模板" in category:
+        return "claim"
+    return "enroll"
+
+
+def _seed_action_label(action_key: str) -> str:
+    return {
+        "apply": "立即报名",
+        "claim": "领取模板",
+        "download": "下载资料",
+        "enroll": "开始学习",
+        "join": "加入社群",
+    }.get(action_key, "立即使用")
+
+
+def _binding_id(tenant_id: str, target_type: str, target_key: str) -> str:
+    digest = hashlib.sha1(f"{tenant_id}:{target_type}:{target_key}".encode("utf-8")).hexdigest()[:24]
+    return f"bind-{digest}"
+
+
+def _model_key_for_area(area: str, action_value: str) -> str:
+    if area == "marketing":
+        return "marketing_text_default"
+    if area == "ecommerce":
+        return "ecommerce_text_default"
+    if area == "legal":
+        return "legal_text_default"
+    if area == "office":
+        return "office_text_default"
+    if area == "image":
+        return "image_text_to_image"
+    if area == "video":
+        return "video_text_to_video"
+    if area == "audio":
+        return action_value if action_value.startswith("audio_") else "general_text_default"
+    if area == "coding":
+        return "coding_text_default"
+    if area == "writing":
+        return "writing_text_default"
+    return "general_text_default"
+
+def _model_key_for_assistant(category: str) -> str:
+    if category == "营销助理":
+        return "marketing_text_default"
+    if category == "法务助理":
+        return "legal_text_default"
+    if category == "办公助理":
+        return "office_text_default"
+    if category == "开发助理":
+        return "coding_text_default"
+    if category == "设计助理":
+        return "image_text_to_image"
+    if category == "学习助理":
+        return "writing_text_default"
+    if category == "客服助理":
+        return "office_text_default"
+    if category == "生活助理":
+        return "general_text_default"
+    return "assistant_text_default"
+
+
+def _model_key_for_template(category: str) -> str:
+    if category == "营销":
+        return "marketing_text_default"
+    if category == "办公":
+        return "office_text_default"
+    if category == "社媒":
+        return "marketing_text_default"
+    if category == "法务":
+        return "legal_text_default"
+    if category == "写作":
+        return "writing_text_default"
+    return "general_text_default"

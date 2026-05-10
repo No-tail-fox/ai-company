@@ -7,6 +7,8 @@ from app.models import ChannelRoute, GenerationTask, User, Wallet, new_id
 from app.schemas import ImageGenerationCreate
 from app.services.channel_router import RouteNotFoundError
 from app.services.generation import GenerationService
+from app.services.generation_surface import namespace_request_key, normalize_generation_surface, surface_clause, surface_from_request_key
+from app.services.model_configs import ModelConfigService
 from app.services.wallet import InsufficientBalanceError, WalletNotFoundError
 
 
@@ -28,10 +30,28 @@ class ImageService:
     def __init__(self, session: Session):
         self.session = session
 
-    def get_workbench(self, *, tenant_id: str, user_id: str = DEMO_IMAGE_USER_ID, limit: int = 20) -> dict:
+    def get_workbench(self, *, tenant_id: str, user_id: str = DEMO_IMAGE_USER_ID, surface: str = "portal", limit: int = 20) -> dict:
+        normalized_surface = normalize_generation_surface(surface)
         self._user(tenant_id=tenant_id, user_id=user_id)
         wallet = self._wallet(tenant_id=tenant_id, user_id=user_id)
-        route = self._image_route(tenant_id=tenant_id, route_key=DEFAULT_IMAGE_ROUTE_KEY)
+        model_configs = ModelConfigService(self.session)
+        model_context = model_configs.model_context_for_target(
+            tenant_id=tenant_id,
+            target_type="builtin",
+            target_key=DEFAULT_IMAGE_ROUTE_KEY,
+        )
+        if model_context["model_config"] is not None:
+            route_key = model_context["model_config"]["model_key"]
+            unit_cost = model_context["effective_point_cost"] or 0
+        else:
+            resolved = model_configs.resolve_generation_target(
+                tenant_id=tenant_id,
+                target_type=None,
+                target_key=None,
+                fallback_route_key=DEFAULT_IMAGE_ROUTE_KEY,
+            )
+            route_key = resolved.route_key
+            unit_cost = resolved.effective_point_cost
         tasks = list(
             self.session.scalars(
                 select(GenerationTask)
@@ -39,6 +59,7 @@ class ImageService:
                     GenerationTask.tenant_id == tenant_id,
                     GenerationTask.user_id == user_id,
                     GenerationTask.task_type == IMAGE_TASK_TYPE,
+                    surface_clause(GenerationTask.request_key, normalized_surface),
                 )
                 .order_by(GenerationTask.created_at.desc())
                 .limit(limit)
@@ -47,13 +68,14 @@ class ImageService:
         return {
             "tenant_id": tenant_id,
             "user_id": user_id,
+            "surface": normalized_surface,
             "wallet": {
                 "balance": wallet.balance,
                 "frozen_balance": wallet.frozen_balance,
             },
             "route": {
-                "route_key": route.route_key,
-                "unit_cost": route.unit_cost,
+                "route_key": route_key,
+                "unit_cost": unit_cost,
             },
             "tasks": [self._task_payload(task) for task in tasks],
         }
@@ -64,19 +86,23 @@ class ImageService:
             raise ImageValidationError("prompt is required")
 
         user_id = payload.user_id or DEMO_IMAGE_USER_ID
-        route_key = payload.route_key or DEFAULT_IMAGE_ROUTE_KEY
         self._user(tenant_id=tenant_id, user_id=user_id)
         self._wallet(tenant_id=tenant_id, user_id=user_id)
-        route = self._image_route(tenant_id=tenant_id, route_key=route_key)
-        request_key = payload.request_key or f"image:{new_id()}"
+        resolved = ModelConfigService(self.session).resolve_generation_target(
+            tenant_id=tenant_id,
+            target_type=payload.target_type,
+            target_key=payload.target_id,
+            fallback_route_key=payload.route_key or DEFAULT_IMAGE_ROUTE_KEY,
+        )
+        request_key = namespace_request_key(payload.surface, payload.request_key or f"image:{new_id()}")
 
         task = GenerationService(self.session).create_task(
             tenant_id=tenant_id,
             user_id=user_id,
             task_type=IMAGE_TASK_TYPE,
             prompt=prompt,
-            route_key=route.route_key,
-            estimated_cost=route.unit_cost,
+            route_key=resolved.route_key,
+            estimated_cost=resolved.effective_point_cost,
             request_key=request_key,
         )
         return self._task_payload(task)
@@ -123,6 +149,7 @@ class ImageService:
             "id": task.id,
             "tenant_id": task.tenant_id,
             "user_id": task.user_id,
+            "surface": surface_from_request_key(task.request_key),
             "task_type": task.task_type,
             "route_key": task.route_key,
             "prompt": task.prompt,

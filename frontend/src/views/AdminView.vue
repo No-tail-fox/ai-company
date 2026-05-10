@@ -1,16 +1,25 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { ArrowLeft, Eye, EyeOff, ImagePlus, Lock, Maximize2, Minus, Plus, RefreshCw, X } from 'lucide-vue-next';
+import { ArrowLeft, Eye, EyeOff, ImagePlus, Lock, Maximize2, Minus, Pencil, Plus, RefreshCw, X } from 'lucide-vue-next';
 import {
   adminFetchPageContent,
   adminCreateItem,
   adminCreatePage,
   adminCreateSection,
+  adminCreateModelConfig,
+  adminCreateProviderChannel,
+  adminCreateToolModelBinding,
+  adminListModelConfigs,
+  adminListProviderChannels,
+  adminListToolModelBindings,
   adminListPages,
   adminReorderItems,
   adminReorderPages,
   adminReorderSections,
+  adminUpdateModelConfig,
+  adminUpdateProviderChannel,
+  adminUpdateToolModelBinding,
   adminUpdateItem,
   adminUpdatePage,
   adminUpdateSection,
@@ -23,10 +32,28 @@ import DynamicPage from '../components/DynamicPage.vue';
 import AudioPage from '../components/AudioPage.vue';
 import MarketingPage from '../components/MarketingPage.vue';
 import { clampPreviewScale, moveRecord, reorderByDrop } from '../services/adminInteractions';
-import { buildItemPayload, buildPagePayload, buildReorderPayload, buildSectionPayload } from '../services/adminForms';
-import { shouldUseAudioPage, shouldUseMarketingPage, type PageConfigSummary, type PortalItem, type PortalPageConfig, type PortalSection } from '../services/viewModel';
+import {
+  buildItemPayload,
+  buildModelConfigPayload,
+  buildPagePayload,
+  buildProviderChannelPayload,
+  buildReorderPayload,
+  buildSectionPayload,
+  buildToolModelBindingPayload
+} from '../services/adminForms';
+import {
+  shouldUseAudioPage,
+  shouldUseMarketingPage,
+  type ModelConfigSummary,
+  type PageConfigSummary,
+  type PortalItem,
+  type PortalPageConfig,
+  type PortalSection,
+  type ProviderChannelSummary,
+  type ToolModelBindingSummary
+} from '../services/viewModel';
 
-type AdminPanel = 'page' | 'section' | 'item' | '';
+type AdminPanel = 'page' | 'section' | 'item' | 'provider-channel' | 'model-config' | 'tool-binding' | '';
 
 const router = useRouter();
 const token = ref(getAdminToken());
@@ -34,6 +61,9 @@ const errorMessage = ref('');
 const notice = ref('');
 const loginForm = reactive({ phone: '13900000000', password: 'admin123456' });
 const pages = ref<PageConfigSummary[]>([]);
+const providerChannels = ref<ProviderChannelSummary[]>([]);
+const modelConfigs = ref<ModelConfigSummary[]>([]);
+const toolModelBindings = ref<ToolModelBindingSummary[]>([]);
 const selectedPageKey = ref('home');
 const pageConfig = ref<PortalPageConfig | null>(null);
 const draggedPageId = ref('');
@@ -69,6 +99,38 @@ const sectionForm = reactive({
   enabled: true
 });
 
+const providerChannelFormId = ref('');
+const providerChannelForm = reactive({
+  channelKey: 'new-channel',
+  displayName: '新渠道',
+  baseUrl: 'https://api.example.com/v1',
+  apiKey: '',
+  channelType: 'TEXT',
+  priority: 100,
+  enabled: true,
+  timeoutSeconds: 60
+});
+
+const modelConfigFormId = ref('');
+const modelConfigForm = reactive({
+  modelKey: 'new-model',
+  displayName: '新模型',
+  capability: 'TEXT',
+  channelId: '',
+  providerModel: '',
+  defaultPointCost: 0,
+  enabled: true
+});
+
+const toolBindingFormId = ref('');
+const toolBindingForm = reactive({
+  targetType: 'builtin',
+  targetKey: 'image_text_to_image',
+  modelConfigId: '',
+  pointCostOverride: null as number | null,
+  enabled: true
+});
+
 const itemForm = reactive({
   sectionId: '',
   itemType: 'tool',
@@ -84,7 +146,17 @@ const itemForm = reactive({
   actionType: 'workspace',
   actionValue: 'new-tool',
   requiredMembership: false,
-  pointCost: 0
+  pointCost: 0,
+  detailSummary: '',
+  detailHighlightsText: '',
+  detailStepsText: '',
+  detailDeliverablesText: '',
+  detailFaqsText: '',
+  detailPrimaryActionKey: 'enroll',
+  detailPrimaryActionLabel: '报名',
+  detailSecondaryActionsText: 'favorite|收藏',
+  detailDownloadFileName: '',
+  detailDownloadUrl: ''
 });
 
 const allItems = computed<PortalItem[]>(() => pageConfig.value?.sections.flatMap((section) => section.items) ?? []);
@@ -126,6 +198,27 @@ const previewStageStyle = computed(() => ({
 }));
 const previewUsesMarketingPage = computed(() => Boolean(previewPageConfig.value && shouldUseMarketingPage(previewPageConfig.value.page.pageKey)));
 const previewUsesAudioPage = computed(() => Boolean(previewPageConfig.value && shouldUseAudioPage(previewPageConfig.value.page.pageKey)));
+const adminPanelTitle = computed(() => {
+  if (activePanel.value === 'page') {
+    return '新增页面';
+  }
+  if (activePanel.value === 'section') {
+    return '新增模块';
+  }
+  if (activePanel.value === 'item') {
+    return '新增卡片';
+  }
+  if (activePanel.value === 'provider-channel') {
+    return '渠道配置';
+  }
+  if (activePanel.value === 'model-config') {
+    return '模型配置';
+  }
+  if (activePanel.value === 'tool-binding') {
+    return '工具绑定';
+  }
+  return '';
+});
 
 onMounted(async () => {
   if (token.value) {
@@ -148,7 +241,12 @@ async function submitLogin() {
 }
 
 async function refreshAdmin() {
-  const rawPages = await adminListPages();
+  const [rawPages, channels, models, bindings] = await Promise.all([
+    adminListPages(),
+    adminListProviderChannels(),
+    adminListModelConfigs(),
+    adminListToolModelBindings()
+  ]);
   pages.value = rawPages.map((page: any) => ({
     id: page.id,
     tenantId: page.tenant_id ?? page.tenantId,
@@ -160,6 +258,9 @@ async function refreshAdmin() {
     sortOrder: Number(page.sort_order ?? page.sortOrder ?? 100),
     enabled: Boolean(page.enabled ?? true)
   }));
+  providerChannels.value = channels;
+  modelConfigs.value = models;
+  toolModelBindings.value = bindings;
   if (!pages.value.some((page) => page.pageKey === selectedPageKey.value)) {
     selectedPageKey.value = pages.value[0]?.pageKey ?? 'home';
   }
@@ -171,6 +272,113 @@ async function loadSelectedPage() {
   const nextPageConfig = await adminFetchPageContent(selectedPageKey.value);
   pageConfig.value = nextPageConfig;
   itemForm.sectionId = nextPageConfig.sections[0]?.id ?? '';
+}
+
+function openProviderChannelPanel(channel?: ProviderChannelSummary) {
+  providerChannelFormId.value = channel?.id ?? '';
+  providerChannelForm.channelKey = channel?.channelKey ?? 'new-channel';
+  providerChannelForm.displayName = channel?.displayName ?? '新渠道';
+  providerChannelForm.baseUrl = channel?.baseUrl ?? 'https://api.example.com/v1';
+  providerChannelForm.apiKey = '';
+  providerChannelForm.channelType = channel?.channelType ?? 'TEXT';
+  providerChannelForm.priority = channel?.priority ?? 100;
+  providerChannelForm.enabled = channel?.enabled ?? true;
+  providerChannelForm.timeoutSeconds = channel?.timeoutSeconds ?? 60;
+  activePanel.value = 'provider-channel';
+}
+
+function openModelConfigPanel(model?: ModelConfigSummary) {
+  modelConfigFormId.value = model?.id ?? '';
+  modelConfigForm.modelKey = model?.modelKey ?? 'new-model';
+  modelConfigForm.displayName = model?.displayName ?? '新模型';
+  modelConfigForm.capability = model?.capability ?? 'TEXT';
+  modelConfigForm.channelId = model?.channelId ?? providerChannels.value[0]?.id ?? '';
+  modelConfigForm.providerModel = model?.providerModel ?? '';
+  modelConfigForm.defaultPointCost = model?.defaultPointCost ?? 0;
+  modelConfigForm.enabled = model?.enabled ?? true;
+  activePanel.value = 'model-config';
+}
+
+function openToolBindingPanel(binding?: ToolModelBindingSummary) {
+  toolBindingFormId.value = binding?.id ?? '';
+  toolBindingForm.targetType = binding?.targetType ?? 'builtin';
+  toolBindingForm.targetKey = binding?.targetKey ?? 'image_text_to_image';
+  toolBindingForm.modelConfigId = binding?.modelConfigId ?? modelConfigs.value[0]?.id ?? '';
+  toolBindingForm.pointCostOverride = binding?.pointCostOverride ?? null;
+  toolBindingForm.enabled = binding?.enabled ?? true;
+  activePanel.value = 'tool-binding';
+}
+
+async function saveProviderChannel() {
+  await run(async () => {
+    const payload = buildProviderChannelPayload(providerChannelForm);
+    if (providerChannelFormId.value) {
+      await adminUpdateProviderChannel(providerChannelFormId.value, payload);
+      notice.value = '渠道配置已更新';
+    } else {
+      await adminCreateProviderChannel(payload);
+      notice.value = '渠道配置已创建';
+    }
+    providerChannelFormId.value = '';
+    activePanel.value = '';
+    await refreshAdmin();
+  });
+}
+
+async function saveModelConfig() {
+  await run(async () => {
+    const payload = buildModelConfigPayload(modelConfigForm);
+    if (modelConfigFormId.value) {
+      await adminUpdateModelConfig(modelConfigFormId.value, payload);
+      notice.value = '模型配置已更新';
+    } else {
+      await adminCreateModelConfig(payload);
+      notice.value = '模型配置已创建';
+    }
+    modelConfigFormId.value = '';
+    activePanel.value = '';
+    await refreshAdmin();
+  });
+}
+
+async function saveToolBinding() {
+  await run(async () => {
+    const payload = buildToolModelBindingPayload(toolBindingForm);
+    if (toolBindingFormId.value) {
+      await adminUpdateToolModelBinding(toolBindingFormId.value, payload);
+      notice.value = '工具绑定已更新';
+    } else {
+      await adminCreateToolModelBinding(payload);
+      notice.value = '工具绑定已创建';
+    }
+    toolBindingFormId.value = '';
+    activePanel.value = '';
+    await refreshAdmin();
+  });
+}
+
+async function toggleProviderChannel(channel: ProviderChannelSummary) {
+  await run(async () => {
+    await adminUpdateProviderChannel(channel.id, { enabled: !channel.enabled });
+    notice.value = channel.enabled ? '渠道已停用' : '渠道已启用';
+    await refreshAdmin();
+  });
+}
+
+async function toggleModelConfig(model: ModelConfigSummary) {
+  await run(async () => {
+    await adminUpdateModelConfig(model.id, { enabled: !model.enabled });
+    notice.value = model.enabled ? '模型已停用' : '模型已启用';
+    await refreshAdmin();
+  });
+}
+
+async function toggleToolBinding(binding: ToolModelBindingSummary) {
+  await run(async () => {
+    await adminUpdateToolModelBinding(binding.id, { enabled: !binding.enabled });
+    notice.value = binding.enabled ? '工具绑定已停用' : '工具绑定已启用';
+    await refreshAdmin();
+  });
 }
 
 async function createPage() {
@@ -336,6 +544,9 @@ function logout() {
   clearAdminToken();
   token.value = '';
   pages.value = [];
+  providerChannels.value = [];
+  modelConfigs.value = [];
+  toolModelBindings.value = [];
   pageConfig.value = null;
 }
 
@@ -347,6 +558,9 @@ function openPanel(panel: AdminPanel) {
 
 function closePanel() {
   activePanel.value = '';
+  providerChannelFormId.value = '';
+  modelConfigFormId.value = '';
+  toolBindingFormId.value = '';
 }
 
 function setPreviewScale(value: number) {
@@ -519,6 +733,71 @@ async function run(task: () => Promise<void>) {
                 </div>
               </div>
             </section>
+
+            <section class="admin-grid three model-center-grid">
+              <div class="admin-card">
+                <header>
+                  <strong>供应商渠道</strong>
+                  <button class="small-action" @click="openProviderChannelPanel()"><Plus :size="16" />新增渠道</button>
+                </header>
+                <div v-for="channel in providerChannels" :key="channel.id" class="admin-row compact">
+                  <div>
+                    <strong>{{ channel.displayName }}</strong>
+                    <span>{{ channel.channelKey }} · {{ channel.channelType }} · {{ channel.apiKeyMask || '未设置密钥' }}</span>
+                  </div>
+                  <div class="row-actions">
+                    <button class="mini-btn" @click="openProviderChannelPanel(channel)"><Pencil :size="14" /></button>
+                    <button class="icon-btn visibility-btn" @click="toggleProviderChannel(channel)">
+                      <Eye v-if="channel.enabled" :size="16" />
+                      <EyeOff v-else :size="16" />
+                    </button>
+                  </div>
+                </div>
+                <p v-if="providerChannels.length === 0" class="empty-hint">暂无渠道配置</p>
+              </div>
+
+              <div class="admin-card">
+                <header>
+                  <strong>模型列表</strong>
+                  <button class="small-action" @click="openModelConfigPanel()"><Plus :size="16" />新增模型</button>
+                </header>
+                <div v-for="model in modelConfigs" :key="model.id" class="admin-row compact">
+                  <div>
+                    <strong>{{ model.displayName }}</strong>
+                    <span>{{ model.modelKey }} · {{ model.providerModel }} · {{ model.defaultPointCost }} 积分</span>
+                  </div>
+                  <div class="row-actions">
+                    <button class="mini-btn" @click="openModelConfigPanel(model)"><Pencil :size="14" /></button>
+                    <button class="icon-btn visibility-btn" @click="toggleModelConfig(model)">
+                      <Eye v-if="model.enabled" :size="16" />
+                      <EyeOff v-else :size="16" />
+                    </button>
+                  </div>
+                </div>
+                <p v-if="modelConfigs.length === 0" class="empty-hint">暂无模型配置</p>
+              </div>
+
+              <div class="admin-card">
+                <header>
+                  <strong>工具绑定列表</strong>
+                  <button class="small-action" @click="openToolBindingPanel()"><Plus :size="16" />新增绑定</button>
+                </header>
+                <div v-for="binding in toolModelBindings" :key="binding.id" class="admin-row compact">
+                  <div>
+                    <strong>{{ binding.targetType }} / {{ binding.targetKey }}</strong>
+                    <span>{{ binding.modelConfig?.displayName || binding.modelConfig?.modelKey || binding.modelConfigId }} · {{ binding.effectivePointCost ?? binding.pointCostOverride ?? 0 }} 积分</span>
+                  </div>
+                  <div class="row-actions">
+                    <button class="mini-btn" @click="openToolBindingPanel(binding)"><Pencil :size="14" /></button>
+                    <button class="icon-btn visibility-btn" @click="toggleToolBinding(binding)">
+                      <Eye v-if="binding.enabled" :size="16" />
+                      <EyeOff v-else :size="16" />
+                    </button>
+                  </div>
+                </div>
+                <p v-if="toolModelBindings.length === 0" class="empty-hint">暂无工具绑定</p>
+              </div>
+            </section>
           </div>
 
           <aside class="admin-preview-panel" :style="previewPanelStyle">
@@ -567,7 +846,7 @@ async function run(task: () => Promise<void>) {
         <div v-if="activePanel" class="modal-backdrop" @click.self="closePanel">
           <section class="modal-panel">
             <header>
-              <strong>{{ activePanelTitle }}</strong>
+              <strong>{{ adminPanelTitle }}</strong>
               <button class="icon-btn" @click="closePanel"><X :size="16" /></button>
             </header>
 
@@ -609,6 +888,76 @@ async function run(task: () => Promise<void>) {
               <button class="primary-btn">创建模块</button>
             </form>
 
+            <form v-else-if="activePanel === 'provider-channel'" class="form-card" @submit.prevent="saveProviderChannel">
+              <label>渠道Key<input v-model="providerChannelForm.channelKey" /></label>
+              <label>展示名称<input v-model="providerChannelForm.displayName" /></label>
+              <label>Base URL<input v-model="providerChannelForm.baseUrl" /></label>
+              <label>API Key<input v-model="providerChannelForm.apiKey" type="password" placeholder="留空则保留原值" /></label>
+              <label>
+                渠道类型
+                <select v-model="providerChannelForm.channelType">
+                  <option value="TEXT">TEXT</option>
+                  <option value="IMAGE">IMAGE</option>
+                  <option value="VIDEO">VIDEO</option>
+                  <option value="AUDIO">AUDIO</option>
+                </select>
+              </label>
+              <label>优先级<input v-model.number="providerChannelForm.priority" type="number" /></label>
+              <label>超时秒数<input v-model.number="providerChannelForm.timeoutSeconds" type="number" /></label>
+              <label class="check-label"><input v-model="providerChannelForm.enabled" type="checkbox" />启用</label>
+              <button class="primary-btn">{{ providerChannelFormId ? '更新渠道' : '创建渠道' }}</button>
+            </form>
+
+            <form v-else-if="activePanel === 'model-config'" class="form-card" @submit.prevent="saveModelConfig">
+              <label>模型Key<input v-model="modelConfigForm.modelKey" /></label>
+              <label>展示名称<input v-model="modelConfigForm.displayName" /></label>
+              <label>
+                能力类型
+                <select v-model="modelConfigForm.capability">
+                  <option value="TEXT">TEXT</option>
+                  <option value="IMAGE">IMAGE</option>
+                  <option value="VIDEO">VIDEO</option>
+                  <option value="AUDIO">AUDIO</option>
+                </select>
+              </label>
+              <label>
+                绑定渠道
+                <select v-model="modelConfigForm.channelId">
+                  <option v-for="channel in providerChannels" :key="channel.id" :value="channel.id">
+                    {{ channel.displayName }}
+                  </option>
+                </select>
+              </label>
+              <label>实际模型名<input v-model="modelConfigForm.providerModel" /></label>
+              <label>默认积分<input v-model.number="modelConfigForm.defaultPointCost" type="number" /></label>
+              <label class="check-label"><input v-model="modelConfigForm.enabled" type="checkbox" />启用</label>
+              <button class="primary-btn">{{ modelConfigFormId ? '更新模型' : '创建模型' }}</button>
+            </form>
+
+            <form v-else-if="activePanel === 'tool-binding'" class="form-card" @submit.prevent="saveToolBinding">
+              <label>
+                目标类型
+                <select v-model="toolBindingForm.targetType">
+                  <option value="builtin">builtin</option>
+                  <option value="assistant">assistant</option>
+                  <option value="content_item">content_item</option>
+                  <option value="prompt_template">prompt_template</option>
+                </select>
+              </label>
+              <label>目标ID<input v-model="toolBindingForm.targetKey" /></label>
+              <label>
+                绑定模型
+                <select v-model="toolBindingForm.modelConfigId">
+                  <option v-for="model in modelConfigs" :key="model.id" :value="model.id">
+                    {{ model.displayName }} ({{ model.modelKey }})
+                  </option>
+                </select>
+              </label>
+              <label>覆盖积分<input v-model.number="toolBindingForm.pointCostOverride" type="number" placeholder="留空则使用模型默认积分" /></label>
+              <label class="check-label"><input v-model="toolBindingForm.enabled" type="checkbox" />启用</label>
+              <button class="primary-btn">{{ toolBindingFormId ? '更新绑定' : '创建绑定' }}</button>
+            </form>
+
             <form v-else class="form-card" @submit.prevent="createItem">
               <label>
                 所属模块
@@ -626,6 +975,16 @@ async function run(task: () => Promise<void>) {
               <label>跳转值<input v-model="itemForm.actionValue" /></label>
               <label>积分<input v-model.number="itemForm.pointCost" type="number" /></label>
               <label class="check-label"><input v-model="itemForm.requiredMembership" type="checkbox" />会员可用</label>
+              <label>详情摘要<textarea v-model="itemForm.detailSummary" rows="3" /></label>
+              <label>详情亮点<textarea v-model="itemForm.detailHighlightsText" rows="3" placeholder="每行一个亮点" /></label>
+              <label>步骤/目录<textarea v-model="itemForm.detailStepsText" rows="4" placeholder="每行一个步骤" /></label>
+              <label>交付物<textarea v-model="itemForm.detailDeliverablesText" rows="3" placeholder="每行一个交付物" /></label>
+              <label>FAQ<textarea v-model="itemForm.detailFaqsText" rows="3" placeholder="问题|答案，每行一条" /></label>
+              <label>主按钮动作Key<input v-model="itemForm.detailPrimaryActionKey" /></label>
+              <label>主按钮文案<input v-model="itemForm.detailPrimaryActionLabel" /></label>
+              <label>次按钮<textarea v-model="itemForm.detailSecondaryActionsText" rows="2" placeholder="favorite|收藏" /></label>
+              <label>下载文件名<input v-model="itemForm.detailDownloadFileName" /></label>
+              <label>下载URL<input v-model="itemForm.detailDownloadUrl" /></label>
               <label class="upload-line"><ImagePlus :size="18" />上传图片<input type="file" accept="image/*" @change="uploadImage" /></label>
               <button class="primary-btn">创建卡片</button>
             </form>

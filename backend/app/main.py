@@ -13,28 +13,42 @@ from app.models import User
 from app.schemas import (
     AudioTaskCreate,
     AssistantCreate,
+    ChatExportCreate,
+    ChatMessageCreate,
+    ChatSessionCreate,
+    ChatSessionUpdate,
     ContentItemCreate,
     ContentItemUpdate,
     ContentPageCreate,
     ContentPageUpdate,
     ContentSectionCreate,
     ContentSectionUpdate,
+    GenerationSurface,
     ImageGenerationCreate,
     ImageTaskPayload,
     ImageWorkbenchPayload,
     LoginRequest,
+    ModelConfigCreate,
+    ModelConfigUpdate,
+    PortalActionCreate,
+    ProviderChannelCreate,
+    ProviderChannelUpdate,
     ReorderRequest,
+    ToolModelBindingCreate,
+    ToolModelBindingUpdate,
     VideoGenerationCreate,
     VideoTaskPayload,
     VideoWorkbenchPayload,
 )
 from app.seed import ensure_demo_data
 from app.services.audio import AudioProviderError, AudioService
+from app.services.chat import ChatNotFoundError, ChatProviderError, ChatService, ChatValidationError
 from app.services.admin_content import AdminContentService
 from app.services.auth import AuthService
 from app.services.channel_router import ChannelTransport, HttpChannelTransport, RouteNotFoundError
 from app.services.image import DEMO_IMAGE_USER_ID, ImageService, ImageUserNotFoundError, ImageValidationError
 from app.services.memberships import MembershipService
+from app.services.model_configs import ModelConfigError, ModelConfigService
 from app.services.portal import PortalService
 from app.services.uploads import UploadService, UploadValidationError
 from app.services.video import DEMO_VIDEO_USER_ID, VideoService, VideoUserNotFoundError, VideoValidationError
@@ -67,10 +81,11 @@ async def lifespan(app: FastAPI) -> Iterator[None]:
     yield
 
 
-def create_app(*, audio_transport: ChannelTransport | None = None) -> FastAPI:
+def create_app(*, audio_transport: ChannelTransport | None = None, chat_transport: ChannelTransport | None = None) -> FastAPI:
     settings = get_settings()
     app = FastAPI(title=settings.app_name, lifespan=lifespan)
     app.state.audio_transport = audio_transport or HttpChannelTransport()
+    app.state.chat_transport = chat_transport or HttpChannelTransport()
     storage_dir = Path(settings.storage_dir)
     storage_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/storage", StaticFiles(directory=storage_dir), name="storage")
@@ -112,15 +127,136 @@ def create_app(*, audio_transport: ChannelTransport | None = None) -> FastAPI:
     ) -> dict:
         return PortalService(db).get_assistant_center(tenant_id=tenant_id, category=category)
 
+    @app.get(f"{settings.api_prefix}/portal/details/{{detail_path:path}}")
+    def portal_detail(
+        detail_path: str,
+        tenant_id: TenantHeader,
+        user_id: str = "demo-user",
+        db: Session = Depends(get_session),
+    ) -> dict:
+        payload = PortalService(db).get_detail(tenant_id=tenant_id, detail_path=detail_path, user_id=user_id)
+        if payload is None:
+            raise HTTPException(status_code=404, detail="detail not found")
+        return payload
+
+    @app.get(f"{settings.api_prefix}/portal/search")
+    def portal_search(
+        tenant_id: TenantHeader,
+        q: str = "",
+        page_key: str | None = None,
+        limit: int = 8,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        return PortalService(db).search(tenant_id=tenant_id, query=q, page_key=page_key, limit=limit)
+
+    @app.post(f"{settings.api_prefix}/portal/actions")
+    def portal_action(
+        payload: PortalActionCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        return PortalService(db).perform_action(tenant_id=tenant_id, payload=payload)
+
+    @app.get(f"{settings.api_prefix}/portal/user-actions")
+    def portal_user_actions(
+        tenant_id: TenantHeader,
+        user_id: str = "demo-user",
+        kind: str = "all",
+        limit: int = 20,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        return PortalService(db).user_actions(tenant_id=tenant_id, user_id=user_id, kind=kind, limit=limit)
+
     @app.get(f"{settings.api_prefix}/video/workbench", response_model=VideoWorkbenchPayload)
     def video_workbench(
         tenant_id: TenantHeader,
         user_id: str = DEMO_VIDEO_USER_ID,
+        surface: GenerationSurface = "portal",
         db: Session = Depends(get_session),
     ) -> dict:
         try:
-            return VideoService(db).get_workbench(tenant_id=tenant_id, user_id=user_id)
-        except (RouteNotFoundError, WalletNotFoundError, VideoUserNotFoundError) as exc:
+            return VideoService(db).get_workbench(tenant_id=tenant_id, user_id=user_id, surface=surface)
+        except (RouteNotFoundError, WalletNotFoundError, VideoUserNotFoundError, ModelConfigError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get(f"{settings.api_prefix}/chat/workbench")
+    def chat_workbench(
+        tenant_id: TenantHeader,
+        user_id: str = "demo-user",
+        session_id: str | None = None,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        try:
+            return ChatService(db, app.state.chat_transport).get_workbench(tenant_id=tenant_id, user_id=user_id, session_id=session_id)
+        except ChatNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (ChatValidationError, ChatProviderError) as exc:
+            raise HTTPException(status_code=400 if isinstance(exc, ChatValidationError) else 502, detail=str(exc)) from exc
+
+    @app.post(f"{settings.api_prefix}/chat/sessions", status_code=status.HTTP_201_CREATED)
+    def create_chat_session(
+        payload: ChatSessionCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        try:
+            return ChatService(db, app.state.chat_transport).create_session(tenant_id=tenant_id, payload=payload)
+        except ChatValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get(f"{settings.api_prefix}/chat/sessions/{{session_id}}")
+    def get_chat_session(
+        session_id: str,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        try:
+            return ChatService(db, app.state.chat_transport).get_session(tenant_id=tenant_id, session_id=session_id)
+        except ChatNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.patch(f"{settings.api_prefix}/chat/sessions/{{session_id}}")
+    def update_chat_session(
+        session_id: str,
+        payload: ChatSessionUpdate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        try:
+            return ChatService(db, app.state.chat_transport).update_session(tenant_id=tenant_id, session_id=session_id, payload=payload)
+        except ChatNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ChatValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post(f"{settings.api_prefix}/chat/sessions/{{session_id}}/messages", status_code=status.HTTP_201_CREATED)
+    def create_chat_message(
+        session_id: str,
+        payload: ChatMessageCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        try:
+            return ChatService(db, app.state.chat_transport).send_message(tenant_id=tenant_id, session_id=session_id, payload=payload)
+        except ChatNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ChatValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except ChatProviderError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    @app.post(f"{settings.api_prefix}/chat/sessions/{{session_id}}/export", status_code=status.HTTP_201_CREATED)
+    def export_chat_session(
+        session_id: str,
+        payload: ChatExportCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        try:
+            return ChatService(db, app.state.chat_transport).export_session(tenant_id=tenant_id, session_id=session_id, payload=payload)
+        except ChatNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ChatValidationError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.post(f"{settings.api_prefix}/video/generations", status_code=status.HTTP_201_CREATED, response_model=VideoTaskPayload)
@@ -131,18 +267,19 @@ def create_app(*, audio_transport: ChannelTransport | None = None) -> FastAPI:
     ) -> dict:
         try:
             return VideoService(db).create_generation(tenant_id=tenant_id, payload=payload)
-        except (RouteNotFoundError, WalletNotFoundError, VideoUserNotFoundError, VideoValidationError, InsufficientBalanceError) as exc:
+        except (RouteNotFoundError, WalletNotFoundError, VideoUserNotFoundError, VideoValidationError, InsufficientBalanceError, ModelConfigError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get(f"{settings.api_prefix}/image/workbench", response_model=ImageWorkbenchPayload)
     def image_workbench(
         tenant_id: TenantHeader,
         user_id: str = DEMO_IMAGE_USER_ID,
+        surface: GenerationSurface = "portal",
         db: Session = Depends(get_session),
     ) -> dict:
         try:
-            return ImageService(db).get_workbench(tenant_id=tenant_id, user_id=user_id)
-        except (RouteNotFoundError, WalletNotFoundError, ImageUserNotFoundError) as exc:
+            return ImageService(db).get_workbench(tenant_id=tenant_id, user_id=user_id, surface=surface)
+        except (RouteNotFoundError, WalletNotFoundError, ImageUserNotFoundError, ModelConfigError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.post(f"{settings.api_prefix}/image/generations", status_code=status.HTTP_201_CREATED, response_model=ImageTaskPayload)
@@ -153,7 +290,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None) -> FastAPI:
     ) -> dict:
         try:
             return ImageService(db).create_generation(tenant_id=tenant_id, payload=payload)
-        except (RouteNotFoundError, WalletNotFoundError, ImageUserNotFoundError, ImageValidationError, InsufficientBalanceError) as exc:
+        except (RouteNotFoundError, WalletNotFoundError, ImageUserNotFoundError, ImageValidationError, InsufficientBalanceError, ModelConfigError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get(f"{settings.api_prefix}/memberships/status")
@@ -194,6 +331,118 @@ def create_app(*, audio_transport: ChannelTransport | None = None) -> FastAPI:
         if user.role != "ADMIN":
             raise HTTPException(status_code=403, detail="admin role required")
         return user
+
+    @app.get(f"{settings.api_prefix}/admin/provider-channels")
+    def list_provider_channels(
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> list[dict]:
+        del admin
+        return ModelConfigService(db).list_provider_channels(tenant_id=tenant_id)
+
+    @app.post(f"{settings.api_prefix}/admin/provider-channels", status_code=status.HTTP_201_CREATED)
+    def create_provider_channel(
+        payload: ProviderChannelCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        try:
+            return ModelConfigService(db).create_provider_channel(tenant_id=tenant_id, payload=payload)
+        except ModelConfigError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.put(f"{settings.api_prefix}/admin/provider-channels/{{channel_id}}")
+    def update_provider_channel(
+        channel_id: str,
+        payload: ProviderChannelUpdate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        try:
+            return ModelConfigService(db).update_provider_channel(tenant_id=tenant_id, channel_id=channel_id, payload=payload)
+        except ModelConfigError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get(f"{settings.api_prefix}/admin/model-configs")
+    def list_model_configs(
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> list[dict]:
+        del admin
+        return ModelConfigService(db).list_model_configs(tenant_id=tenant_id)
+
+    @app.post(f"{settings.api_prefix}/admin/model-configs", status_code=status.HTTP_201_CREATED)
+    def create_model_config(
+        payload: ModelConfigCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        try:
+            return ModelConfigService(db).create_model_config(tenant_id=tenant_id, payload=payload)
+        except ModelConfigError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.put(f"{settings.api_prefix}/admin/model-configs/{{model_config_id}}")
+    def update_model_config(
+        model_config_id: str,
+        payload: ModelConfigUpdate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        try:
+            return ModelConfigService(db).update_model_config(
+                tenant_id=tenant_id,
+                model_config_id=model_config_id,
+                payload=payload,
+            )
+        except ModelConfigError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get(f"{settings.api_prefix}/admin/tool-model-bindings")
+    def list_tool_model_bindings(
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> list[dict]:
+        del admin
+        return ModelConfigService(db).list_tool_model_bindings(tenant_id=tenant_id)
+
+    @app.post(f"{settings.api_prefix}/admin/tool-model-bindings", status_code=status.HTTP_201_CREATED)
+    def create_tool_model_binding(
+        payload: ToolModelBindingCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        try:
+            return ModelConfigService(db).create_tool_model_binding(tenant_id=tenant_id, payload=payload)
+        except ModelConfigError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.put(f"{settings.api_prefix}/admin/tool-model-bindings/{{binding_id}}")
+    def update_tool_model_binding(
+        binding_id: str,
+        payload: ToolModelBindingUpdate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        try:
+            return ModelConfigService(db).update_tool_model_binding(tenant_id=tenant_id, binding_id=binding_id, payload=payload)
+        except ModelConfigError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get(f"{settings.api_prefix}/admin/pages")
     def list_pages(
@@ -360,7 +609,8 @@ def create_app(*, audio_transport: ChannelTransport | None = None) -> FastAPI:
         admin: User = Depends(require_admin),
     ) -> list[dict]:
         del admin
-        return [PortalService._item_payload(item) for item in AdminContentService(db).list_items(tenant_id=tenant_id, section_id=section_id)]
+        service = PortalService(db)
+        return [service._item_payload(item) for item in AdminContentService(db).list_items(tenant_id=tenant_id, section_id=section_id)]
 
     @app.post(f"{settings.api_prefix}/admin/content/items", status_code=status.HTTP_201_CREATED)
     def create_content_item(
@@ -372,7 +622,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None) -> FastAPI:
             item = AdminContentService(db).create_content_item(tenant_id=tenant_id, payload=payload)
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
-        return PortalService._item_payload(item)
+        return PortalService(db)._item_payload(item)
 
     @app.post(f"{settings.api_prefix}/admin/items", status_code=status.HTTP_201_CREATED)
     def create_item(
@@ -386,7 +636,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None) -> FastAPI:
             item = AdminContentService(db).create_content_item(tenant_id=tenant_id, payload=payload)
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
-        return PortalService._item_payload(item)
+        return PortalService(db)._item_payload(item)
 
     @app.post(f"{settings.api_prefix}/admin/items/reorder")
     def reorder_items(
@@ -406,7 +656,8 @@ def create_app(*, audio_transport: ChannelTransport | None = None) -> FastAPI:
             )
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
-        return [PortalService._item_payload(item) for item in items]
+        service = PortalService(db)
+        return [service._item_payload(item) for item in items]
 
     @app.put(f"{settings.api_prefix}/admin/items/{{item_id}}")
     def update_item(
@@ -421,7 +672,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None) -> FastAPI:
             item = AdminContentService(db).update_content_item(tenant_id=tenant_id, item_id=item_id, payload=payload)
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
-        return PortalService._item_payload(item)
+        return PortalService(db)._item_payload(item)
 
     @app.delete(f"{settings.api_prefix}/admin/items/{{item_id}}")
     def delete_item(
@@ -435,7 +686,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None) -> FastAPI:
             item = AdminContentService(db).disable_content_item(tenant_id=tenant_id, item_id=item_id)
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
-        return PortalService._item_payload(item)
+        return PortalService(db)._item_payload(item)
 
     @app.post(f"{settings.api_prefix}/admin/uploads", status_code=status.HTTP_201_CREATED)
     async def upload_image(
@@ -467,6 +718,8 @@ def create_app(*, audio_transport: ChannelTransport | None = None) -> FastAPI:
     ) -> dict:
         try:
             return AudioService(db, app.state.audio_transport).create_task(tenant_id=tenant_id, payload=payload)
+        except ModelConfigError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RouteNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except (InsufficientBalanceError, WalletNotFoundError) as exc:
@@ -477,9 +730,10 @@ def create_app(*, audio_transport: ChannelTransport | None = None) -> FastAPI:
     @app.get(f"{settings.api_prefix}/audio/tasks")
     def list_audio_tasks(
         tenant_id: TenantHeader,
+        surface: GenerationSurface = "portal",
         db: Session = Depends(get_session),
     ) -> dict:
-        return AudioService(db, app.state.audio_transport).list_tasks(tenant_id=tenant_id)
+        return AudioService(db, app.state.audio_transport).list_tasks(tenant_id=tenant_id, surface=surface)
 
     @app.post(f"{settings.api_prefix}/admin/assistants", status_code=status.HTTP_201_CREATED)
     def create_assistant(

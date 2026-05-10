@@ -56,6 +56,26 @@ def test_image_generation_creates_pending_task_and_reserves_wallet_points(sessio
     assert payload["prompt"] == "生成一张夏季新品推广海报"
     assert payload["status"] == "PENDING"
     assert payload["estimated_cost"] == 80
+    assert payload["surface"] == "portal"
+    assert wallet.balance == 920
+    assert wallet.frozen_balance == 80
+
+
+def test_image_generation_supports_workbench_surface(session):
+    wallet = seed_image_runtime(session)
+    client = make_client(session)
+
+    response = client.post(
+        "/api/v1/image/generations",
+        headers={"X-Tenant-ID": "tenant-a"},
+        json={"prompt": "workbench image", "request_key": "image-wb", "surface": "workbench"},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["surface"] == "workbench"
+    task = session.query(GenerationTask).filter_by(id=payload["id"]).one()
+    assert task.request_key.startswith("workbench:")
     assert wallet.balance == 920
     assert wallet.frozen_balance == 80
 
@@ -92,7 +112,7 @@ def test_image_workbench_returns_wallet_route_and_recent_image_tasks(session):
                 id="image-task-old",
                 tenant_id="tenant-a",
                 user_id="demo-user",
-                request_key="image-old",
+                request_key="portal:image-old",
                 task_type="IMAGE",
                 route_key="image_text_to_image",
                 prompt="旧图片任务",
@@ -105,7 +125,7 @@ def test_image_workbench_returns_wallet_route_and_recent_image_tasks(session):
                 id="image-task-new",
                 tenant_id="tenant-a",
                 user_id="demo-user",
-                request_key="image-new",
+                request_key="workbench:image-new",
                 task_type="IMAGE",
                 route_key="image_text_to_image",
                 prompt="新图片任务",
@@ -116,10 +136,25 @@ def test_image_workbench_returns_wallet_route_and_recent_image_tasks(session):
                 created_at=now,
             ),
             GenerationTask(
+                id="image-task-legacy",
+                tenant_id="tenant-a",
+                user_id="demo-user",
+                request_key="image-legacy",
+                task_type="IMAGE",
+                route_key="image_text_to_image",
+                prompt="旧图像任务",
+                status="SUCCESS",
+                reservation_key="reservation-legacy",
+                estimated_cost=80,
+                actual_cost=80,
+                result_url="https://cdn.example.com/legacy.png",
+                created_at=now - timedelta(hours=2),
+            ),
+            GenerationTask(
                 id="video-task",
                 tenant_id="tenant-a",
                 user_id="demo-user",
-                request_key="video-task",
+                request_key="workbench:video-task",
                 task_type="VIDEO",
                 route_key="video_text_to_video",
                 prompt="视频任务不应出现",
@@ -132,7 +167,7 @@ def test_image_workbench_returns_wallet_route_and_recent_image_tasks(session):
                 id="image-task-other-tenant",
                 tenant_id="tenant-b",
                 user_id="tenant-b-user",
-                request_key="image-other",
+                request_key="workbench:image-other",
                 task_type="IMAGE",
                 route_key="image_text_to_image",
                 prompt="其它租户",
@@ -146,16 +181,26 @@ def test_image_workbench_returns_wallet_route_and_recent_image_tasks(session):
     session.commit()
     client = make_client(session)
 
-    response = client.get("/api/v1/image/workbench", headers={"X-Tenant-ID": "tenant-a"})
+    workbench_response = client.get(
+        "/api/v1/image/workbench?surface=workbench",
+        headers={"X-Tenant-ID": "tenant-a"},
+    )
+    portal_response = client.get("/api/v1/image/workbench", headers={"X-Tenant-ID": "tenant-a"})
 
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["tenant_id"] == "tenant-a"
-    assert payload["user_id"] == "demo-user"
-    assert payload["wallet"] == {"balance": wallet.balance, "frozen_balance": wallet.frozen_balance}
-    assert payload["route"] == {"route_key": "image_text_to_image", "unit_cost": 80}
-    assert [task["id"] for task in payload["tasks"]] == ["image-task-new", "image-task-old"]
-    assert payload["tasks"][0]["provider_task_id"] == "provider-new"
+    assert workbench_response.status_code == 200
+    workbench_payload = workbench_response.json()
+    assert workbench_payload["surface"] == "workbench"
+    assert [task["id"] for task in workbench_payload["tasks"]] == ["image-task-new"]
+    assert workbench_payload["tasks"][0]["surface"] == "workbench"
+    assert workbench_payload["tasks"][0]["provider_task_id"] == "provider-new"
+
+    assert portal_response.status_code == 200
+    portal_payload = portal_response.json()
+    assert portal_payload["surface"] == "portal"
+    assert [task["id"] for task in portal_payload["tasks"]] == ["image-task-old", "image-task-legacy"]
+    assert portal_payload["tasks"][0]["surface"] == "portal"
+    assert portal_payload["wallet"] == {"balance": wallet.balance, "frozen_balance": wallet.frozen_balance}
+    assert portal_payload["route"] == {"route_key": "image_text_to_image", "unit_cost": 80}
 
 
 def test_image_generation_rejects_empty_prompt(session):

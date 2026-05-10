@@ -117,6 +117,40 @@ class ApiChannel(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
 
+class ModelConfig(Base):
+    __tablename__ = "model_configs"
+    __table_args__ = (UniqueConstraint("tenant_id", "model_key", name="uq_model_configs_tenant_key"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(32), ForeignKey("tenants.id"), index=True)
+    model_key: Mapped[str] = mapped_column(String(64), index=True)
+    display_name: Mapped[str] = mapped_column(String(255))
+    capability: Mapped[str] = mapped_column(String(32), index=True)
+    channel_id: Mapped[str] = mapped_column(String(32), ForeignKey("api_channels.id"), index=True)
+    provider_model: Mapped[str] = mapped_column(String(128))
+    default_point_cost: Mapped[int] = mapped_column(Integer, default=0)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class ToolModelBinding(Base):
+    __tablename__ = "tool_model_bindings"
+    __table_args__ = (UniqueConstraint("tenant_id", "target_type", "target_key", name="uq_tool_model_bindings_target"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(32), ForeignKey("tenants.id"), index=True)
+    target_type: Mapped[str] = mapped_column(String(64), index=True)
+    target_key: Mapped[str] = mapped_column(String(128), index=True)
+    model_config_id: Mapped[str] = mapped_column(String(32), ForeignKey("model_configs.id"), index=True)
+    point_cost_override: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
 class ChannelRoute(Base):
     __tablename__ = "channel_routes"
     __table_args__ = (UniqueConstraint("tenant_id", "route_key", name="uq_channel_routes_tenant_key"),)
@@ -356,5 +390,31 @@ class UserMembership(Base):
     status: Mapped[str] = mapped_column(String(32), default="ACTIVE", index=True)
     started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class UserPortalAction(Base):
+    __tablename__ = "user_portal_actions"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "user_id",
+            "detail_path",
+            "action_key",
+            "item_id",
+            name="uq_user_portal_actions_target",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(32), ForeignKey("tenants.id"), index=True)
+    user_id: Mapped[str] = mapped_column(String(32), ForeignKey("users.id"), index=True)
+    detail_path: Mapped[str] = mapped_column(String(500), index=True)
+    item_id: Mapped[str] = mapped_column(String(32), default="", index=True)
+    action_key: Mapped[str] = mapped_column(String(64), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="COMPLETED", index=True)
+    message: Mapped[str] = mapped_column(String(255), default="")
+    result_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

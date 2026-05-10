@@ -1,4 +1,4 @@
-from app.models import AiAssistant, ChannelRoute, ContentItem, ContentSection, PromptTemplate, Tenant
+from app.models import AiAssistant, ChannelRoute, ChatMessage, ChatSession, ContentItem, ContentPage, ContentSection, ModelConfig, PromptTemplate, Tenant
 from app.seed import ensure_demo_data
 
 
@@ -11,18 +11,11 @@ def test_demo_seed_creates_portal_content_idempotently(session):
     assert session.query(ContentItem).filter_by(tenant_id="demo").count() >= 10
     assert session.query(AiAssistant).filter_by(tenant_id="demo").count() >= 12
     assert session.query(PromptTemplate).filter_by(tenant_id="demo").count() >= 5
-    audio_sections = session.query(ContentSection).filter_by(tenant_id="demo", area="audio").all()
-    audio_layouts = {section.layout for section in audio_sections}
-    assert {
-        "audio-workbench",
-        "audio-stats",
-        "audio-tools",
-        "audio-voices",
-        "audio-table",
-        "audio-queue",
-        "audio-resources",
-        "audio-guides",
-    }.issubset(audio_layouts)
+    audio_sections = {
+        row.section_key: row
+        for row in session.query(ContentSection).filter_by(tenant_id="demo", area="audio").all()
+    }
+    assert {"overview", "tools", "templates", "ranking"}.issubset(audio_sections)
     assert session.query(ContentItem).join(ContentSection).filter(
         ContentSection.tenant_id == "demo",
         ContentSection.area == "audio",
@@ -97,3 +90,36 @@ def test_demo_seed_contains_marketing_dashboard_content(session):
         .count()
         >= 5
     )
+    workspace_section = session.query(ContentSection).filter_by(
+        tenant_id="demo",
+        area="home",
+        section_key="workspace_tools",
+    ).one()
+    assert session.query(ContentItem).filter_by(
+        tenant_id="demo",
+        section_id=workspace_section.id,
+        title="AI 工作台",
+        action_value="/workbench",
+    ).count() == 1
+
+
+def test_demo_seed_includes_workbench_and_chat_runtime(session):
+    ensure_demo_data(session, tenant_id="demo")
+
+    workbench = session.query(ContentPage).filter_by(tenant_id="demo", page_key="workbench").one()
+    assert workbench.label == "工作台"
+    assert workbench.title == "AI 工作台"
+    text_route = session.query(ChannelRoute).filter_by(
+        tenant_id="demo",
+        route_key="general_text_default",
+        channel_type="TEXT",
+    ).one()
+    assert text_route.backend_model == "demo-general-text"
+    assert session.query(ModelConfig).filter_by(
+        tenant_id="demo",
+        model_key="general_text_default",
+        capability="TEXT",
+    ).count() >= 1
+    chat = session.query(ChatSession).filter_by(tenant_id="demo", user_id="demo-user").one()
+    assert chat.title
+    assert session.query(ChatMessage).filter_by(session_id=chat.id).count() >= 2

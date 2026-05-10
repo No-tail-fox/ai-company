@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from fastapi.testclient import TestClient
 
 from app.db import get_session
@@ -113,10 +115,36 @@ def test_audio_task_dispatches_sync_provider_and_creates_asset(session):
     assert payload["status"] == "SUCCESS"
     assert payload["result_url"] == "https://cdn.example.com/audio.mp3"
     assert payload["actual_cost"] == 120
+    assert payload["surface"] == "portal"
     assert wallet.balance == 880
     assert wallet.frozen_balance == 0
     assert session.query(Asset).filter_by(asset_type="TTS").count() == 1
     assert transport.calls[0]["payload"]["voice_key"] == "voice-warm-female"
+
+
+def test_audio_task_create_supports_workbench_surface(session):
+    seed_audio_runtime(session)
+    transport = FakeAudioTransport()
+    client = make_client(session, transport)
+
+    response = client.post(
+        "/api/v1/audio/tasks",
+        headers={"X-Tenant-ID": "tenant-a"},
+        json={
+            "task_type": "TTS",
+            "route_key": "audio_tts",
+            "prompt": "workbench audio",
+            "voice_key": "voice-warm-female",
+            "request_key": "audio-wb",
+            "surface": "workbench",
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["surface"] == "workbench"
+    task = session.query(GenerationTask).filter_by(id=payload["id"]).one()
+    assert task.request_key.startswith("workbench:")
 
 
 def test_audio_task_failure_releases_reserved_wallet_funds(session):
@@ -140,12 +168,13 @@ def test_audio_task_failure_releases_reserved_wallet_funds(session):
 def test_audio_tasks_list_returns_demo_user_tasks_for_current_tenant(session):
     seed_audio_runtime(session, tenant_id="tenant-a")
     seed_audio_runtime(session, tenant_id="tenant-b", user_id="tenant-b-user")
+    now = datetime(2026, 5, 9, 9, 30)
     session.add(
         GenerationTask(
             id="task-a",
             tenant_id="tenant-a",
             user_id="demo-user",
-            request_key="task-a",
+            request_key="portal:task-a",
             task_type="TTS",
             route_key="audio_tts",
             prompt="tenant a",
@@ -154,6 +183,41 @@ def test_audio_tasks_list_returns_demo_user_tasks_for_current_tenant(session):
             estimated_cost=120,
             actual_cost=120,
             result_url="https://cdn.example.com/a.mp3",
+            created_at=now,
+        )
+    )
+    session.add(
+        GenerationTask(
+            id="task-workbench",
+            tenant_id="tenant-a",
+            user_id="demo-user",
+            request_key="workbench:task-workbench",
+            task_type="TTS",
+            route_key="audio_tts",
+            prompt="tenant a workbench",
+            status="SUCCESS",
+            reservation_key="reservation-workbench",
+            estimated_cost=120,
+            actual_cost=120,
+            result_url="https://cdn.example.com/workbench.mp3",
+            created_at=now - timedelta(hours=1),
+        )
+    )
+    session.add(
+        GenerationTask(
+            id="task-legacy",
+            tenant_id="tenant-a",
+            user_id="demo-user",
+            request_key="task-legacy",
+            task_type="TTS",
+            route_key="audio_tts",
+            prompt="tenant a legacy",
+            status="SUCCESS",
+            reservation_key="reservation-legacy",
+            estimated_cost=120,
+            actual_cost=120,
+            result_url="https://cdn.example.com/legacy.mp3",
+            created_at=now - timedelta(hours=2),
         )
     )
     session.add(
@@ -161,7 +225,7 @@ def test_audio_tasks_list_returns_demo_user_tasks_for_current_tenant(session):
             id="task-b",
             tenant_id="tenant-b",
             user_id="tenant-b-user",
-            request_key="task-b",
+            request_key="workbench:task-b",
             task_type="TTS",
             route_key="audio_tts",
             prompt="tenant b",
@@ -170,14 +234,23 @@ def test_audio_tasks_list_returns_demo_user_tasks_for_current_tenant(session):
             estimated_cost=120,
             actual_cost=120,
             result_url="https://cdn.example.com/b.mp3",
+            created_at=now - timedelta(hours=3),
         )
     )
     session.commit()
     client = make_client(session)
 
-    response = client.get("/api/v1/audio/tasks", headers={"X-Tenant-ID": "tenant-a"})
+    portal_response = client.get("/api/v1/audio/tasks", headers={"X-Tenant-ID": "tenant-a"})
+    workbench_response = client.get("/api/v1/audio/tasks?surface=workbench", headers={"X-Tenant-ID": "tenant-a"})
 
-    assert response.status_code == 200
-    payload = response.json()
-    assert [task["id"] for task in payload["tasks"]] == ["task-a"]
-    assert payload["tasks"][0]["result_url"] == "https://cdn.example.com/a.mp3"
+    assert portal_response.status_code == 200
+    portal_payload = portal_response.json()
+    assert portal_payload["surface"] == "portal"
+    assert [task["id"] for task in portal_payload["tasks"]] == ["task-a", "task-legacy"]
+    assert portal_payload["tasks"][0]["result_url"] == "https://cdn.example.com/a.mp3"
+
+    assert workbench_response.status_code == 200
+    workbench_payload = workbench_response.json()
+    assert workbench_payload["surface"] == "workbench"
+    assert [task["id"] for task in workbench_payload["tasks"]] == ["task-workbench"]
+    assert workbench_payload["tasks"][0]["surface"] == "workbench"

@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 import {
   buildMarketingDashboardModel,
   buildAssistantRanking,
+  createFallbackChatWorkbench,
   createFallbackImageWorkbench,
   createFallbackVideoWorkbench,
   createFallbackAssistantCenter,
@@ -10,8 +11,14 @@ import {
   createFallbackPageConfig,
   filterAssistantCardsByCategory,
   formatUsageCount,
+  groupChatSessionsByRecency,
   getVideoStatusMeta,
   getImageStatusMeta,
+  normalizeAssistantCenter,
+  normalizePortalActionResult,
+  normalizePortalDetail,
+  normalizePortalUserActions,
+  normalizeChatWorkbench,
   normalizeImageWorkbench,
   normalizeVideoWorkbench,
   normalizePageConfig,
@@ -20,6 +27,7 @@ import {
   shouldUseImagePage,
   shouldUseCodingPage,
   shouldUseMarketingPage,
+  shouldUseWorkbenchPage,
   shouldUseWritingPage,
   shouldUseVideoPage,
   shouldHideWorkspaceDock,
@@ -37,6 +45,7 @@ test('fallback portal config contains learning, orders and community sections', 
   expect(config.pages.map((page) => page.pageKey)).toEqual([
     'home',
     'assistant',
+    'workbench',
     'marketing',
     'image',
     'video',
@@ -50,6 +59,11 @@ test('fallback portal config contains learning, orders and community sections', 
   expect(config.homeSections.map((section) => section.sectionKey)).toEqual(
     expect.arrayContaining(['learning_center', 'order_center', 'communities', 'banners', 'quick_start', 'toolkit'])
   );
+  expect(
+    config.homeSections
+      .find((section) => section.sectionKey === 'workspace_tools')
+      ?.items.some((item) => item.title === 'AI 工作台' && item.actionValue === '/workbench')
+  ).toBe(true);
   expect(config.leftNav[0].label).toBe('基础必备');
   expect(config.homeSections[0].items.length).toBeGreaterThan(2);
 });
@@ -81,6 +95,170 @@ test('normalizes portal config pages and page sections from snake case API paylo
     enabled: true
   });
   expect(config.channels[0].key).toBe('marketing');
+});
+
+test('normalizes model binding metadata on portal items, assistants and prompt templates', () => {
+  const portal = normalizePortalConfig({
+    tenant_id: 'demo',
+    pages: [],
+    channels: [],
+    left_nav: [],
+    home_sections: [
+      {
+        id: 'section-tools',
+        area: 'home',
+        section_key: 'tools',
+        title: '工具',
+        layout: 'tool-grid',
+        enabled: true,
+        items: [
+          {
+            id: 'item-image',
+            item_type: 'tool',
+            title: '图片生成',
+            subtitle: '生成高质量图片',
+            category: '工具',
+            icon: 'Image',
+            action_value: 'image_text_to_image',
+            point_cost: 80,
+            effective_point_cost: 45,
+            model_config: {
+              id: 'model-image',
+              model_key: 'image_text_to_image',
+              display_name: 'GPT Image 2',
+              provider_model: 'gpt-image-2'
+            }
+          }
+        ]
+      }
+    ]
+  });
+
+  expect((portal.homeSections[0].items[0] as any).effectivePointCost).toBe(45);
+  expect((portal.homeSections[0].items[0] as any).modelConfig.modelKey).toBe('image_text_to_image');
+
+  const center = normalizeAssistantCenter({
+    categories: ['全部'],
+    assistants: [
+      {
+        id: 'assistant-1',
+        name: '写作助理',
+        category: '写作',
+        description: '智能写作',
+        icon: 'Feather',
+        usage_count: 12,
+        point_cost: 30,
+        effective_point_cost: 18,
+        model_config: {
+          id: 'model-writing',
+          model_key: 'writing_text_default',
+          display_name: 'Writing Model',
+          provider_model: 'writing-1'
+        }
+      }
+    ],
+    prompt_templates: [
+      {
+        id: 'template-1',
+        title: '标题模板',
+        category: '写作',
+        content: '生成标题',
+        required_membership: false,
+        effective_point_cost: 9,
+        model_config: {
+          id: 'model-template',
+          model_key: 'writing_text_default',
+          display_name: 'Template Model',
+          provider_model: 'writing-1'
+        }
+      }
+    ]
+  });
+
+  expect((center.assistants[0] as any).effectivePointCost).toBe(18);
+  expect((center.assistants[0] as any).modelConfig.modelKey).toBe('writing_text_default');
+  expect((center.promptTemplates[0] as any).effectivePointCost).toBe(9);
+  expect((center.promptTemplates[0] as any).modelConfig.modelKey).toBe('writing_text_default');
+});
+
+test('normalizes portal detail payloads, action results and user action records', () => {
+  const detail = normalizePortalDetail({
+    path: '/workspace/course',
+    kind: 'directory',
+    title: '常用AI学习中心',
+    subtitle: '课程、实战和变现路径',
+    icon: 'FileVideo',
+    requiredMembership: true,
+    effectivePointCost: 20,
+    items: [
+      {
+        id: 'learn-a',
+        item_type: 'course',
+        title: '0基础AI通识课',
+        subtitle: '入门',
+        category: '基础必备',
+        icon: 'FileVideo',
+        action_value: '/workspace/course',
+        point_cost: 0,
+        required_membership: false,
+        metadata_json: {
+          detail: {
+            summary: '系统学习 AI 基础能力。'
+          }
+        }
+      }
+    ],
+    detail: {
+      summary: '系统学习 AI 基础能力。',
+      highlights: ['12 个核心模块'],
+      steps: ['完成入门测评'],
+      deliverables: ['学习路线图'],
+      faqs: [{ question: '适合谁？', answer: '零基础用户。' }],
+      primaryAction: { key: 'enroll', label: '报名学习' },
+      secondaryActions: [{ key: 'favorite', label: '收藏' }],
+      download: { fileName: 'starter-kit.md', url: '/storage/resources/starter-kit.md' }
+    },
+    userState: {
+      membershipActive: false,
+      locked: true,
+      completedActions: ['favorite']
+    }
+  });
+
+  expect(detail.path).toBe('/workspace/course');
+  expect(detail.items[0].metadata.detail.summary).toBe('系统学习 AI 基础能力。');
+  expect(detail.detail.primaryAction.key).toBe('enroll');
+  expect(detail.userState.completedActions).toEqual(['favorite']);
+
+  const action = normalizePortalActionResult({
+    status: 'completed',
+    message: '资料已领取',
+    action: {
+      id: 'act-1',
+      detail_path: '/resources/starter-kit',
+      action_key: 'download',
+      item_id: 'quick-03',
+      status: 'COMPLETED',
+      result: { download: { fileName: 'starter-kit.md' } }
+    },
+    download: { fileName: 'starter-kit.md', url: '/storage/resources/starter-kit.md' }
+  });
+  expect(action.action?.detailPath).toBe('/resources/starter-kit');
+  expect(action.download?.fileName).toBe('starter-kit.md');
+
+  const actions = normalizePortalUserActions({
+    actions: [
+      {
+        id: 'act-1',
+        detail_path: '/resources/starter-kit',
+        action_key: 'download',
+        item_id: 'quick-03',
+        status: 'COMPLETED',
+        message: '资料已领取'
+      }
+    ]
+  });
+  expect(actions[0].actionKey).toBe('download');
 });
 
 test('shows the left sidebar only on the home page', () => {
@@ -202,6 +380,12 @@ test('uses the dedicated assistant page only for the assistant route', () => {
   expect(shouldUseAssistantPage('assistant')).toBe(true);
   expect(shouldUseAssistantPage('home')).toBe(false);
   expect(shouldShowHomeSidebar('assistant')).toBe(false);
+});
+
+test('uses the dedicated workbench page only for the workbench route', () => {
+  expect(shouldUseWorkbenchPage('workbench')).toBe(true);
+  expect(shouldUseWorkbenchPage('assistant')).toBe(false);
+  expect(shouldShowHomeSidebar('workbench')).toBe(false);
 });
 
 test('uses the dedicated marketing page only for the marketing route', () => {
@@ -345,20 +529,20 @@ test('fallback video workbench has queue and project data for offline rendering'
   expect(workbench.tasks.some((task) => task.status === 'SUCCESS')).toBe(true);
 });
 
-test('uses the dedicated video page and hides the workspace dock only for video', () => {
+test('uses the dedicated video page without hiding the workspace dock', () => {
   expect(shouldUseVideoPage('video')).toBe(true);
   expect(shouldUseVideoPage('home')).toBe(false);
   expect(shouldShowHomeSidebar('video')).toBe(false);
-  expect(shouldHideWorkspaceDock('video')).toBe(true);
+  expect(shouldHideWorkspaceDock('video')).toBe(false);
   expect(shouldHideWorkspaceDock('assistant')).toBe(false);
 });
 
-test('uses the dedicated image page and hides the workspace dock only for creative workbenches', () => {
+test('uses the dedicated image page without hiding the workspace dock', () => {
   expect(shouldUseImagePage('image')).toBe(true);
   expect(shouldUseImagePage('video')).toBe(false);
   expect(shouldUseImagePage('home')).toBe(false);
   expect(shouldShowHomeSidebar('image')).toBe(false);
-  expect(shouldHideWorkspaceDock('image')).toBe(true);
+  expect(shouldHideWorkspaceDock('image')).toBe(false);
 });
 
 test('uses dedicated coding and writing workbench pages', () => {
@@ -370,6 +554,63 @@ test('uses dedicated coding and writing workbench pages', () => {
   expect(shouldShowHomeSidebar('writing')).toBe(false);
   expect(shouldHideWorkspaceDock('coding')).toBe(true);
   expect(shouldHideWorkspaceDock('writing')).toBe(true);
+});
+
+test('normalizes chat workbench payloads and groups sessions by recency', () => {
+  const workbench = normalizeChatWorkbench({
+    tenant_id: 'demo',
+    user_id: 'demo-user',
+    sessions: [
+      {
+        id: 'chat-today',
+        title: '今日会话',
+        preview: '刚刚发送',
+        model_key: 'general_text_default',
+        preset_role: 'assistant',
+        status: 'ACTIVE',
+        message_count: 2,
+        updated_at: '2026-05-10T09:00:00'
+      }
+    ],
+    active_session: {
+      id: 'chat-today',
+      title: '今日会话',
+      model_key: 'general_text_default',
+      preset_role: 'assistant',
+      status: 'ACTIVE',
+      messages: [
+        { id: 'msg-1', role: 'user', content: '整理周报', sequence: 1, created_at: '2026-05-10T08:55:00' },
+        { id: 'msg-2', role: 'assistant', content: '已整理完成', sequence: 2, created_at: '2026-05-10T08:56:00' }
+      ]
+    },
+    models: [
+      { id: 'model-1', model_key: 'general_text_default', display_name: 'GPT-4.1', provider_model: 'gpt-4.1' }
+    ]
+  });
+
+  expect(workbench.activeSession?.messages[1].role).toBe('assistant');
+  expect(workbench.models[0].displayName).toBe('GPT-4.1');
+
+  const groups = groupChatSessionsByRecency(
+    [
+      { id: 'chat-today', title: '今日会话', preview: '刚刚发送', modelKey: 'general_text_default', presetRole: 'assistant', status: 'ACTIVE', messageCount: 2, updatedAt: '2026-05-10T09:00:00' },
+      { id: 'chat-yesterday', title: '昨天会话', preview: '昨天内容', modelKey: 'general_text_default', presetRole: 'assistant', status: 'ACTIVE', messageCount: 2, updatedAt: '2026-05-09T09:00:00' },
+      { id: 'chat-week', title: '本周会话', preview: '本周内容', modelKey: 'general_text_default', presetRole: 'assistant', status: 'ACTIVE', messageCount: 2, updatedAt: '2026-05-07T09:00:00' },
+      { id: 'chat-older', title: '更早会话', preview: '更早内容', modelKey: 'general_text_default', presetRole: 'assistant', status: 'ACTIVE', messageCount: 2, updatedAt: '2026-04-30T09:00:00' }
+    ],
+    '2026-05-10T12:00:00'
+  );
+
+  expect(groups.map((group) => group.key)).toEqual(['today', 'yesterday', 'thisWeek', 'older']);
+  expect(groups[0].sessions[0].id).toBe('chat-today');
+});
+
+test('fallback chat workbench has sessions, models and active messages for offline rendering', () => {
+  const workbench = createFallbackChatWorkbench();
+
+  expect(workbench.sessions.length).toBeGreaterThan(0);
+  expect(workbench.models.length).toBeGreaterThan(0);
+  expect(workbench.activeSession?.messages.length).toBeGreaterThan(0);
 });
 
 test('fallback navigation places AI image between marketing and video', () => {

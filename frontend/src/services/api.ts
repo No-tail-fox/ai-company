@@ -1,30 +1,78 @@
 import {
   createFallbackAssistantCenter,
+  createFallbackChatWorkbench,
   createFallbackImageWorkbench,
   createFallbackPageConfig,
   createFallbackPortalConfig,
   createFallbackVideoWorkbench,
   buildAudioTaskPayload,
+  normalizeModelConfig,
+  normalizeProviderChannel,
+  normalizeToolModelBinding,
   normalizeAssistantCenter,
   normalizeAudioTask,
+  normalizeChatActiveSession,
+  normalizeChatExportResult,
+  normalizeChatSendResult,
+  normalizeChatWorkbench,
   normalizeImageWorkbench,
   normalizePageConfig,
+  normalizePortalActionResult,
   normalizePortalConfig,
+  normalizePortalDetail,
+  normalizePortalSearchResult,
+  normalizePortalUserActions,
   normalizeVideoWorkbench,
+  type ModelConfigSummary,
   type AssistantCenter,
   type AudioTask,
   type AudioTaskPayload,
+  type ChatActiveSession,
+  type ChatExportResult,
+  type ChatSendResult,
+  type ChatWorkbench,
+  type GenerationSurface,
   type ImageTask,
   type ImageWorkbench,
+  type ProviderChannelSummary,
+  type PortalActionRequest,
+  type PortalActionResult,
   type PortalConfig,
+  type PortalDetailPayload,
   type PortalItem,
   type PortalPageConfig,
+  type PortalSearchResult,
+  type ToolModelBindingSummary,
+  type UserPortalAction,
   type VideoTask,
   type VideoWorkbench
 } from './viewModel';
 
 const tenantId = 'demo';
 const tokenKey = 'opc_admin_token';
+const DEFAULT_IMAGE_ROUTE_KEY = 'image_text_to_image';
+const DEFAULT_VIDEO_ROUTE_KEY = 'video_text_to_video';
+
+export interface GenerationRequestOptions {
+  requestKey?: string;
+  targetType?: string;
+  targetId?: string;
+  routeKey?: string;
+  surface?: GenerationSurface;
+}
+
+export interface ChatSessionRequest {
+  title?: string;
+  userId?: string;
+  modelKey?: string;
+  presetRole?: string;
+  status?: string;
+}
+
+export interface ChatMessageRequest {
+  content: string;
+  modelKey?: string;
+}
 
 export interface LoginResult {
   accessToken: string;
@@ -88,6 +136,47 @@ export async function fetchPortalPage(pageKey: string): Promise<PortalPageConfig
   }
 }
 
+export async function fetchPortalDetail(detailPath: string, userId = 'demo-user'): Promise<PortalDetailPayload> {
+  const normalizedPath = encodeDetailPath(detailPath);
+  const params = new URLSearchParams({ user_id: userId });
+  return normalizePortalDetail(await request(`/api/v1/portal/details/${normalizedPath}?${params.toString()}`));
+}
+
+export async function searchPortal(query: string, pageKey = '', limit = 8): Promise<PortalSearchResult[]> {
+  const params = new URLSearchParams({ q: query });
+  if (pageKey) {
+    params.set('page_key', pageKey);
+  }
+  params.set('limit', String(limit));
+  const payload = await request(`/api/v1/portal/search?${params.toString()}`);
+  return (payload.results ?? []).map(normalizePortalSearchResult);
+}
+
+export async function runPortalAction(payload: PortalActionRequest): Promise<PortalActionResult> {
+  return normalizePortalActionResult(
+    await request('/api/v1/portal/actions', {
+      method: 'POST',
+      body: JSON.stringify({
+        user_id: payload.userId,
+        detail_path: payload.detailPath,
+        item_id: payload.itemId,
+        action_key: payload.actionKey
+      })
+    })
+  );
+}
+
+export async function fetchPortalUserActions(userId = 'demo-user', kind = 'all'): Promise<UserPortalAction[]> {
+  const params = new URLSearchParams({ user_id: userId, kind });
+  const payload = await request(`/api/v1/portal/user-actions?${params.toString()}`);
+  return normalizePortalUserActions(payload);
+}
+
+export async function fetchMembershipStatus(userId = 'demo-user') {
+  const params = new URLSearchParams({ user_id: userId });
+  return request(`/api/v1/memberships/status?${params.toString()}`);
+}
+
 export async function fetchAssistantCenter(): Promise<AssistantCenter> {
   try {
     return normalizeAssistantCenter(await request('/api/v1/assistants'));
@@ -96,22 +185,95 @@ export async function fetchAssistantCenter(): Promise<AssistantCenter> {
   }
 }
 
-export async function fetchVideoWorkbench(): Promise<VideoWorkbench> {
+export async function fetchChatWorkbench(sessionId?: string): Promise<ChatWorkbench> {
+  const params = new URLSearchParams({ user_id: 'demo-user' });
+  if (sessionId) {
+    params.set('session_id', sessionId);
+  }
   try {
-    return normalizeVideoWorkbench(await request('/api/v1/video/workbench?user_id=demo-user'));
+    return normalizeChatWorkbench(await request(`/api/v1/chat/workbench?${params.toString()}`));
+  } catch {
+    return createFallbackChatWorkbench();
+  }
+}
+
+export async function createChatSession(payload: ChatSessionRequest = {}): Promise<ChatActiveSession> {
+  return normalizeChatActiveSession(
+    await request('/api/v1/chat/sessions', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: payload.title ?? '',
+        user_id: payload.userId ?? 'demo-user',
+        model_key: payload.modelKey ?? 'general_text_default',
+        preset_role: payload.presetRole ?? 'assistant'
+      })
+    })
+  );
+}
+
+export async function fetchChatSession(sessionId: string): Promise<ChatActiveSession> {
+  return normalizeChatActiveSession(await request(`/api/v1/chat/sessions/${encodeURIComponent(sessionId)}`));
+}
+
+export async function updateChatSession(sessionId: string, payload: ChatSessionRequest): Promise<ChatActiveSession> {
+  return normalizeChatActiveSession(
+    await request(`/api/v1/chat/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        title: payload.title,
+        model_key: payload.modelKey,
+        preset_role: payload.presetRole,
+        status: payload.status
+      })
+    })
+  );
+}
+
+export async function sendChatMessage(sessionId: string, payload: ChatMessageRequest): Promise<ChatSendResult> {
+  return normalizeChatSendResult(
+    await request(`/api/v1/chat/sessions/${encodeURIComponent(sessionId)}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({
+        content: payload.content,
+        model_key: payload.modelKey
+      })
+    })
+  );
+}
+
+export async function exportChatSession(sessionId: string): Promise<ChatExportResult> {
+  return normalizeChatExportResult(
+    await request(`/api/v1/chat/sessions/${encodeURIComponent(sessionId)}/export`, {
+      method: 'POST',
+      body: JSON.stringify({ format: 'markdown' })
+    })
+  );
+}
+
+export async function fetchVideoWorkbench(surface: GenerationSurface = 'portal'): Promise<VideoWorkbench> {
+  try {
+    const params = new URLSearchParams({ user_id: 'demo-user', surface });
+    return normalizeVideoWorkbench(await request(`/api/v1/video/workbench?${params.toString()}`));
   } catch {
     return createFallbackVideoWorkbench();
   }
 }
 
-export async function createVideoGeneration(prompt: string, requestKey?: string): Promise<VideoTask> {
+export async function createVideoGeneration(
+  prompt: string,
+  requestKeyOrOptions?: string | GenerationRequestOptions
+): Promise<VideoTask> {
+  const options = normalizeGenerationRequestOptions(requestKeyOrOptions);
   const payload = await request('/api/v1/video/generations', {
     method: 'POST',
     body: JSON.stringify({
       prompt,
       user_id: 'demo-user',
-      route_key: 'video_text_to_video',
-      request_key: requestKey
+      route_key: options.routeKey ?? DEFAULT_VIDEO_ROUTE_KEY,
+      request_key: options.requestKey,
+      target_type: options.targetType,
+      target_id: options.targetId,
+      surface: options.surface ?? 'portal'
     })
   });
   return normalizeVideoWorkbench({
@@ -123,22 +285,30 @@ export async function createVideoGeneration(prompt: string, requestKey?: string)
   }).tasks[0];
 }
 
-export async function fetchImageWorkbench(): Promise<ImageWorkbench> {
+export async function fetchImageWorkbench(surface: GenerationSurface = 'portal'): Promise<ImageWorkbench> {
   try {
-    return normalizeImageWorkbench(await request('/api/v1/image/workbench?user_id=demo-user'));
+    const params = new URLSearchParams({ user_id: 'demo-user', surface });
+    return normalizeImageWorkbench(await request(`/api/v1/image/workbench?${params.toString()}`));
   } catch {
     return createFallbackImageWorkbench();
   }
 }
 
-export async function createImageGeneration(prompt: string, requestKey?: string): Promise<ImageTask> {
+export async function createImageGeneration(
+  prompt: string,
+  requestKeyOrOptions?: string | GenerationRequestOptions
+): Promise<ImageTask> {
+  const options = normalizeGenerationRequestOptions(requestKeyOrOptions);
   const payload = await request('/api/v1/image/generations', {
     method: 'POST',
     body: JSON.stringify({
       prompt,
       user_id: 'demo-user',
-      route_key: 'image_text_to_image',
-      request_key: requestKey
+      route_key: options.routeKey ?? DEFAULT_IMAGE_ROUTE_KEY,
+      request_key: options.requestKey,
+      target_type: options.targetType,
+      target_id: options.targetId,
+      surface: options.surface ?? 'portal'
     })
   });
   return normalizeImageWorkbench({
@@ -150,9 +320,10 @@ export async function createImageGeneration(prompt: string, requestKey?: string)
   }).tasks[0];
 }
 
-export async function fetchAudioTasks(): Promise<AudioTask[]> {
+export async function fetchAudioTasks(surface: GenerationSurface = 'portal'): Promise<AudioTask[]> {
   try {
-    const payload = await request('/api/v1/audio/tasks');
+    const params = new URLSearchParams({ surface });
+    const payload = await request(`/api/v1/audio/tasks?${params.toString()}`);
     return (payload.tasks ?? []).map(normalizeAudioTask);
   } catch {
     return [];
@@ -170,6 +341,84 @@ export async function createAudioTask(payload: AudioTaskPayload): Promise<AudioT
 
 export async function createAudioTaskForTool(tool: PortalItem, prompt: string, voice?: PortalItem, sourceUrl = ''): Promise<AudioTask> {
   return createAudioTask(buildAudioTaskPayload(tool, prompt, voice, sourceUrl));
+}
+
+export async function adminListProviderChannels(): Promise<ProviderChannelSummary[]> {
+  const payload = await request('/api/v1/admin/provider-channels', { auth: true });
+  return (payload.channels ?? payload ?? []).map(normalizeProviderChannel);
+}
+
+export async function adminCreateProviderChannel(payload: Record<string, unknown>): Promise<ProviderChannelSummary> {
+  return normalizeProviderChannel(
+    await request('/api/v1/admin/provider-channels', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      auth: true
+    })
+  );
+}
+
+export async function adminUpdateProviderChannel(channelId: string, payload: Record<string, unknown>): Promise<ProviderChannelSummary> {
+  return normalizeProviderChannel(
+    await request(`/api/v1/admin/provider-channels/${channelId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+      auth: true
+    })
+  );
+}
+
+export async function adminListModelConfigs(): Promise<ModelConfigSummary[]> {
+  const payload = await request('/api/v1/admin/model-configs', { auth: true });
+  const records = (payload.model_configs ?? payload.models ?? payload ?? []) as any[];
+  return records
+    .map((record) => normalizeModelConfig(record))
+    .filter((record): record is ModelConfigSummary => Boolean(record));
+}
+
+export async function adminCreateModelConfig(payload: Record<string, unknown>): Promise<ModelConfigSummary> {
+  return normalizeModelConfig(
+    await request('/api/v1/admin/model-configs', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      auth: true
+    })
+  ) as ModelConfigSummary;
+}
+
+export async function adminUpdateModelConfig(modelConfigId: string, payload: Record<string, unknown>): Promise<ModelConfigSummary> {
+  return normalizeModelConfig(
+    await request(`/api/v1/admin/model-configs/${modelConfigId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+      auth: true
+    })
+  ) as ModelConfigSummary;
+}
+
+export async function adminListToolModelBindings(): Promise<ToolModelBindingSummary[]> {
+  const payload = await request('/api/v1/admin/tool-model-bindings', { auth: true });
+  return (payload.bindings ?? payload ?? []).map(normalizeToolModelBinding);
+}
+
+export async function adminCreateToolModelBinding(payload: Record<string, unknown>): Promise<ToolModelBindingSummary> {
+  return normalizeToolModelBinding(
+    await request('/api/v1/admin/tool-model-bindings', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      auth: true
+    })
+  );
+}
+
+export async function adminUpdateToolModelBinding(bindingId: string, payload: Record<string, unknown>): Promise<ToolModelBindingSummary> {
+  return normalizeToolModelBinding(
+    await request(`/api/v1/admin/tool-model-bindings/${bindingId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+      auth: true
+    })
+  );
 }
 
 export async function uploadAudio(file: File) {
@@ -257,4 +506,23 @@ async function request(path: string, options: RequestInit & { auth?: boolean; is
     throw new Error(`request failed: ${response.status}`);
   }
   return response.json();
+}
+
+function normalizeGenerationRequestOptions(requestKeyOrOptions?: string | GenerationRequestOptions): GenerationRequestOptions {
+  if (!requestKeyOrOptions) {
+    return {};
+  }
+  if (typeof requestKeyOrOptions === 'string') {
+    return { requestKey: requestKeyOrOptions };
+  }
+  return requestKeyOrOptions;
+}
+
+function encodeDetailPath(detailPath: string): string {
+  return detailPath
+    .replace(/^\/+/, '')
+    .split('/')
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
 }

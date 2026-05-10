@@ -56,6 +56,26 @@ def test_video_generation_creates_pending_task_and_reserves_wallet_points(sessio
     assert payload["prompt"] == "生成一条新品上市推广视频"
     assert payload["status"] == "PENDING"
     assert payload["estimated_cost"] == 200
+    assert payload["surface"] == "portal"
+    assert wallet.balance == 800
+    assert wallet.frozen_balance == 200
+
+
+def test_video_generation_supports_workbench_surface(session):
+    wallet = seed_video_runtime(session)
+    client = make_client(session)
+
+    response = client.post(
+        "/api/v1/video/generations",
+        headers={"X-Tenant-ID": "tenant-a"},
+        json={"prompt": "workbench video", "request_key": "video-wb", "surface": "workbench"},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["surface"] == "workbench"
+    task = session.query(GenerationTask).filter_by(id=payload["id"]).one()
+    assert task.request_key.startswith("workbench:")
     assert wallet.balance == 800
     assert wallet.frozen_balance == 200
 
@@ -92,7 +112,7 @@ def test_video_workbench_returns_wallet_route_and_recent_tasks_for_current_user(
                 id="task-old",
                 tenant_id="tenant-a",
                 user_id="demo-user",
-                request_key="video-old",
+                request_key="portal:video-old",
                 task_type="VIDEO",
                 route_key="video_text_to_video",
                 prompt="旧任务",
@@ -105,7 +125,7 @@ def test_video_workbench_returns_wallet_route_and_recent_tasks_for_current_user(
                 id="task-new",
                 tenant_id="tenant-a",
                 user_id="demo-user",
-                request_key="video-new",
+                request_key="workbench:video-new",
                 task_type="VIDEO",
                 route_key="video_text_to_video",
                 prompt="新任务",
@@ -116,10 +136,25 @@ def test_video_workbench_returns_wallet_route_and_recent_tasks_for_current_user(
                 created_at=now,
             ),
             GenerationTask(
+                id="task-legacy",
+                tenant_id="tenant-a",
+                user_id="demo-user",
+                request_key="video-legacy",
+                task_type="VIDEO",
+                route_key="video_text_to_video",
+                prompt="legacy task",
+                status="SUCCESS",
+                reservation_key="reservation-legacy",
+                estimated_cost=200,
+                actual_cost=200,
+                result_url="https://cdn.example.com/legacy.mp4",
+                created_at=now - timedelta(hours=2),
+            ),
+            GenerationTask(
                 id="task-other-tenant",
                 tenant_id="tenant-b",
                 user_id="tenant-b-user",
-                request_key="video-other",
+                request_key="workbench:video-other",
                 task_type="VIDEO",
                 route_key="video_text_to_video",
                 prompt="其它租户",
@@ -133,16 +168,28 @@ def test_video_workbench_returns_wallet_route_and_recent_tasks_for_current_user(
     session.commit()
     client = make_client(session)
 
-    response = client.get("/api/v1/video/workbench", headers={"X-Tenant-ID": "tenant-a"})
+    workbench_response = client.get(
+        "/api/v1/video/workbench?surface=workbench",
+        headers={"X-Tenant-ID": "tenant-a"},
+    )
+    portal_response = client.get("/api/v1/video/workbench", headers={"X-Tenant-ID": "tenant-a"})
 
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["tenant_id"] == "tenant-a"
-    assert payload["user_id"] == "demo-user"
-    assert payload["wallet"] == {"balance": wallet.balance, "frozen_balance": wallet.frozen_balance}
-    assert payload["route"] == {"route_key": "video_text_to_video", "unit_cost": 200}
-    assert [task["id"] for task in payload["tasks"]] == ["task-new", "task-old"]
-    assert payload["tasks"][0]["provider_task_id"] == "provider-new"
+    assert workbench_response.status_code == 200
+    workbench_payload = workbench_response.json()
+    assert workbench_payload["surface"] == "workbench"
+    assert [task["id"] for task in workbench_payload["tasks"]] == ["task-new"]
+    assert workbench_payload["tasks"][0]["surface"] == "workbench"
+    assert workbench_payload["tasks"][0]["provider_task_id"] == "provider-new"
+
+    assert portal_response.status_code == 200
+    portal_payload = portal_response.json()
+    assert portal_payload["tenant_id"] == "tenant-a"
+    assert portal_payload["user_id"] == "demo-user"
+    assert portal_payload["surface"] == "portal"
+    assert portal_payload["wallet"] == {"balance": wallet.balance, "frozen_balance": wallet.frozen_balance}
+    assert portal_payload["route"] == {"route_key": "video_text_to_video", "unit_cost": 200}
+    assert [task["id"] for task in portal_payload["tasks"]] == ["task-old", "task-legacy"]
+    assert portal_payload["tasks"][0]["surface"] == "portal"
 
 
 def test_video_generation_rejects_empty_prompt(session):
