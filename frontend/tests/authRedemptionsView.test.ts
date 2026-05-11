@@ -24,6 +24,9 @@ test('auth view exposes register login reset and password flows', () => {
 test('portal account menu uses user session and redemption code actions', () => {
   expect(portalChrome).toContain('getUserSession');
   expect(portalChrome).toContain('clearUserSession');
+  expect(portalChrome).toContain('userSessionChangedEvent');
+  expect(portalChrome).toContain("window.addEventListener(userSessionChangedEvent");
+  expect(portalChrome).toContain("window.removeEventListener(userSessionChangedEvent");
   expect(portalChrome).toContain('redeemCode');
   expect(portalChrome).toContain("accountPanel.value = 'redeem'");
   expect(portalChrome).toContain("accountPanel.value = 'password'");

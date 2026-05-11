@@ -24,7 +24,9 @@ function mockFetchResponse(payload: unknown, ok = true) {
 
 function mockWindowStorage(initial: Record<string, string> = {}) {
   const store = { ...initial };
+  const dispatchEvent = vi.fn();
   vi.stubGlobal('window', {
+    dispatchEvent,
     localStorage: {
       getItem: (key: string) => store[key] ?? '',
       setItem: (key: string, value: string) => {
@@ -35,7 +37,7 @@ function mockWindowStorage(initial: Record<string, string> = {}) {
       }
     }
   });
-  return store;
+  return { store, dispatchEvent };
 }
 
 afterEach(() => {
@@ -43,7 +45,7 @@ afterEach(() => {
 });
 
 test('user auth APIs post verification, register, login, reset, and change password payloads', async () => {
-  const store = mockWindowStorage();
+  const { store, dispatchEvent } = mockWindowStorage();
   const fetchMock = vi.fn()
     .mockResolvedValueOnce(mockFetchResponse({ phone: '13800000001', purpose: 'REGISTER', dev_code: '123456' }))
     .mockResolvedValueOnce(
@@ -116,8 +118,10 @@ test('user auth APIs post verification, register, login, reset, and change passw
   expect(codeLoggedIn.accessToken).toBe('code-login-token');
   expect(getUserSession()?.user.id).toBe('user-a');
   expect(store.opc_user_session).toContain('code-login-token');
+  expect(dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'opc:user-session-changed' }));
   clearUserSession();
   expect(getUserSession()).toBeNull();
+  expect(dispatchEvent).toHaveBeenCalledTimes(4);
 });
 
 test('redemption APIs use user token and admin code management endpoints', async () => {

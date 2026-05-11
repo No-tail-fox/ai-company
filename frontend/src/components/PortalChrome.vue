@@ -21,7 +21,8 @@ import {
   getUserSession,
   redeemCode,
   searchPortal,
-  updateAccountProfile
+  updateAccountProfile,
+  userSessionChangedEvent
 } from '../services/api';
 import type { AccountSummary, PortalSearchResult, RechargeOrder } from '../services/viewModel';
 
@@ -151,12 +152,18 @@ watch(() => props.activePageKey, () => {
 
 onMounted(() => {
   void refreshAccountSummary();
+  window.addEventListener(userSessionChangedEvent, handleUserSessionChanged);
   window.addEventListener('keydown', handleScrollKeys, { passive: false });
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener(userSessionChangedEvent, handleUserSessionChanged);
   window.removeEventListener('keydown', handleScrollKeys);
 });
+
+function handleUserSessionChanged() {
+  void refreshAccountSummary();
+}
 
 function goPage(pageKey: string) {
   void router.push(`/${pageKey}`);

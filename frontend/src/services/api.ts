@@ -79,6 +79,7 @@ import {
 const tenantId = 'demo';
 const tokenKey = 'opc_admin_token';
 const userSessionKey = 'opc_user_session';
+export const userSessionChangedEvent = 'opc:user-session-changed';
 const DEFAULT_IMAGE_ROUTE_KEY = 'image_text_to_image';
 const DEFAULT_VIDEO_ROUTE_KEY = 'video_text_to_video';
 
@@ -249,10 +250,12 @@ export function getUserSession(): UserSession | null {
 
 export function setUserSession(session: UserSession) {
   setStorageItem(userSessionKey, JSON.stringify(session));
+  dispatchUserSessionChanged();
 }
 
 export function clearUserSession() {
   removeStorageItem(userSessionKey);
+  dispatchUserSessionChanged();
 }
 
 export function getCurrentUserId(fallback = 'demo-user'): string {
@@ -1084,6 +1087,16 @@ function removeStorageItem(key: string) {
   if (typeof window !== 'undefined' && window.localStorage) {
     window.localStorage.removeItem(key);
   }
+}
+
+function dispatchUserSessionChanged() {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') {
+    return;
+  }
+  const event = typeof CustomEvent === 'function'
+    ? new CustomEvent(userSessionChangedEvent)
+    : ({ type: userSessionChangedEvent } as Event);
+  window.dispatchEvent(event);
 }
 
 function normalizeGenerationRequestOptions(requestKeyOrOptions?: string | GenerationRequestOptions): GenerationRequestOptions {
