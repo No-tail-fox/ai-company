@@ -45,8 +45,19 @@ def ensure_demo_data(session: Session, *, tenant_id: str = "demo") -> None:
 
     user = session.get(User, "demo-user")
     if user is None:
-        session.add(User(id="demo-user", tenant_id=tenant_id, phone="13800000000", display_name="演示用户", role="USER"))
+        session.add(
+            User(
+                id="demo-user",
+                tenant_id=tenant_id,
+                phone="13800000000",
+                display_name="演示用户",
+                role="USER",
+                password_hash=hash_password("user123456"),
+            )
+        )
         session.add(Wallet(id="demo-wallet", tenant_id=tenant_id, user_id="demo-user", balance=120000, frozen_balance=0))
+    elif not user.password_hash:
+        user.password_hash = hash_password("user123456")
 
     admin = session.get(User, "demo-admin")
     if admin is None:

@@ -8,8 +8,9 @@ GenerationSurface = Literal["portal", "workbench"]
 
 class LoginRequest(BaseModel):
     phone: str
-    password: str
+    password: str | None = None
     verification_code: str | None = None
+    login_method: str = "PASSWORD"
 
 
 class VerificationCodeCreate(BaseModel):

@@ -99,6 +99,15 @@ class AuthService:
             return None
         return user
 
+    def active_user_by_phone(self, *, tenant_id: str, phone: str) -> User | None:
+        return self.session.scalar(
+            select(User).where(
+                User.tenant_id == tenant_id,
+                User.phone == phone.strip(),
+                User.status == "ACTIVE",
+            )
+        )
+
     def reset_password(self, *, tenant_id: str, phone: str, verification_code: str, new_password: str) -> User:
         phone = phone.strip()
         if not self.verify_code(phone=phone, purpose="RESET_PASSWORD", verification_code=verification_code):

@@ -12,6 +12,11 @@ test('auth view exposes register login reset and password flows', () => {
   expect(authView).toContain('registerUser');
   expect(authView).toContain('loginUser');
   expect(authView).toContain('resetPassword');
+  expect(authView).toContain('loginMethod');
+  expect(authView).toContain("'PASSWORD'");
+  expect(authView).toContain("'CODE'");
+  expect(authView).toContain("phone: '13800000000'");
+  expect(authView).toContain("password: 'user123456'");
   expect(authView).toContain('verificationCode');
   expect(authView).toContain('confirmPassword');
 });

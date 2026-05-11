@@ -132,8 +132,9 @@ export interface RegisterUserRequest {
 
 export interface LoginUserRequest {
   phone: string;
-  password: string;
+  password?: string;
   verificationCode?: string;
+  loginMethod?: 'PASSWORD' | 'CODE';
 }
 
 export interface PasswordResetRequest {
@@ -291,14 +292,20 @@ export async function registerUser(payload: RegisterUserRequest): Promise<LoginR
 }
 
 export async function loginUser(payload: LoginUserRequest): Promise<LoginResult> {
+  const body: Record<string, string> = {
+    phone: payload.phone,
+    login_method: payload.loginMethod ?? 'PASSWORD'
+  };
+  if (payload.password) {
+    body.password = payload.password;
+  }
+  if (payload.verificationCode) {
+    body.verification_code = payload.verificationCode;
+  }
   const result = normalizeLoginResult(
     await request('/api/v1/auth/login', {
       method: 'POST',
-      body: JSON.stringify({
-        phone: payload.phone,
-        password: payload.password,
-        verification_code: payload.verificationCode
-      })
+      body: JSON.stringify(body)
     })
   );
   setUserSession(result);

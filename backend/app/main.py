@@ -731,15 +731,23 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
     ) -> dict:
         service = AuthService(db)
-        user = service.authenticate(tenant_id=tenant_id, phone=payload.phone, password=payload.password)
-        if user is None:
-            raise HTTPException(status_code=401, detail="invalid phone or password")
-        if not has_min_role(user.role, "READ_ONLY") and not service.verify_code(
-            phone=payload.phone,
-            purpose="LOGIN",
-            verification_code=payload.verification_code,
-        ):
-            raise HTTPException(status_code=400, detail="verification code is required for user login")
+        login_method = payload.login_method.strip().upper()
+        if login_method == "CODE":
+            user = service.active_user_by_phone(tenant_id=tenant_id, phone=payload.phone)
+            if user is None:
+                raise HTTPException(status_code=401, detail="invalid phone or verification code")
+            if has_min_role(user.role, "READ_ONLY"):
+                raise HTTPException(status_code=400, detail="admin login requires password")
+            if not service.verify_code(phone=payload.phone, purpose="LOGIN", verification_code=payload.verification_code):
+                raise HTTPException(status_code=400, detail="verification code is invalid")
+        elif login_method == "PASSWORD":
+            if not payload.password:
+                raise HTTPException(status_code=400, detail="password is required")
+            user = service.authenticate(tenant_id=tenant_id, phone=payload.phone, password=payload.password)
+            if user is None:
+                raise HTTPException(status_code=401, detail="invalid phone or password")
+        else:
+            raise HTTPException(status_code=400, detail="unsupported login method")
         return {
             "access_token": service.create_access_token(user),
             "token_type": "bearer",

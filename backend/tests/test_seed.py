@@ -1,5 +1,6 @@
-from app.models import AiAssistant, ChannelRoute, ChatMessage, ChatSession, ContentItem, ContentPage, ContentSection, ModelConfig, PromptTemplate, Tenant
+from app.models import AiAssistant, ChannelRoute, ChatMessage, ChatSession, ContentItem, ContentPage, ContentSection, ModelConfig, PromptTemplate, Tenant, User
 from app.seed import ensure_demo_data
+from app.services.auth import verify_password
 
 
 def test_demo_seed_creates_portal_content_idempotently(session):
@@ -59,6 +60,16 @@ def test_demo_seed_creates_portal_content_idempotently(session):
     assert {"办公助理", "营销助理", "学习助理", "法务助理", "客服助理", "设计助理", "开发助理"}.issubset(
         assistant_categories
     )
+
+
+def test_demo_seed_sets_default_user_password(session):
+    ensure_demo_data(session, tenant_id="demo")
+
+    user = session.get(User, "demo-user")
+
+    assert user is not None
+    assert user.phone == "13800000000"
+    assert verify_password("user123456", user.password_hash)
 
 
 def test_demo_seed_contains_marketing_dashboard_content(session):

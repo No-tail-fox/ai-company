@@ -12,14 +12,16 @@ import {
 } from '../services/api';
 
 type AuthMode = 'login' | 'register' | 'reset';
+type LoginMethod = 'PASSWORD' | 'CODE';
 
 const router = useRouter();
 const mode = ref<AuthMode>('login');
+const loginMethod = ref<LoginMethod>('PASSWORD');
 const loading = ref(false);
 const message = ref('');
 const form = reactive({
-  phone: '',
-  password: '',
+  phone: '13800000000',
+  password: 'user123456',
   confirmPassword: '',
   displayName: '',
   verificationCode: ''
@@ -48,6 +50,18 @@ const submitLabel = computed(() => {
 function switchMode(nextMode: AuthMode) {
   mode.value = nextMode;
   message.value = '';
+  if (nextMode === 'login') {
+    loginMethod.value = 'PASSWORD';
+  }
+}
+
+function switchLoginMethod(nextMethod: LoginMethod) {
+  loginMethod.value = nextMethod;
+  message.value = '';
+  form.verificationCode = '';
+  if (nextMethod === 'PASSWORD' && !form.password) {
+    form.password = 'user123456';
+  }
 }
 
 async function sendVerificationCode() {
@@ -93,11 +107,17 @@ async function submitAuth() {
       mode.value = 'login';
       return;
     }
-    const payload: LoginUserRequest = {
-      phone: form.phone.trim(),
-      password: form.password,
-      verificationCode: form.verificationCode.trim()
-    };
+    const payload: LoginUserRequest = loginMethod.value === 'CODE'
+      ? {
+          phone: form.phone.trim(),
+          verificationCode: form.verificationCode.trim(),
+          loginMethod: 'CODE'
+        }
+      : {
+          phone: form.phone.trim(),
+          password: form.password,
+          loginMethod: 'PASSWORD'
+        };
     await loginUser(payload);
     await router.push('/home');
   } catch (error) {
@@ -132,6 +152,14 @@ async function submitAuth() {
       </div>
 
       <form class="auth-form" @submit.prevent="submitAuth">
+        <div v-if="mode === 'login'" class="login-method-tabs">
+          <button :class="{ active: loginMethod === 'PASSWORD' }" type="button" @click="switchLoginMethod('PASSWORD')">
+            密码登录
+          </button>
+          <button :class="{ active: loginMethod === 'CODE' }" type="button" @click="switchLoginMethod('CODE')">
+            验证码登录
+          </button>
+        </div>
         <label>
           手机号
           <input v-model="form.phone" autocomplete="username" inputmode="tel" />
@@ -140,7 +168,7 @@ async function submitAuth() {
           昵称
           <input v-model="form.displayName" maxlength="64" />
         </label>
-        <label>
+        <label v-if="mode !== 'login' || loginMethod === 'PASSWORD'">
           密码
           <input v-model="form.password" :autocomplete="mode === 'login' ? 'current-password' : 'new-password'" type="password" />
         </label>
@@ -148,7 +176,7 @@ async function submitAuth() {
           确认密码
           <input v-model="form.confirmPassword" autocomplete="new-password" type="password" />
         </label>
-        <label class="code-field">
+        <label v-if="mode !== 'login' || loginMethod === 'CODE'" class="code-field">
           验证码
           <span>
             <input v-model="form.verificationCode" inputmode="numeric" />
@@ -222,7 +250,23 @@ async function submitAuth() {
   gap: 6px;
 }
 
+.login-method-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.login-method-tabs button {
+  min-height: 36px;
+  border: 1px solid #d9e3f0;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #415269;
+  font-weight: 800;
+}
+
 .auth-tabs button.active,
+.login-method-tabs button.active,
 .auth-submit {
   border-color: #2448ff;
   color: #fff;

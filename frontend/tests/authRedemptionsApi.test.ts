@@ -60,6 +60,13 @@ test('user auth APIs post verification, register, login, reset, and change passw
         user: { id: 'user-a', tenant_id: 'demo', phone: '13800000001', display_name: 'New User', role: 'USER', status: 'ACTIVE' }
       })
     )
+    .mockResolvedValueOnce(
+      mockFetchResponse({
+        access_token: 'code-login-token',
+        token_type: 'bearer',
+        user: { id: 'user-a', tenant_id: 'demo', phone: '13800000001', display_name: 'New User', role: 'USER', status: 'ACTIVE' }
+      })
+    )
     .mockResolvedValueOnce(mockFetchResponse({ status: 'UPDATED' }))
     .mockResolvedValueOnce(mockFetchResponse({ status: 'UPDATED' }));
   vi.stubGlobal('fetch', fetchMock);
@@ -71,7 +78,8 @@ test('user auth APIs post verification, register, login, reset, and change passw
     displayName: 'New User',
     verificationCode: '123456'
   });
-  const loggedIn = await loginUser({ phone: '13800000001', password: 'user123456', verificationCode: '123456' });
+  const loggedIn = await loginUser({ phone: '13800000001', password: 'user123456', loginMethod: 'PASSWORD' });
+  const codeLoggedIn = await loginUser({ phone: '13800000001', verificationCode: '123456', loginMethod: 'CODE' });
   await resetPassword({ phone: '13800000001', verificationCode: '123456', newPassword: 'reset123456' });
   await changePassword({ currentPassword: 'reset123456', newPassword: 'changed123456' });
 
@@ -86,22 +94,28 @@ test('user auth APIs post verification, register, login, reset, and change passw
   expect(JSON.parse(fetchMock.mock.calls[2][1]?.body as string)).toEqual({
     phone: '13800000001',
     password: 'user123456',
-    verification_code: '123456'
+    login_method: 'PASSWORD'
   });
   expect(JSON.parse(fetchMock.mock.calls[3][1]?.body as string)).toEqual({
     phone: '13800000001',
     verification_code: '123456',
+    login_method: 'CODE'
+  });
+  expect(JSON.parse(fetchMock.mock.calls[4][1]?.body as string)).toEqual({
+    phone: '13800000001',
+    verification_code: '123456',
     new_password: 'reset123456'
   });
-  expect((fetchMock.mock.calls[4][1]?.headers as Headers).get('Authorization')).toBe('Bearer login-token');
-  expect(JSON.parse(fetchMock.mock.calls[4][1]?.body as string)).toEqual({
+  expect((fetchMock.mock.calls[5][1]?.headers as Headers).get('Authorization')).toBe('Bearer code-login-token');
+  expect(JSON.parse(fetchMock.mock.calls[5][1]?.body as string)).toEqual({
     current_password: 'reset123456',
     new_password: 'changed123456'
   });
   expect(registered.user.displayName).toBe('New User');
   expect(loggedIn.accessToken).toBe('login-token');
+  expect(codeLoggedIn.accessToken).toBe('code-login-token');
   expect(getUserSession()?.user.id).toBe('user-a');
-  expect(store.opc_user_session).toContain('login-token');
+  expect(store.opc_user_session).toContain('code-login-token');
   clearUserSession();
   expect(getUserSession()).toBeNull();
 });

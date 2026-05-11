@@ -68,21 +68,27 @@ def test_user_register_login_reset_and_change_password_flow(session):
     )
     assert duplicate.status_code == 400
 
-    missing_code_login = client.post(
+    password_login_without_code = client.post(
         "/api/v1/auth/login",
         headers={"X-Tenant-ID": tenant.id},
         json={"phone": "13800000001", "password": "user123456"},
     )
-    assert missing_code_login.status_code == 400
-    assert "verification" in missing_code_login.json()["detail"]
+    assert password_login_without_code.status_code == 200
 
-    login = client.post(
+    code_login_without_password = client.post(
         "/api/v1/auth/login",
         headers={"X-Tenant-ID": tenant.id},
-        json={"phone": "13800000001", "password": "user123456", "verification_code": "123456"},
+        json={"phone": "13800000001", "login_method": "CODE", "verification_code": "123456"},
     )
-    assert login.status_code == 200
-    user_token = login.json()["access_token"]
+    assert code_login_without_password.status_code == 200
+    user_token = code_login_without_password.json()["access_token"]
+
+    invalid_code_login = client.post(
+        "/api/v1/auth/login",
+        headers={"X-Tenant-ID": tenant.id},
+        json={"phone": "13800000001", "login_method": "CODE", "verification_code": "000000"},
+    )
+    assert invalid_code_login.status_code == 400
 
     reset = client.post(
         "/api/v1/auth/password/reset",
@@ -94,7 +100,7 @@ def test_user_register_login_reset_and_change_password_flow(session):
     old_login = client.post(
         "/api/v1/auth/login",
         headers={"X-Tenant-ID": tenant.id},
-        json={"phone": "13800000001", "password": "user123456", "verification_code": "123456"},
+        json={"phone": "13800000001", "password": "user123456"},
     )
     assert old_login.status_code == 401
 
@@ -108,7 +114,7 @@ def test_user_register_login_reset_and_change_password_flow(session):
     changed_login = client.post(
         "/api/v1/auth/login",
         headers={"X-Tenant-ID": tenant.id},
-        json={"phone": "13800000001", "password": "changed123456", "verification_code": "123456"},
+        json={"phone": "13800000001", "password": "changed123456"},
     )
     assert changed_login.status_code == 200
 
