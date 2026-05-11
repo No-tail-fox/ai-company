@@ -4,14 +4,22 @@ import { useRouter } from 'vue-router';
 import {
   ChevronDown,
   CreditCard,
-  ReceiptText,
+  KeyRound,
+  LogIn,
+  LogOut,
   Search,
   Settings,
-  ShieldCheck
+  ShieldCheck,
+  Ticket
 } from 'lucide-vue-next';
 import {
+  changePassword,
+  clearUserSession,
   createRechargeOrder,
   fetchAccountSummary,
+  getCurrentUserId,
+  getUserSession,
+  redeemCode,
   searchPortal,
   updateAccountProfile
 } from '../services/api';
@@ -86,18 +94,35 @@ const searchOpen = ref(false);
 const searching = ref(false);
 const membershipOpen = ref(false);
 const accountOpen = ref(false);
-const accountPanel = ref<'settings' | 'recharge' | ''>('');
+const accountPanel = ref<'settings' | 'redeem' | 'password' | 'recharge' | ''>('');
 const accountSummary = ref<AccountSummary>(fallbackSummary());
+const userSession = ref(getUserSession());
 const profileName = ref('');
 const profileSaving = ref(false);
+const redeemCodeInput = ref('');
+const redeeming = ref(false);
+const passwordForm = ref({ currentPassword: '', newPassword: '', confirmPassword: '' });
+const passwordSaving = ref(false);
 const rechargePackageKey = ref<(typeof accountPackages)[number]['key']>('points_1000');
 const rechargeOrder = ref<RechargeOrder | null>(null);
 const accountMessage = ref('');
 const searchTimer = ref<number | undefined>(undefined);
 const chromeBodyRef = ref<HTMLElement | null>(null);
 
-const accountName = computed(() => accountSummary.value.user.displayName?.trim() || '演示用户');
-const accountPhone = computed(() => accountSummary.value.user.phone || 'demo-user');
+const isLoggedIn = computed(() => Boolean(userSession.value?.accessToken));
+const currentUserId = computed(() => userSession.value?.user.id || getCurrentUserId(demoUserId));
+const accountName = computed(() => {
+  if (!isLoggedIn.value) {
+    return '登录 / 注册';
+  }
+  return accountSummary.value.user.displayName?.trim() || userSession.value?.user.displayName?.trim() || '用户';
+});
+const accountPhone = computed(() => {
+  if (!isLoggedIn.value) {
+    return '手机号登录后同步积分和会员';
+  }
+  return accountSummary.value.user.phone || userSession.value?.user.phone || '已登录';
+});
 const avatarLabel = computed(() => (accountName.value.charAt(0) || 'U').toUpperCase());
 const pointsText = computed(() => formatPoints(accountSummary.value.wallet.balance));
 const frozenPointsText = computed(() => formatPoints(accountSummary.value.wallet.frozenBalance));
@@ -139,7 +164,13 @@ function goPage(pageKey: string) {
 
 async function refreshAccountSummary() {
   try {
-    accountSummary.value = await fetchAccountSummary(demoUserId);
+    userSession.value = getUserSession();
+    if (!userSession.value?.accessToken) {
+      accountSummary.value = fallbackSummary();
+      profileName.value = accountSummary.value.user.displayName;
+      return;
+    }
+    accountSummary.value = await fetchAccountSummary(currentUserId.value);
     profileName.value = accountSummary.value.user.displayName;
   } catch {
     accountSummary.value = fallbackSummary();
@@ -186,6 +217,10 @@ function openAccountMenu() {
 }
 
 function openSettingsPanel() {
+  if (!isLoggedIn.value) {
+    void router.push('/auth');
+    return;
+  }
   accountOpen.value = true;
   membershipOpen.value = false;
   accountPanel.value = 'settings';
@@ -199,7 +234,45 @@ function openRechargePanel() {
   accountMessage.value = '';
 }
 
+function openRedeemPanel() {
+  if (!isLoggedIn.value) {
+    void router.push('/auth');
+    return;
+  }
+  accountOpen.value = true;
+  membershipOpen.value = false;
+  accountPanel.value = 'redeem';
+  accountMessage.value = '';
+}
+
+function openPasswordPanel() {
+  if (!isLoggedIn.value) {
+    void router.push('/auth');
+    return;
+  }
+  accountOpen.value = true;
+  membershipOpen.value = false;
+  accountPanel.value = 'password';
+  accountMessage.value = '';
+  passwordForm.value = { currentPassword: '', newPassword: '', confirmPassword: '' };
+}
+
+function goAuth() {
+  void router.push('/auth');
+}
+
+function logoutUser() {
+  clearUserSession();
+  userSession.value = null;
+  accountSummary.value = fallbackSummary();
+  closeAccountPanels();
+}
+
 async function saveProfile() {
+  if (!isLoggedIn.value) {
+    void router.push('/auth');
+    return;
+  }
   const nextName = profileName.value.trim();
   if (!nextName) {
     accountMessage.value = '昵称不能为空';
@@ -207,7 +280,7 @@ async function saveProfile() {
   }
   profileSaving.value = true;
   try {
-    const user = await updateAccountProfile({ userId: demoUserId, displayName: nextName });
+    const user = await updateAccountProfile({ userId: currentUserId.value, displayName: nextName });
     accountSummary.value.user = {
       ...accountSummary.value.user,
       ...user
@@ -230,6 +303,55 @@ async function submitRecharge() {
     accountMessage.value = rechargeOrder.value.message || '订单已创建';
   } catch (error) {
     accountMessage.value = error instanceof Error ? error.message : '创建订单失败';
+  }
+}
+
+async function submitRedeemCode() {
+  if (!isLoggedIn.value) {
+    void router.push('/auth');
+    return;
+  }
+  const code = redeemCodeInput.value.trim();
+  if (!code) {
+    accountMessage.value = '请输入兑换码';
+    return;
+  }
+  redeeming.value = true;
+  accountMessage.value = '';
+  try {
+    const result = await redeemCode(code);
+    accountSummary.value = result.accountSummary;
+    redeemCodeInput.value = '';
+    accountMessage.value = `兑换成功，到账 ${formatPoints(result.pointsGranted)} 积分`;
+  } catch (error) {
+    accountMessage.value = error instanceof Error ? error.message : '兑换失败';
+  } finally {
+    redeeming.value = false;
+  }
+}
+
+async function submitPasswordChange() {
+  if (!isLoggedIn.value) {
+    void router.push('/auth');
+    return;
+  }
+  if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
+    accountMessage.value = '两次输入的密码不一致';
+    return;
+  }
+  passwordSaving.value = true;
+  accountMessage.value = '';
+  try {
+    await changePassword({
+      currentPassword: passwordForm.value.currentPassword,
+      newPassword: passwordForm.value.newPassword
+    });
+    passwordForm.value = { currentPassword: '', newPassword: '', confirmPassword: '' };
+    accountMessage.value = '密码已修改';
+  } catch (error) {
+    accountMessage.value = error instanceof Error ? error.message : '修改密码失败';
+  } finally {
+    passwordSaving.value = false;
   }
 }
 
@@ -349,17 +471,29 @@ function handleScrollKeys(event: KeyboardEvent) {
           </div>
 
           <div class="account-menu-actions">
+            <button v-if="!isLoggedIn" type="button" @click="goAuth">
+              <LogIn :size="16" />
+              <span>登录 / 注册</span>
+            </button>
+            <button :class="{ active: accountPanel === 'redeem' }" type="button" @click="openRedeemPanel">
+              <Ticket :size="16" />
+              <span>兑换码</span>
+            </button>
+            <button :class="{ active: accountPanel === 'password' }" type="button" @click="openPasswordPanel">
+              <KeyRound :size="16" />
+              <span>修改密码</span>
+            </button>
             <button :class="{ active: accountPanel === 'settings' }" type="button" @click="openSettingsPanel">
               <Settings :size="16" />
               <span>账号设置</span>
             </button>
-            <button :class="{ active: accountPanel === 'recharge' }" type="button" @click="openRechargePanel">
-              <ReceiptText :size="16" />
-              <span>积分充值</span>
-            </button>
             <button type="button" @click="toggleMembershipPanel">
               <CreditCard :size="16" />
               <span>会员权益</span>
+            </button>
+            <button v-if="isLoggedIn" type="button" @click="logoutUser">
+              <LogOut :size="16" />
+              <span>退出登录</span>
             </button>
           </div>
 
@@ -373,6 +507,45 @@ function handleScrollKeys(event: KeyboardEvent) {
               <button type="button" @click="closeAccountPanels">关闭</button>
               <button :disabled="profileSaving" type="button" @click="saveProfile">
                 {{ profileSaving ? '保存中...' : '保存昵称' }}
+              </button>
+            </div>
+            <p v-if="accountMessage" class="panel-note">{{ accountMessage }}</p>
+          </section>
+
+          <section v-else-if="accountPanel === 'redeem'" class="redeem-panel">
+            <strong>兑换码</strong>
+            <label>
+              <span>兑换码</span>
+              <input v-model="redeemCodeInput" placeholder="请输入兑换码" />
+            </label>
+            <div class="panel-actions">
+              <button type="button" @click="closeAccountPanels">关闭</button>
+              <button :disabled="redeeming" type="button" @click="submitRedeemCode">
+                {{ redeeming ? '兑换中...' : '立即兑换' }}
+              </button>
+            </div>
+            <p class="panel-note">兑换成功后会自动刷新积分和会员状态。</p>
+            <p v-if="accountMessage" class="panel-note">{{ accountMessage }}</p>
+          </section>
+
+          <section v-else-if="accountPanel === 'password'" class="password-panel">
+            <strong>修改密码</strong>
+            <label>
+              <span>当前密码</span>
+              <input v-model="passwordForm.currentPassword" type="password" />
+            </label>
+            <label>
+              <span>新密码</span>
+              <input v-model="passwordForm.newPassword" type="password" />
+            </label>
+            <label>
+              <span>确认新密码</span>
+              <input v-model="passwordForm.confirmPassword" type="password" />
+            </label>
+            <div class="panel-actions">
+              <button type="button" @click="closeAccountPanels">关闭</button>
+              <button :disabled="passwordSaving" type="button" @click="submitPasswordChange">
+                {{ passwordSaving ? '保存中...' : '保存密码' }}
               </button>
             </div>
             <p v-if="accountMessage" class="panel-note">{{ accountMessage }}</p>
@@ -410,7 +583,7 @@ function handleScrollKeys(event: KeyboardEvent) {
             <p v-if="accountMessage" class="panel-note">{{ accountMessage }}</p>
           </section>
 
-          <p v-else class="account-empty">从上面的按钮进入设置或充值。</p>
+          <p v-else class="account-empty">从上面的按钮进入登录、兑换或账号设置。</p>
         </section>
       </div>
 

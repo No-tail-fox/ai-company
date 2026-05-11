@@ -37,12 +37,18 @@ from app.schemas import (
     MembershipPlanUpdate,
     ModelConfigCreate,
     ModelConfigUpdate,
+    PasswordChangeRequest,
+    PasswordResetRequest,
     PortalActionCreate,
     ProviderChannelCreate,
     ProviderChannelUpdate,
     RechargeOrderCreate,
+    RedeemCodeRequest,
+    RedemptionBatchCreate,
+    RegisterRequest,
     UserMembershipCreate,
     UserMembershipUpdate,
+    VerificationCodeCreate,
     WalletAdjustmentCreate,
     ReorderRequest,
     ToolModelBindingCreate,
@@ -66,6 +72,7 @@ from app.services.model_configs import ModelConfigError, ModelConfigService
 from app.services.payments import PaymentPackageError, PaymentService, PaymentUserNotFoundError
 from app.services.portal import PortalService
 from app.services.rbac import has_min_role
+from app.services.redemptions import RedemptionNotFoundError, RedemptionService, RedemptionValidationError
 from app.services.uploads import UploadService, UploadValidationError
 from app.services.video import DEMO_VIDEO_USER_ID, VideoService, VideoUserNotFoundError, VideoValidationError
 from app.services.wallet import InsufficientBalanceError, WalletNotFoundError
@@ -131,6 +138,19 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
     def require_admin_role(admin: User, minimum_role: str) -> None:
         if not has_min_role(admin.role, minimum_role):
             raise HTTPException(status_code=403, detail=f"{minimum_role} role required")
+
+    def require_user(
+        tenant_id: TenantHeader,
+        authorization: AuthorizationHeader = None,
+        db: Session = Depends(get_session),
+    ) -> User:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="missing bearer token")
+        token = authorization.removeprefix("Bearer ").strip()
+        user = AuthService(db).user_from_token(tenant_id=tenant_id, token=token)
+        if user is None:
+            raise HTTPException(status_code=401, detail="invalid bearer token")
+        return user
 
     @app.get(f"{settings.api_prefix}/health")
     def health() -> dict[str, str]:
@@ -426,6 +446,55 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         service = AdminManagementService(db)
         return {"tenant_id": tenant_id, "logs": [service.audit_log_payload(log) for log in logs]}
 
+    @app.get(f"{settings.api_prefix}/admin/redemption-batches")
+    def list_redemption_batches(
+        tenant_id: TenantHeader,
+        limit: int = 100,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        batches = RedemptionService(db).list_batches(tenant_id=tenant_id, limit=limit)
+        return {"tenant_id": tenant_id, "batches": batches}
+
+    @app.post(f"{settings.api_prefix}/admin/redemption-batches", status_code=status.HTTP_201_CREATED)
+    def create_redemption_batch(
+        payload: RedemptionBatchCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "OPERATOR")
+        try:
+            return RedemptionService(db).create_batch(tenant_id=tenant_id, payload=payload, actor=admin)
+        except RedemptionValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get(f"{settings.api_prefix}/admin/redemption-codes")
+    def list_redemption_codes(
+        tenant_id: TenantHeader,
+        batch_id: str | None = None,
+        limit: int = 200,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        codes = RedemptionService(db).list_codes(tenant_id=tenant_id, batch_id=batch_id, limit=limit)
+        return {"tenant_id": tenant_id, "codes": codes}
+
+    @app.delete(f"{settings.api_prefix}/admin/redemption-codes/{{code_id}}")
+    def disable_redemption_code(
+        code_id: str,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "OPERATOR")
+        try:
+            return RedemptionService(db).disable_code(tenant_id=tenant_id, code_id=code_id)
+        except RedemptionNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     @app.get(f"{settings.api_prefix}/account/summary")
     def account_summary(
         tenant_id: TenantHeader,
@@ -451,6 +520,20 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
             )
         except AccountNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post(f"{settings.api_prefix}/redemptions/redeem")
+    def redeem_code(
+        payload: RedeemCodeRequest,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        user: User = Depends(require_user),
+    ) -> dict:
+        try:
+            return RedemptionService(db).redeem(tenant_id=tenant_id, user=user, code=payload.code)
+        except RedemptionNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except RedemptionValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.post(f"{settings.api_prefix}/payments/recharge-orders", status_code=status.HTTP_201_CREATED)
     def create_recharge_order(
@@ -603,6 +686,44 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
     ) -> dict:
         return MembershipService(db).get_status(tenant_id=tenant_id, user_id=user_id)
 
+    @app.post(f"{settings.api_prefix}/auth/verification-codes")
+    def create_verification_code(
+        payload: VerificationCodeCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        try:
+            return AuthService(db).create_verification_code(
+                tenant_id=tenant_id,
+                phone=payload.phone,
+                purpose=payload.purpose,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post(f"{settings.api_prefix}/auth/register", status_code=status.HTTP_201_CREATED)
+    def register(
+        payload: RegisterRequest,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        service = AuthService(db)
+        try:
+            user = service.register_user(
+                tenant_id=tenant_id,
+                phone=payload.phone,
+                password=payload.password,
+                display_name=payload.display_name,
+                verification_code=payload.verification_code,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "access_token": service.create_access_token(user),
+            "token_type": "bearer",
+            "user": user_payload(user),
+        }
+
     @app.post(f"{settings.api_prefix}/auth/login")
     def login(
         payload: LoginRequest,
@@ -613,11 +734,52 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         user = service.authenticate(tenant_id=tenant_id, phone=payload.phone, password=payload.password)
         if user is None:
             raise HTTPException(status_code=401, detail="invalid phone or password")
+        if not has_min_role(user.role, "READ_ONLY") and not service.verify_code(
+            phone=payload.phone,
+            purpose="LOGIN",
+            verification_code=payload.verification_code,
+        ):
+            raise HTTPException(status_code=400, detail="verification code is required for user login")
         return {
             "access_token": service.create_access_token(user),
             "token_type": "bearer",
             "user": user_payload(user),
         }
+
+    @app.post(f"{settings.api_prefix}/auth/password/reset")
+    def reset_password(
+        payload: PasswordResetRequest,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        try:
+            user = AuthService(db).reset_password(
+                tenant_id=tenant_id,
+                phone=payload.phone,
+                verification_code=payload.verification_code,
+                new_password=payload.new_password,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"status": "UPDATED", "user": user_payload(user)}
+
+    @app.post(f"{settings.api_prefix}/auth/password/change")
+    def change_password(
+        payload: PasswordChangeRequest,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        user: User = Depends(require_user),
+    ) -> dict:
+        del tenant_id
+        try:
+            updated = AuthService(db).change_password(
+                user=user,
+                current_password=payload.current_password,
+                new_password=payload.new_password,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"status": "UPDATED", "user": user_payload(updated)}
 
     @app.get(f"{settings.api_prefix}/admin/provider-channels")
     def list_provider_channels(

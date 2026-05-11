@@ -275,6 +275,42 @@ export interface AdminAuditLogSummary {
   createdAt?: string | null;
 }
 
+export interface AdminRedemptionBatchSummary {
+  id: string;
+  tenantId?: string;
+  name: string;
+  points: number;
+  membershipPlanId?: string | null;
+  membershipDays?: number | null;
+  quantity: number;
+  status: string;
+  expiresAt?: string | null;
+  generatedCount: number;
+  redeemedCount: number;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface AdminRedemptionCodeSummary {
+  id: string;
+  tenantId?: string;
+  batchId: string;
+  code?: string;
+  maskedCode: string;
+  status: string;
+  redeemedByUserId?: string | null;
+  redeemedAt?: string | null;
+  createdAt?: string | null;
+}
+
+export interface RedemptionResult {
+  status: string;
+  pointsGranted: number;
+  wallet: AccountWallet;
+  membership: MembershipSummary;
+  accountSummary: AccountSummary;
+}
+
 export interface AssistantCenter {
   categories: string[];
   featured: AssistantCard[];
@@ -884,16 +920,61 @@ export function buildHomeDashboardModel(
 ): HomeDashboardModel {
   const fallback = createFallbackHomeDashboard(pageConfig);
   const source = dashboard ?? fallback;
+  const sectionWorkbenchShortcuts = homeItemsFromSections(pageConfig, ['workbench_shortcuts', 'workspace_tools', 'task_board'], 6);
+  const sectionCommunityCards = homeItemsFromSections(pageConfig, ['communities', 'resource_hub'], 4);
+  const sectionToolCards = homeItemsFromSections(pageConfig, ['home_tools', 'toolkit', 'earning_templates', 'project_cocreation'], 5);
   return {
     tenantId: source.tenantId || pageConfig.tenantId,
     page: source.page?.pageKey ? source.page : pageConfig.page,
     sections: pageConfig.sections,
     heroSlides: source.heroSlides.length > 0 ? source.heroSlides : fallback.heroSlides,
     kpiCards: source.kpiCards.length > 0 ? source.kpiCards : fallback.kpiCards,
-    workbenchShortcuts: source.workbenchShortcuts.length > 0 ? source.workbenchShortcuts : fallback.workbenchShortcuts,
-    communityCards: source.communityCards.length > 0 ? source.communityCards : fallback.communityCards,
-    toolCards: source.toolCards.length > 0 ? source.toolCards : fallback.toolCards
+    workbenchShortcuts:
+      source.workbenchShortcuts.length > 0
+        ? source.workbenchShortcuts
+        : sectionWorkbenchShortcuts.length > 0
+          ? sectionWorkbenchShortcuts
+          : fallback.workbenchShortcuts,
+    communityCards:
+      source.communityCards.length > 0
+        ? source.communityCards
+        : sectionCommunityCards.length > 0
+          ? sectionCommunityCards
+          : fallback.communityCards,
+    toolCards:
+      source.toolCards.length > 0
+        ? source.toolCards
+        : sectionToolCards.length > 0
+          ? sectionToolCards
+          : fallback.toolCards
   };
+}
+
+function homeItemsFromSections(pageConfig: PortalPageConfig, sectionKeys: string[], limit: number): PortalItem[] {
+  const items: PortalItem[] = [];
+  const seen = new Set<string>();
+  const sections = pageConfig.sections
+    .filter((sectionItem) => sectionKeys.includes(sectionItem.sectionKey) && sectionItem.enabled)
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+
+  for (const sectionItem of sections) {
+    const sectionItems = [...sectionItem.items]
+      .filter((itemItem) => itemItem.enabled)
+      .sort((left, right) => left.sortOrder - right.sortOrder);
+    for (const itemItem of sectionItems) {
+      const key = itemItem.id || itemItem.title;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      items.push(itemItem);
+      if (items.length >= limit) {
+        return items;
+      }
+    }
+  }
+
+  return items;
 }
 
 export function createFallbackHomeDashboard(pageConfig: PortalPageConfig = createFallbackPageConfig(HOME_PAGE_KEY)): HomeDashboardModel {
@@ -2237,6 +2318,54 @@ export function normalizeAdminAuditLog(payload: any): AdminAuditLogSummary {
     targetId: payload.target_id ?? payload.targetId ?? '',
     summary: payload.summary ?? '',
     createdAt: payload.created_at ?? payload.createdAt ?? null
+  };
+}
+
+export function normalizeAdminRedemptionBatch(payload: any): AdminRedemptionBatchSummary {
+  return {
+    id: payload.id,
+    tenantId: payload.tenant_id ?? payload.tenantId,
+    name: payload.name ?? '',
+    points: Number(payload.points ?? 0),
+    membershipPlanId: payload.membership_plan_id ?? payload.membershipPlanId ?? null,
+    membershipDays:
+      payload.membership_days ?? payload.membershipDays ?? null,
+    quantity: Number(payload.quantity ?? 0),
+    status: payload.status ?? '',
+    expiresAt: payload.expires_at ?? payload.expiresAt ?? null,
+    generatedCount: Number(payload.generated_count ?? payload.generatedCount ?? 0),
+    redeemedCount: Number(payload.redeemed_count ?? payload.redeemedCount ?? 0),
+    createdAt: payload.created_at ?? payload.createdAt ?? null,
+    updatedAt: payload.updated_at ?? payload.updatedAt ?? null
+  };
+}
+
+export function normalizeAdminRedemptionCode(payload: any): AdminRedemptionCodeSummary {
+  return {
+    id: payload.id,
+    tenantId: payload.tenant_id ?? payload.tenantId,
+    batchId: payload.batch_id ?? payload.batchId ?? '',
+    code: payload.code,
+    maskedCode: payload.masked_code ?? payload.maskedCode ?? '',
+    status: payload.status ?? '',
+    redeemedByUserId: payload.redeemed_by_user_id ?? payload.redeemedByUserId ?? null,
+    redeemedAt: payload.redeemed_at ?? payload.redeemedAt ?? null,
+    createdAt: payload.created_at ?? payload.createdAt ?? null
+  };
+}
+
+export function normalizeRedemptionResult(payload: any): RedemptionResult {
+  const accountSummary = normalizeAccountSummary(payload.account_summary ?? payload.accountSummary ?? {});
+  return {
+    status: payload.status ?? '',
+    pointsGranted: Number(payload.points_granted ?? payload.pointsGranted ?? 0),
+    wallet: {
+      balance: Number(payload.wallet?.balance ?? accountSummary.wallet.balance ?? 0),
+      frozenBalance: Number(payload.wallet?.frozen_balance ?? payload.wallet?.frozenBalance ?? accountSummary.wallet.frozenBalance ?? 0),
+      currency: payload.wallet?.currency ?? accountSummary.wallet.currency ?? 'POINT'
+    },
+    membership: normalizeMembershipSummary(payload.membership ?? accountSummary.membership ?? {}),
+    accountSummary
   };
 }
 

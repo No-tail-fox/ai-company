@@ -1,0 +1,105 @@
+{
+  "jobs": 3,
+  "tasks": [
+    {
+      "id": "01-home-basic-essentials",
+      "promptFiles": ["prompt-common.md", "prompts/01-home-basic-essentials.md"],
+      "image": "01-home-basic-essentials.png",
+      "provider": "openai",
+      "model": "gpt-image-2",
+      "ar": "16:9",
+      "quality": "2k",
+      "imageApiDialect": "openai-native"
+    },
+    {
+      "id": "02-home-growth-center",
+      "promptFiles": ["prompt-common.md", "prompts/02-home-growth-center.md"],
+      "image": "02-home-growth-center.png",
+      "provider": "openai",
+      "model": "gpt-image-2",
+      "ar": "16:9",
+      "quality": "2k",
+      "imageApiDialect": "openai-native"
+    },
+    {
+      "id": "03-order-center",
+      "promptFiles": ["prompt-common.md", "prompts/03-order-center.md"],
+      "image": "03-order-center.png",
+      "provider": "openai",
+      "model": "gpt-image-2",
+      "ar": "16:9",
+      "quality": "2k",
+      "imageApiDialect": "openai-native"
+    },
+    {
+      "id": "04-resource-matchmaking",
+      "promptFiles": ["prompt-common.md", "prompts/04-resource-matchmaking.md"],
+      "image": "04-resource-matchmaking.png",
+      "provider": "openai",
+      "model": "gpt-image-2",
+      "ar": "16:9",
+      "quality": "2k",
+      "imageApiDialect": "openai-native"
+    },
+    {
+      "id": "05-project-cocreation",
+      "promptFiles": ["prompt-common.md", "prompts/05-project-cocreation.md"],
+      "image": "05-project-cocreation.png",
+      "provider": "openai",
+      "model": "gpt-image-2",
+      "ar": "16:9",
+      "quality": "2k",
+      "imageApiDialect": "openai-native"
+    },
+    {
+      "id": "06-workbench-overview",
+      "promptFiles": ["prompt-common.md", "prompts/06-workbench-overview.md"],
+      "image": "06-workbench-overview.png",
+      "provider": "openai",
+      "model": "gpt-image-2",
+      "ar": "16:9",
+      "quality": "2k",
+      "imageApiDialect": "openai-native"
+    },
+    {
+      "id": "07-template-toolkit",
+      "promptFiles": ["prompt-common.md", "prompts/07-template-toolkit.md"],
+      "image": "07-template-toolkit.png",
+      "provider": "openai",
+      "model": "gpt-image-2",
+      "ar": "16:9",
+      "quality": "2k",
+      "imageApiDialect": "openai-native"
+    },
+    {
+      "id": "08-ecommerce-operations",
+      "promptFiles": ["prompt-common.md", "prompts/08-ecommerce-operations.md"],
+      "image": "08-ecommerce-operations.png",
+      "provider": "openai",
+      "model": "gpt-image-2",
+      "ar": "16:9",
+      "quality": "2k",
+      "imageApiDialect": "openai-native"
+    },
+    {
+      "id": "09-legal-service-desk",
+      "promptFiles": ["prompt-common.md", "prompts/09-legal-service-desk.md"],
+      "image": "09-legal-service-desk.png",
+      "provider": "openai",
+      "model": "gpt-image-2",
+      "ar": "16:9",
+      "quality": "2k",
+      "imageApiDialect": "openai-native"
+    },
+    {
+      "id": "10-office-productivity",
+      "promptFiles": ["prompt-common.md", "prompts/10-office-productivity.md"],
+      "image": "10-office-productivity.png",
+      "provider": "openai",
+      "model": "gpt-image-1",
+      "ar": "16:9",
+      "quality": "normal",
+      "imageApiDialect": "openai-native"
+    }
+  ]
+}

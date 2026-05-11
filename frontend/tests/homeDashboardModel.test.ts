@@ -114,3 +114,110 @@ test('builds a home dashboard model with persistent core blocks and filtered sec
     expect.arrayContaining(['learning_center', 'order_center', 'communities'])
   );
 });
+
+test('derives preview dashboard cards from home sections when dashboard arrays are empty', () => {
+  const basePageConfig = createFallbackPageConfig('home');
+  const configuredPageConfig = {
+    ...basePageConfig,
+    sections: [
+      {
+        id: 'preview-workbench-section',
+        tenantId: 'demo',
+        pageKey: 'home',
+        sectionKey: 'workbench_shortcuts',
+        title: 'Preview Workbench',
+        subtitle: 'Configured in admin',
+        layout: 'tool-grid',
+        sortOrder: 10,
+        enabled: true,
+        items: [
+          {
+            id: 'preview-chat',
+            itemType: 'tool',
+            title: 'Admin Preview Chat',
+            subtitle: 'Uses admin content',
+            category: '应用工作台',
+            icon: 'Bot',
+            actionValue: '/workbench',
+            requiredMembership: false,
+            pointCost: 0,
+            sortOrder: 10,
+            enabled: true,
+            tags: [],
+            metadata: {}
+          }
+        ]
+      },
+      {
+        id: 'preview-community-section',
+        tenantId: 'demo',
+        pageKey: 'home',
+        sectionKey: 'communities',
+        title: 'Preview Communities',
+        subtitle: 'Configured in admin',
+        layout: 'banner-row',
+        sortOrder: 20,
+        enabled: true,
+        items: [
+          {
+            id: 'preview-community',
+            itemType: 'community',
+            title: 'Admin Preview Group',
+            subtitle: 'Uses admin community',
+            category: '社群',
+            icon: 'Users',
+            actionValue: '/community/admin-preview',
+            requiredMembership: false,
+            pointCost: 0,
+            sortOrder: 10,
+            enabled: true,
+            tags: [],
+            metadata: {}
+          }
+        ]
+      },
+      {
+        id: 'preview-tool-section',
+        tenantId: 'demo',
+        pageKey: 'home',
+        sectionKey: 'home_tools',
+        title: 'Preview Tools',
+        subtitle: 'Configured in admin',
+        layout: 'tool-grid',
+        sortOrder: 30,
+        enabled: true,
+        items: [
+          {
+            id: 'preview-tool',
+            itemType: 'template',
+            title: 'Admin Preview Tool',
+            subtitle: 'Uses admin tool',
+            category: '工具框',
+            icon: 'LayoutGrid',
+            actionValue: '/toolkit/admin-preview',
+            requiredMembership: false,
+            pointCost: 0,
+            sortOrder: 10,
+            enabled: true,
+            tags: [],
+            metadata: {}
+          }
+        ]
+      }
+    ]
+  };
+  const emptyDashboard = {
+    ...createFallbackHomeDashboard(configuredPageConfig),
+    heroSlides: [],
+    kpiCards: [],
+    workbenchShortcuts: [],
+    communityCards: [],
+    toolCards: []
+  };
+
+  const model = buildHomeDashboardModel(configuredPageConfig, emptyDashboard);
+
+  expect(model.workbenchShortcuts.map((item) => item.title)).toEqual(['Admin Preview Chat']);
+  expect(model.communityCards.map((item) => item.title)).toEqual(['Admin Preview Group']);
+  expect(model.toolCards.map((item) => item.title)).toEqual(['Admin Preview Tool']);
+});

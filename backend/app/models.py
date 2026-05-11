@@ -414,6 +414,39 @@ class UserMembership(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
 
+class RedemptionBatch(Base):
+    __tablename__ = "redemption_batches"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(32), ForeignKey("tenants.id"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    points: Mapped[int] = mapped_column(Integer, default=0)
+    membership_plan_id: Mapped[str | None] = mapped_column(String(32), ForeignKey("membership_plans.id"), nullable=True, index=True)
+    membership_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    quantity: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(32), default="ACTIVE", index=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    created_by_user_id: Mapped[str] = mapped_column(String(32), ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class RedemptionCode(Base):
+    __tablename__ = "redemption_codes"
+    __table_args__ = (UniqueConstraint("tenant_id", "code_hash", name="uq_redemption_codes_tenant_hash"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(32), ForeignKey("tenants.id"), index=True)
+    batch_id: Mapped[str] = mapped_column(String(32), ForeignKey("redemption_batches.id"), index=True)
+    code_hash: Mapped[str] = mapped_column(String(64), index=True)
+    code_suffix: Mapped[str] = mapped_column(String(12), default="")
+    status: Mapped[str] = mapped_column(String(32), default="ACTIVE", index=True)
+    redeemed_by_user_id: Mapped[str | None] = mapped_column(String(32), ForeignKey("users.id"), nullable=True, index=True)
+    redeemed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
 class UserPortalAction(Base):
     __tablename__ = "user_portal_actions"
     __table_args__ = (

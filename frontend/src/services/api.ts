@@ -11,9 +11,12 @@ import {
   normalizeAdminAuditLog,
   normalizeAdminMembershipPlan,
   normalizeAdminOverview,
+  normalizeAdminRedemptionBatch,
+  normalizeAdminRedemptionCode,
   normalizeAdminUser,
   normalizeAdminUserMembership,
   normalizeAdminWalletTransaction,
+  normalizeRedemptionResult,
   normalizeRechargeOrder,
   normalizeHomeDashboard,
   normalizeHomeDashboardSlide,
@@ -41,6 +44,8 @@ import {
   type AdminAuditLogSummary,
   type AdminMembershipPlanSummary,
   type AdminOverviewSummary,
+  type AdminRedemptionBatchSummary,
+  type AdminRedemptionCodeSummary,
   type AdminUserMembershipSummary,
   type AdminUserSummary,
   type AdminWalletTransactionSummary,
@@ -63,6 +68,7 @@ import {
   type PortalItem,
   type PortalPageConfig,
   type PortalSearchResult,
+  type RedemptionResult,
   type RechargeOrder,
   type ToolModelBindingSummary,
   type UserPortalAction,
@@ -72,6 +78,7 @@ import {
 
 const tenantId = 'demo';
 const tokenKey = 'opc_admin_token';
+const userSessionKey = 'opc_user_session';
 const DEFAULT_IMAGE_ROUTE_KEY = 'image_text_to_image';
 const DEFAULT_VIDEO_ROUTE_KEY = 'video_text_to_video';
 
@@ -107,6 +114,37 @@ export interface LoginResult {
     role: string;
     status: string;
   };
+}
+
+export type UserSession = LoginResult;
+
+export interface VerificationCodeRequest {
+  phone: string;
+  purpose: 'REGISTER' | 'LOGIN' | 'RESET_PASSWORD';
+}
+
+export interface RegisterUserRequest {
+  phone: string;
+  password: string;
+  displayName: string;
+  verificationCode: string;
+}
+
+export interface LoginUserRequest {
+  phone: string;
+  password: string;
+  verificationCode?: string;
+}
+
+export interface PasswordResetRequest {
+  phone: string;
+  verificationCode: string;
+  newPassword: string;
+}
+
+export interface PasswordChangeRequest {
+  currentPassword: string;
+  newPassword: string;
 }
 
 export interface AccountProfileUpdateRequest {
@@ -174,40 +212,131 @@ export interface UserMembershipUpdateRequest {
   expiresAt?: string;
 }
 
+export interface RedemptionBatchRequest {
+  name: string;
+  quantity: number;
+  points: number;
+  membershipPlanId?: string;
+  membershipDays?: number;
+  expiresAt?: string;
+}
+
 export function getAdminToken(): string {
-  return window.localStorage.getItem(tokenKey) ?? '';
+  return getStorageItem(tokenKey);
 }
 
 export function setAdminToken(token: string) {
-  window.localStorage.setItem(tokenKey, token);
+  setStorageItem(tokenKey, token);
 }
 
 export function clearAdminToken() {
-  window.localStorage.removeItem(tokenKey);
+  removeStorageItem(tokenKey);
+}
+
+export function getUserSession(): UserSession | null {
+  const raw = getStorageItem(userSessionKey);
+  if (!raw) {
+    return null;
+  }
+  try {
+    return JSON.parse(raw) as UserSession;
+  } catch {
+    removeStorageItem(userSessionKey);
+    return null;
+  }
+}
+
+export function setUserSession(session: UserSession) {
+  setStorageItem(userSessionKey, JSON.stringify(session));
+}
+
+export function clearUserSession() {
+  removeStorageItem(userSessionKey);
+}
+
+export function getCurrentUserId(fallback = 'demo-user'): string {
+  return getUserSession()?.user.id || fallback;
+}
+
+export async function requestVerificationCode(payload: VerificationCodeRequest): Promise<{ phone: string; purpose: string; devCode?: string; message?: string }> {
+  const response = await request('/api/v1/auth/verification-codes', {
+    method: 'POST',
+    body: JSON.stringify({
+      phone: payload.phone,
+      purpose: payload.purpose
+    })
+  });
+  return {
+    phone: response.phone ?? payload.phone,
+    purpose: response.purpose ?? payload.purpose,
+    devCode: response.dev_code ?? response.devCode,
+    message: response.message
+  };
+}
+
+export async function registerUser(payload: RegisterUserRequest): Promise<LoginResult> {
+  const result = normalizeLoginResult(
+    await request('/api/v1/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        phone: payload.phone,
+        password: payload.password,
+        display_name: payload.displayName,
+        verification_code: payload.verificationCode
+      })
+    })
+  );
+  setUserSession(result);
+  return result;
+}
+
+export async function loginUser(payload: LoginUserRequest): Promise<LoginResult> {
+  const result = normalizeLoginResult(
+    await request('/api/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        phone: payload.phone,
+        password: payload.password,
+        verification_code: payload.verificationCode
+      })
+    })
+  );
+  setUserSession(result);
+  return result;
+}
+
+export async function resetPassword(payload: PasswordResetRequest): Promise<{ status: string }> {
+  return request('/api/v1/auth/password/reset', {
+    method: 'POST',
+    body: JSON.stringify({
+      phone: payload.phone,
+      verification_code: payload.verificationCode,
+      new_password: payload.newPassword
+    })
+  });
+}
+
+export async function changePassword(payload: PasswordChangeRequest): Promise<{ status: string }> {
+  return request('/api/v1/auth/password/change', {
+    method: 'POST',
+    body: JSON.stringify({
+      current_password: payload.currentPassword,
+      new_password: payload.newPassword
+    }),
+    userAuth: true
+  });
 }
 
 export async function loginAdmin(phone: string, password: string): Promise<LoginResult> {
-  const payload = await request('/api/v1/auth/login', {
+  const result = normalizeLoginResult(await request('/api/v1/auth/login', {
     method: 'POST',
     body: JSON.stringify({ phone, password })
-  });
-  const result = {
-    accessToken: payload.access_token,
-    tokenType: payload.token_type,
-    user: {
-      id: payload.user.id,
-      tenantId: payload.user.tenant_id ?? payload.user.tenantId,
-      phone: payload.user.phone,
-      displayName: payload.user.display_name ?? payload.user.displayName,
-      role: payload.user.role,
-      status: payload.user.status
-    }
-  };
+  }));
   setAdminToken(result.accessToken);
   return result;
 }
 
-export async function fetchAccountSummary(userId = 'demo-user'): Promise<AccountSummary> {
+export async function fetchAccountSummary(userId = getCurrentUserId()): Promise<AccountSummary> {
   const params = new URLSearchParams({ user_id: userId });
   return normalizeAccountSummary(await request(`/api/v1/account/summary?${params.toString()}`));
 }
@@ -653,6 +782,60 @@ export async function adminListAuditLogs(limit = 50): Promise<AdminAuditLogSumma
   return (payload.logs ?? payload ?? []).map(normalizeAdminAuditLog);
 }
 
+export async function redeemCode(code: string): Promise<RedemptionResult> {
+  return normalizeRedemptionResult(
+    await request('/api/v1/redemptions/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+      userAuth: true
+    })
+  );
+}
+
+export async function adminListRedemptionBatches(limit = 100): Promise<AdminRedemptionBatchSummary[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  const payload = await request(`/api/v1/admin/redemption-batches?${params.toString()}`, { auth: true });
+  return (payload.batches ?? payload ?? []).map(normalizeAdminRedemptionBatch);
+}
+
+export async function adminListRedemptionCodes(batchId = '', limit = 200): Promise<AdminRedemptionCodeSummary[]> {
+  const params = new URLSearchParams();
+  if (batchId) {
+    params.set('batch_id', batchId);
+  }
+  params.set('limit', String(limit));
+  const payload = await request(`/api/v1/admin/redemption-codes?${params.toString()}`, { auth: true });
+  return (payload.codes ?? payload ?? []).map(normalizeAdminRedemptionCode);
+}
+
+export async function adminCreateRedemptionBatch(payload: RedemptionBatchRequest): Promise<{ batch: AdminRedemptionBatchSummary; codes: AdminRedemptionCodeSummary[] }> {
+  const response = await request('/api/v1/admin/redemption-batches', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: payload.name,
+      quantity: payload.quantity,
+      points: payload.points,
+      membership_plan_id: payload.membershipPlanId,
+      membership_days: payload.membershipDays,
+      expires_at: payload.expiresAt
+    }),
+    auth: true
+  });
+  return {
+    batch: normalizeAdminRedemptionBatch(response.batch ?? response),
+    codes: (response.codes ?? []).map(normalizeAdminRedemptionCode)
+  };
+}
+
+export async function adminDisableRedemptionCode(codeId: string): Promise<AdminRedemptionCodeSummary> {
+  return normalizeAdminRedemptionCode(
+    await request(`/api/v1/admin/redemption-codes/${codeId}`, {
+      method: 'DELETE',
+      auth: true
+    })
+  );
+}
+
 export async function adminListProviderChannels(): Promise<ProviderChannelSummary[]> {
   const payload = await request('/api/v1/admin/provider-channels', { auth: true });
   return (payload.channels ?? payload ?? []).map(normalizeProviderChannel);
@@ -780,7 +963,7 @@ export async function adminListPages() {
 }
 
 export async function adminFetchPageContent(pageKey: string) {
-  return request(`/api/v1/admin/page-content/${encodeURIComponent(pageKey)}`, { auth: true });
+  return normalizePageConfig(await request(`/api/v1/admin/page-content/${encodeURIComponent(pageKey)}`, { auth: true }));
 }
 
 export async function adminCreatePage(payload: Record<string, unknown>) {
@@ -837,7 +1020,7 @@ export async function adminUploadImage(file: File) {
   return request('/api/v1/admin/uploads', { method: 'POST', body: form, auth: true, isForm: true });
 }
 
-async function request(path: string, options: RequestInit & { auth?: boolean; isForm?: boolean } = {}) {
+async function request(path: string, options: RequestInit & { auth?: boolean; userAuth?: boolean; isForm?: boolean } = {}) {
   const headers = new Headers(options.headers);
   headers.set('X-Tenant-ID', tenantId);
   if (!options.isForm) {
@@ -849,11 +1032,51 @@ async function request(path: string, options: RequestInit & { auth?: boolean; is
       headers.set('Authorization', `Bearer ${token}`);
     }
   }
+  if (options.userAuth) {
+    const session = getUserSession();
+    if (session?.accessToken) {
+      headers.set('Authorization', `Bearer ${session.accessToken}`);
+    }
+  }
   const response = await fetch(path, { ...options, headers });
   if (!response.ok) {
     throw new Error(`request failed: ${response.status}`);
   }
   return response.json();
+}
+
+function normalizeLoginResult(payload: any): LoginResult {
+  return {
+    accessToken: payload.access_token ?? payload.accessToken ?? '',
+    tokenType: payload.token_type ?? payload.tokenType ?? 'bearer',
+    user: {
+      id: payload.user?.id ?? '',
+      tenantId: payload.user?.tenant_id ?? payload.user?.tenantId ?? tenantId,
+      phone: payload.user?.phone ?? '',
+      displayName: payload.user?.display_name ?? payload.user?.displayName ?? '',
+      role: payload.user?.role ?? 'USER',
+      status: payload.user?.status ?? 'ACTIVE'
+    }
+  };
+}
+
+function getStorageItem(key: string): string {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return '';
+  }
+  return window.localStorage.getItem(key) ?? '';
+}
+
+function setStorageItem(key: string, value: string) {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.setItem(key, value);
+  }
+}
+
+function removeStorageItem(key: string) {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.removeItem(key);
+  }
 }
 
 function normalizeGenerationRequestOptions(requestKeyOrOptions?: string | GenerationRequestOptions): GenerationRequestOptions {

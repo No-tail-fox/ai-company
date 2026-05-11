@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import AdminView from './views/AdminView.vue';
+import AuthView from './views/AuthView.vue';
 import AudioPage from './components/AudioPage.vue';
 import ImagePage from './components/ImagePage.vue';
 import MembershipBenefitsPage from './components/MembershipBenefitsPage.vue';
@@ -12,6 +13,7 @@ export const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/admin', name: 'admin', component: AdminView },
+    { path: '/auth', name: 'auth', component: AuthView },
     { path: '/workbench', name: 'workbench', component: WorkbenchPage },
     { path: '/workbench/image', name: 'workbench-image', component: ImagePage },
     { path: '/workbench/video', name: 'workbench-video', component: VideoPage },

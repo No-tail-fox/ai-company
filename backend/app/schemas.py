@@ -9,6 +9,30 @@ GenerationSurface = Literal["portal", "workbench"]
 class LoginRequest(BaseModel):
     phone: str
     password: str
+    verification_code: str | None = None
+
+
+class VerificationCodeCreate(BaseModel):
+    phone: str
+    purpose: str
+
+
+class RegisterRequest(BaseModel):
+    phone: str
+    password: str = Field(min_length=6, max_length=128)
+    display_name: str = Field(min_length=1, max_length=64)
+    verification_code: str
+
+
+class PasswordResetRequest(BaseModel):
+    phone: str
+    verification_code: str
+    new_password: str = Field(min_length=6, max_length=128)
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=6, max_length=128)
 
 
 class AccountProfileUpdate(BaseModel):
@@ -74,6 +98,19 @@ class UserMembershipUpdate(BaseModel):
     plan_id: str | None = None
     status: str | None = None
     expires_at: str | None = None
+
+
+class RedemptionBatchCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    quantity: int = Field(ge=1, le=1000)
+    points: int = Field(default=0, ge=0)
+    membership_plan_id: str | None = None
+    membership_days: int | None = Field(default=None, ge=1)
+    expires_at: str | None = None
+
+
+class RedeemCodeRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=64)
 
 
 class ContentPageCreate(BaseModel):

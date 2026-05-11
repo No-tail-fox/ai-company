@@ -371,7 +371,7 @@ def test_non_admin_token_cannot_access_admin_routes(session):
     login = client.post(
         "/api/v1/auth/login",
         headers={"X-Tenant-ID": tenant.id},
-        json={"phone": "13800000000", "password": "user123456"},
+        json={"phone": "13800000000", "password": "user123456", "verification_code": "123456"},
     )
     assert login.status_code == 200
 

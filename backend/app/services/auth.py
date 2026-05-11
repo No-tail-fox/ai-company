@@ -9,7 +9,7 @@ import jwt
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import User
+from app.models import User, Wallet
 from app.settings import get_settings
 
 
@@ -40,7 +40,69 @@ class AuthService:
     def __init__(self, session: Session):
         self.session = session
 
+    def create_verification_code(self, *, tenant_id: str, phone: str, purpose: str) -> dict:
+        del tenant_id
+        settings = get_settings()
+        normalized_purpose = purpose.strip().upper()
+        if normalized_purpose not in {"REGISTER", "LOGIN", "RESET_PASSWORD"}:
+            raise ValueError("unsupported verification code purpose")
+        return {
+            "phone": phone.strip(),
+            "purpose": normalized_purpose,
+            "channel": "placeholder",
+            "message": "verification code sending is configured as a placeholder",
+            "dev_code": settings.otp_default_code,
+        }
+
+    def verify_code(self, *, phone: str, purpose: str, verification_code: str | None) -> bool:
+        del phone, purpose
+        settings = get_settings()
+        return bool(verification_code) and hmac.compare_digest(verification_code.strip(), settings.otp_default_code)
+
+    def register_user(self, *, tenant_id: str, phone: str, password: str, display_name: str, verification_code: str) -> User:
+        phone = phone.strip()
+        if not self.verify_code(phone=phone, purpose="REGISTER", verification_code=verification_code):
+            raise ValueError("invalid verification code")
+        existing = self.session.scalar(
+            select(User.id).where(
+                User.tenant_id == tenant_id,
+                User.phone == phone,
+            )
+        )
+        if existing is not None:
+            raise ValueError("phone already registered")
+
+        user = User(
+            tenant_id=tenant_id,
+            phone=phone,
+            display_name=display_name.strip(),
+            role="USER",
+            status="ACTIVE",
+            password_hash=hash_password(password),
+        )
+        self.session.add(user)
+        self.session.flush()
+        self.session.add(Wallet(tenant_id=tenant_id, user_id=user.id, balance=0, frozen_balance=0))
+        self.session.commit()
+        self.session.refresh(user)
+        return user
+
     def authenticate(self, *, tenant_id: str, phone: str, password: str) -> User | None:
+        user = self.session.scalar(
+            select(User).where(
+                User.tenant_id == tenant_id,
+                User.phone == phone.strip(),
+                User.status == "ACTIVE",
+            )
+        )
+        if user is None or not verify_password(password, user.password_hash):
+            return None
+        return user
+
+    def reset_password(self, *, tenant_id: str, phone: str, verification_code: str, new_password: str) -> User:
+        phone = phone.strip()
+        if not self.verify_code(phone=phone, purpose="RESET_PASSWORD", verification_code=verification_code):
+            raise ValueError("invalid verification code")
         user = self.session.scalar(
             select(User).where(
                 User.tenant_id == tenant_id,
@@ -48,8 +110,19 @@ class AuthService:
                 User.status == "ACTIVE",
             )
         )
-        if user is None or not verify_password(password, user.password_hash):
-            return None
+        if user is None:
+            raise ValueError("user was not found")
+        user.password_hash = hash_password(new_password)
+        self.session.commit()
+        self.session.refresh(user)
+        return user
+
+    def change_password(self, *, user: User, current_password: str, new_password: str) -> User:
+        if not verify_password(current_password, user.password_hash):
+            raise ValueError("current password is invalid")
+        user.password_hash = hash_password(new_password)
+        self.session.commit()
+        self.session.refresh(user)
         return user
 
     def create_access_token(self, user: User) -> str:

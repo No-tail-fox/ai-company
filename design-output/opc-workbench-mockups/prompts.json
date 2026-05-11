@@ -1,0 +1,82 @@
+{
+  "project": "OPC Community Undesigned Page Visuals",
+  "provider": "openai",
+  "model": "gpt-image-2",
+  "quality": "high",
+  "size": "2048x1152",
+  "aspectRatio": "16:9",
+  "commonPromptFile": "prompt-common.md",
+  "styleReference": "references/style-reference.png",
+  "mockups": [
+    {
+      "id": "01-home-basic-essentials",
+      "filename": "01-home-basic-essentials.png",
+      "pageTarget": "首页基础必备",
+      "promptFiles": ["prompt-common.md", "prompts/01-home-basic-essentials.md"],
+      "keyModules": ["常用AI学习中心", "新手快速上手", "基础课程", "热门模板", "工作文件备份"]
+    },
+    {
+      "id": "02-home-growth-center",
+      "filename": "02-home-growth-center.png",
+      "pageTarget": "首页学习成长",
+      "promptFiles": ["prompt-common.md", "prompts/02-home-growth-center.md"],
+      "keyModules": ["进阶成长路径", "学习打卡群", "作业拆解", "案例复盘", "训练营提醒"]
+    },
+    {
+      "id": "03-order-center",
+      "filename": "03-order-center.png",
+      "pageTarget": "OPC接单中心",
+      "promptFiles": ["prompt-common.md", "prompts/03-order-center.md"],
+      "keyModules": ["接单看板", "订单机会", "报价模板", "交付进度", "收益统计"]
+    },
+    {
+      "id": "04-resource-matchmaking",
+      "filename": "04-resource-matchmaking.png",
+      "pageTarget": "资源对接",
+      "promptFiles": ["prompt-common.md", "prompts/04-resource-matchmaking.md"],
+      "keyModules": ["资源大厅", "工具权益", "合作需求", "资料库", "内测邀请"]
+    },
+    {
+      "id": "05-project-cocreation",
+      "filename": "05-project-cocreation.png",
+      "pageTarget": "项目共创",
+      "promptFiles": ["prompt-common.md", "prompts/05-project-cocreation.md"],
+      "keyModules": ["项目招募", "团队协作", "共创案例", "交付里程碑", "成员角色"]
+    },
+    {
+      "id": "06-workbench-overview",
+      "filename": "06-workbench-overview.png",
+      "pageTarget": "应用工作台",
+      "promptFiles": ["prompt-common.md", "prompts/06-workbench-overview.md"],
+      "keyModules": ["常用工作台", "最近使用", "任务入口", "待交付项目", "素材库"]
+    },
+    {
+      "id": "07-template-toolkit",
+      "filename": "07-template-toolkit.png",
+      "pageTarget": "专业工具包与模板中心",
+      "promptFiles": ["prompt-common.md", "prompts/07-template-toolkit.md"],
+      "keyModules": ["模板分类", "专业工具包", "模板列表", "工具包排行", "会员专区"]
+    },
+    {
+      "id": "08-ecommerce-operations",
+      "filename": "08-ecommerce-operations.png",
+      "pageTarget": "AI电商运营中心",
+      "promptFiles": ["prompt-common.md", "prompts/08-ecommerce-operations.md"],
+      "keyModules": ["商品标题优化", "详情页素材", "客服话术", "店铺分析", "订单转化"]
+    },
+    {
+      "id": "09-legal-service-desk",
+      "filename": "09-legal-service-desk.png",
+      "pageTarget": "AI法务服务台",
+      "promptFiles": ["prompt-common.md", "prompts/09-legal-service-desk.md"],
+      "keyModules": ["合同审查", "风险条款", "证据整理", "文书模板", "风险控制"]
+    },
+    {
+      "id": "10-office-productivity",
+      "filename": "10-office-productivity.png",
+      "pageTarget": "AI办公效率中心",
+      "promptFiles": ["prompt-common.md", "prompts/10-office-productivity.md"],
+      "keyModules": ["PPT生成", "表格处理", "会议纪要", "邮件草拟", "流程自动化"]
+    }
+  ]
+}

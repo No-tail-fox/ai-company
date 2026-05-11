@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Ticket,
   Trash2,
   UserPlus,
   Users,
@@ -33,6 +34,7 @@ import {
   adminCreateModelConfig,
   adminCreatePage,
   adminCreateProviderChannel,
+  adminCreateRedemptionBatch,
   adminCreateSection,
   adminCreateToolModelBinding,
   adminCreateUser,
@@ -43,6 +45,7 @@ import {
   adminDeleteSection,
   adminDeleteUser,
   adminDeleteUserMembership,
+  adminDisableRedemptionCode,
   adminFetchPageContent,
   adminGrantMembership,
   adminListAuditLogs,
@@ -52,6 +55,8 @@ import {
   adminListOverview,
   adminListPages,
   adminListProviderChannels,
+  adminListRedemptionBatches,
+  adminListRedemptionCodes,
   adminListToolModelBindings,
   adminListUserMemberships,
   adminListUsers,
@@ -77,6 +82,7 @@ import {
 } from '../services/api';
 import DynamicPage from '../components/DynamicPage.vue';
 import AudioPage from '../components/AudioPage.vue';
+import HomeDashboardPage from '../components/HomeDashboardPage.vue';
 import MarketingPage from '../components/MarketingPage.vue';
 import { clampPreviewScale, moveRecord, reorderByDrop } from '../services/adminInteractions';
 import {
@@ -90,11 +96,16 @@ import {
   buildToolModelBindingPayload
 } from '../services/adminForms';
 import {
+  buildHomeDashboardModel,
+  createFallbackPageConfig,
   shouldUseAudioPage,
+  shouldUseHomeDashboardPage,
   shouldUseMarketingPage,
   type AdminAuditLogSummary,
   type AdminMembershipPlanSummary,
   type AdminOverviewSummary,
+  type AdminRedemptionBatchSummary,
+  type AdminRedemptionCodeSummary,
   type AdminUserMembershipSummary,
   type AdminUserSummary,
   type AdminWalletTransactionSummary,
@@ -108,12 +119,13 @@ import {
   type ToolModelBindingSummary
 } from '../services/viewModel';
 
-type AdminModule = 'overview' | 'users' | 'memberships' | 'points' | 'content' | 'models' | 'audit';
+type AdminModule = 'overview' | 'users' | 'memberships' | 'points' | 'redemptions' | 'content' | 'models' | 'audit';
 type AdminPanel =
   | ''
   | 'home-slide'
   | 'user'
   | 'wallet'
+  | 'redemption-batch'
   | 'membership-plan'
   | 'user-membership'
   | 'page'
@@ -141,6 +153,7 @@ const pageStorageKey = 'opc_admin_selected_page';
 const userStorageKey = 'opc_admin_selected_user';
 
 const adminModules: Array<{ key: AdminModule; label: string; icon: Component; description: string }> = [
+  { key: 'redemptions', label: '兑换码管理', icon: Ticket, description: '批量生成、售卖发放和兑换状态' },
   { key: 'overview', label: '总览', icon: BarChart3, description: '概览核心指标和最近操作' },
   { key: 'users', label: '人员管理', icon: Users, description: '新增、编辑、禁用人员' },
   { key: 'memberships', label: '会员管理', icon: UserPlus, description: '会员计划和开通记录' },
@@ -160,6 +173,9 @@ const membershipPlans = ref<AdminMembershipPlanSummary[]>([]);
 const userMemberships = ref<AdminUserMembershipSummary[]>([]);
 const walletTransactions = ref<AdminWalletTransactionSummary[]>([]);
 const auditLogs = ref<AdminAuditLogSummary[]>([]);
+const redemptionBatches = ref<AdminRedemptionBatchSummary[]>([]);
+const redemptionCodes = ref<AdminRedemptionCodeSummary[]>([]);
+const generatedRedemptionCodes = ref<AdminRedemptionCodeSummary[]>([]);
 
 const pages = ref<PageConfigSummary[]>([]);
 const homeSlides = ref<HomeDashboardSlide[]>([]);
@@ -203,6 +219,15 @@ const walletAdjustForm = reactive({
   amount: 100,
   reason: '手工调账',
   requestKey: ''
+});
+
+const redemptionBatchForm = reactive({
+  name: '',
+  quantity: 10,
+  points: 0,
+  membershipPlanId: '',
+  membershipDays: 31,
+  expiresAt: ''
 });
 
 const membershipPlanFormId = ref('');
@@ -389,6 +414,10 @@ const previewPageConfig = computed<PortalPageConfig | null>(() => {
 });
 const previewUsesMarketingPage = computed(() => Boolean(previewPageConfig.value && shouldUseMarketingPage(previewPageConfig.value.page.pageKey)));
 const previewUsesAudioPage = computed(() => Boolean(previewPageConfig.value && shouldUseAudioPage(previewPageConfig.value.page.pageKey)));
+const previewUsesHomeDashboardPage = computed(() => Boolean(previewPageConfig.value && shouldUseHomeDashboardPage(previewPageConfig.value.page.pageKey)));
+const previewHomeDashboardModel = computed(() =>
+  buildHomeDashboardModel(previewPageConfig.value ?? createFallbackPageConfig('home'), null)
+);
 const previewPercent = computed(() => `${Math.round(previewScale.value * 100)}%`);
 const previewPanelStyle = computed(() => ({ width: `${previewWidth.value}px` }));
 const previewStageStyle = computed(() => ({
@@ -415,6 +444,9 @@ const panelTitle = computed(() => {
   }
   if (activePanel.value === 'wallet') {
     return '积分调整';
+  }
+  if (activePanel.value === 'redemption-batch') {
+    return '批量生成兑换码';
   }
   if (activePanel.value === 'membership-plan') {
     return membershipPlanFormId.value ? '编辑会员计划' : '新增会员计划';
@@ -457,6 +489,31 @@ function itemTypeLabel(value: string) {
 
 function actionTypeLabel(value: string) {
   return labelForOption(actionTypeOptions, value);
+}
+
+function membershipPlanName(planId?: string | null) {
+  if (!planId) {
+    return '不赠送会员';
+  }
+  return membershipPlans.value.find((plan) => plan.id === planId)?.name ?? planId;
+}
+
+function userNameById(userId?: string | null) {
+  if (!userId) {
+    return '未兑换';
+  }
+  const user = users.value.find((item) => item.id === userId);
+  return user?.displayName || user?.phone || userId;
+}
+
+function redemptionStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    ACTIVE: '未使用',
+    REDEEMED: '已兑换',
+    DISABLED: '已禁用',
+    EXPIRED: '已过期'
+  };
+  return labels[status] ?? status;
 }
 
 const overviewCards = computed(() => {
@@ -522,13 +579,15 @@ async function submitLogin() {
 }
 
 async function refreshAdmin() {
-  const [overviewPayload, rawUsers, plans, memberships, transactions, logs, rawSlides, rawPages, channels, models, bindings] = await Promise.all([
+  const [overviewPayload, rawUsers, plans, memberships, transactions, logs, batches, codes, rawSlides, rawPages, channels, models, bindings] = await Promise.all([
     adminListOverview(),
     adminListUsers({ limit: 500 }),
     adminListMembershipPlans(),
     adminListUserMemberships('', 500),
     adminListWalletTransactions('', 500),
     adminListAuditLogs(auditLimit.value),
+    adminListRedemptionBatches(),
+    adminListRedemptionCodes(),
     adminListHomeSlides(),
     adminListPages(),
     adminListProviderChannels(),
@@ -541,6 +600,8 @@ async function refreshAdmin() {
   userMemberships.value = memberships;
   walletTransactions.value = transactions;
   auditLogs.value = logs;
+  redemptionBatches.value = batches;
+  redemptionCodes.value = codes;
   homeSlides.value = rawSlides;
   pages.value = rawPages.map(normalizePageSummary);
   providerChannels.value = channels;
@@ -600,6 +661,17 @@ function openWalletPanel(user?: AdminUserSummary) {
   walletAdjustForm.reason = '手工调账';
   walletAdjustForm.requestKey = '';
   activePanel.value = 'wallet';
+}
+
+function openRedemptionBatchPanel() {
+  redemptionBatchForm.name = `兑换码批次 ${redemptionBatches.value.length + 1}`;
+  redemptionBatchForm.quantity = 10;
+  redemptionBatchForm.points = 0;
+  redemptionBatchForm.membershipPlanId = membershipPlans.value[0]?.id ?? '';
+  redemptionBatchForm.membershipDays = membershipPlans.value[0]?.durationDays ?? 31;
+  redemptionBatchForm.expiresAt = '';
+  generatedRedemptionCodes.value = [];
+  activePanel.value = 'redemption-batch';
 }
 
 function openMembershipPlanPanel(plan?: AdminMembershipPlanSummary) {
@@ -768,6 +840,30 @@ async function saveWalletAdjustment() {
     });
     notice.value = '积分已调整';
     closePanel();
+    await refreshAdmin();
+  });
+}
+
+async function saveRedemptionBatch() {
+  await run(async () => {
+    const result = await adminCreateRedemptionBatch({
+      name: redemptionBatchForm.name.trim(),
+      quantity: Number(redemptionBatchForm.quantity),
+      points: Number(redemptionBatchForm.points),
+      membershipPlanId: redemptionBatchForm.membershipPlanId || undefined,
+      membershipDays: redemptionBatchForm.membershipDays ? Number(redemptionBatchForm.membershipDays) : undefined,
+      expiresAt: redemptionBatchForm.expiresAt ? new Date(redemptionBatchForm.expiresAt).toISOString() : undefined
+    });
+    generatedRedemptionCodes.value = result.codes;
+    notice.value = `已批量生成 ${result.codes.length} 个兑换码`;
+    await refreshAdmin();
+  });
+}
+
+async function disableRedemptionCode(code: AdminRedemptionCodeSummary) {
+  await run(async () => {
+    await adminDisableRedemptionCode(code.id);
+    notice.value = '兑换码已禁用';
     await refreshAdmin();
   });
 }
@@ -1818,6 +1914,103 @@ async function run(task: () => Promise<void>) {
           </section>
         </section>
 
+        <section v-else-if="activeModule === 'redemptions'" class="admin-panel">
+          <header class="panel-header">
+            <div>
+              <strong>兑换码管理</strong>
+              <span>批量生成外部售卖兑换码，兑换后自动发积分和会员</span>
+            </div>
+            <button class="primary-btn" type="button" @click="openRedemptionBatchPanel">
+              <Ticket :size="18" />
+              批量生成
+            </button>
+          </header>
+
+          <section class="admin-table-panel">
+            <header class="panel-header compact">
+              <div>
+                <strong>兑换码批次</strong>
+                <span>按批次查看发放内容、数量和兑换进度</span>
+              </div>
+            </header>
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>批次</th>
+                  <th>积分</th>
+                  <th>会员</th>
+                  <th>数量</th>
+                  <th>已兑换</th>
+                  <th>有效期</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="batch in redemptionBatches" :key="batch.id">
+                  <td>
+                    <strong>{{ batch.name }}</strong>
+                    <small>{{ formatDateTime(batch.createdAt) }}</small>
+                  </td>
+                  <td>{{ formatPoints(batch.points) }}</td>
+                  <td>
+                    <div class="stacked-text">
+                      <strong>{{ membershipPlanName(batch.membershipPlanId) }}</strong>
+                      <span>{{ batch.membershipDays ? `${batch.membershipDays} 天` : '不赠送时长' }}</span>
+                    </div>
+                  </td>
+                  <td>{{ batch.generatedCount || batch.quantity }}</td>
+                  <td>{{ batch.redeemedCount }}</td>
+                  <td>{{ formatDateTime(batch.expiresAt) }}</td>
+                  <td><span :class="['status-pill', batch.status.toLowerCase()]">{{ statusLabel(batch.status) }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section class="admin-table-panel">
+            <header class="panel-header compact">
+              <div>
+                <strong>兑换码列表</strong>
+                <span>明文只在生成后展示；列表页仅显示脱敏码和兑换状态</span>
+              </div>
+            </header>
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>兑换码</th>
+                  <th>状态</th>
+                  <th>兑换人</th>
+                  <th>兑换时间</th>
+                  <th>创建时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="code in redemptionCodes" :key="code.id">
+                  <td>{{ code.maskedCode || code.code }}</td>
+                  <td><span :class="['status-pill', code.status.toLowerCase()]">{{ redemptionStatusLabel(code.status) }}</span></td>
+                  <td>{{ userNameById(code.redeemedByUserId) }}</td>
+                  <td>{{ formatDateTime(code.redeemedAt) }}</td>
+                  <td>{{ formatDateTime(code.createdAt) }}</td>
+                  <td>
+                    <div class="row-actions">
+                      <button
+                        class="icon-btn danger"
+                        :disabled="code.status !== 'ACTIVE'"
+                        type="button"
+                        title="禁用"
+                        @click="disableRedemptionCode(code)"
+                      >
+                        <Trash2 :size="16" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        </section>
+
         <section v-else-if="activeModule === 'content'" class="admin-panel content-layout">
           <div class="content-main">
             <header class="panel-header">
@@ -2129,8 +2322,13 @@ async function run(task: () => Promise<void>) {
             </header>
             <div class="preview-canvas">
               <div class="preview-stage" :style="previewStageStyle">
+                <HomeDashboardPage
+                  v-if="previewPageConfig && previewUsesHomeDashboardPage"
+                  :model="previewHomeDashboardModel"
+                  @open-item="() => undefined"
+                />
                 <MarketingPage
-                  v-if="previewPageConfig && previewUsesMarketingPage"
+                  v-else-if="previewPageConfig && previewUsesMarketingPage"
                   :page-config="previewPageConfig"
                   @open-item="() => undefined"
                 />
@@ -2403,6 +2601,30 @@ async function run(task: () => Promise<void>) {
           <label>原因<textarea v-model="walletAdjustForm.reason" rows="3" /></label>
           <label>请求Key<input v-model="walletAdjustForm.requestKey" placeholder="留空自动生成" /></label>
           <button class="primary-btn" type="submit">提交调账</button>
+        </form>
+
+        <form v-else-if="activePanel === 'redemption-batch'" class="form-card" @submit.prevent="saveRedemptionBatch">
+          <label>批次名称<input v-model="redemptionBatchForm.name" /></label>
+          <label>生成数量<input v-model.number="redemptionBatchForm.quantity" min="1" max="1000" type="number" /></label>
+          <label>赠送积分<input v-model.number="redemptionBatchForm.points" min="0" type="number" /></label>
+          <label>
+            会员套餐
+            <select v-model="redemptionBatchForm.membershipPlanId">
+              <option value="">不赠送会员</option>
+              <option v-for="plan in membershipPlans" :key="plan.id" :value="plan.id">{{ plan.name }}</option>
+            </select>
+          </label>
+          <label>会员天数<input v-model.number="redemptionBatchForm.membershipDays" min="0" type="number" /></label>
+          <label>过期时间<input v-model="redemptionBatchForm.expiresAt" type="date" /></label>
+          <button class="primary-btn" type="submit">批量生成</button>
+          <section v-if="generatedRedemptionCodes.length > 0" class="generated-code-list field-span-2">
+            <strong>本次生成的兑换码</strong>
+            <textarea
+              readonly
+              rows="8"
+              :value="generatedRedemptionCodes.map((code) => code.code || code.maskedCode).join('\n')"
+            />
+          </section>
         </form>
 
         <form v-else-if="activePanel === 'membership-plan'" class="form-card" @submit.prevent="saveMembershipPlan">
