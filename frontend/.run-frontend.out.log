@@ -222,3 +222,55 @@
 [2m21:16:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/PortalChrome.vue[22m
 [2m21:16:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/AdminView.vue[22m
 [2m21:16:43[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/PortalChrome.vue[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mindex.html[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2mindex.html[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/router.ts[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/AdminView.vue[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.vue[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PortalView.vue, /src/views/AdminView.vue, /src/components/AudioPage.vue, /src/components/ImagePage.vue, /src/components/VideoPage.vue, /src/components/WorkbenchPage.vue, /src/components/PortalDetailPage.vue, /src/components/PortalChrome.vue, /src/App.vue, /src/components/MembershipBenefitsPage.vue, /src/views/AuthView.vue[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PortalView.vue, /src/components/AssistantPage.vue, /src/components/DynamicPage.vue, /src/components/MarketingPage.vue, /src/components/TextWorkbenchPage.vue, /src/components/WorkspaceShell.vue, /src/components/PortalDetailPage.vue, /src/components/HomeDashboardPage.vue[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PortalView.vue, /src/views/AdminView.vue, /src/components/AssistantPage.vue, /src/components/AudioPage.vue, /src/components/ImagePage.vue, /src/components/VideoPage.vue, /src/components/WorkbenchPage.vue, /src/components/PortalDetailPage.vue, /src/components/PortalChrome.vue, /src/App.vue, /src/components/MembershipBenefitsPage.vue, /src/views/AuthView.vue, /src/components/MarketingPage.vue, /src/components/DynamicPage.vue, /src/components/TextWorkbenchPage.vue, /src/components/HomeDashboardPage.vue[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles.css[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/DynamicPage.vue[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/AssistantPage.vue[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/AudioPage.vue, /src/components/AudioPage.vue?vue&type=style&index=0&scoped=6551943f&lang.css[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/MarketingPage.vue[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/ImagePage.vue, /src/components/ImagePage.vue?vue&type=style&index=0&scoped=1efbc1a4&lang.css[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/PortalChrome.vue, /src/components/PortalChrome.vue?vue&type=style&index=0&scoped=429570ee&lang.css[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/MembershipBenefitsPage.vue, /src/components/MembershipBenefitsPage.vue?vue&type=style&index=0&scoped=6944c0d1&lang.css[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/HomeDashboardPage.vue, /src/components/HomeDashboardPage.vue?vue&type=style&index=0&scoped=b329c8cd&lang.css[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/AuthView.vue, /src/views/AuthView.vue?vue&type=style&index=0&scoped=bd851895&lang.css[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/TextWorkbenchPage.vue[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/VideoPage.vue, /src/components/VideoPage.vue?vue&type=style&index=0&scoped=1d493dc3&lang.css[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/WorkbenchPage.vue, /src/components/WorkbenchPage.vue?vue&type=style&index=0&scoped=f37aacb9&lang.css[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/WorkspaceShell.vue, /src/components/WorkspaceShell.vue?vue&type=style&index=0&scoped=8eb35274&lang.css[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/PortalDetailPage.vue, /src/components/PortalDetailPage.vue?vue&type=style&index=0&scoped=0c397384&lang.css[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/AdminView.vue[22m
+[2m00:11:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PortalView.vue[22m
+[2m00:17:51[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mindex.html[22m
+[2m00:17:51[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2mindex.html[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/AssistantPage.vue[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/AudioPage.vue, /src/components/AudioPage.vue?vue&type=style&index=0&scoped=6551943f&lang.css[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/HomeDashboardPage.vue, /src/components/HomeDashboardPage.vue?vue&type=style&index=0&scoped=b329c8cd&lang.css[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/AdminView.vue[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/router.ts[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.vue[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PortalView.vue, /src/views/AdminView.vue[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PortalView.vue, /src/components/DynamicPage.vue[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PortalView.vue, /src/views/AdminView.vue, /src/components/AssistantPage.vue, /src/components/AudioPage.vue, /src/components/DynamicPage.vue, /src/components/MarketingPage.vue, /src/components/TextWorkbenchPage.vue, /src/components/HomeDashboardPage.vue[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles.css[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/ImagePage.vue, /src/components/ImagePage.vue?vue&type=style&index=0&scoped=1efbc1a4&lang.css[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/MarketingPage.vue[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/MembershipBenefitsPage.vue, /src/components/MembershipBenefitsPage.vue?vue&type=style&index=0&scoped=6944c0d1&lang.css[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/PortalChrome.vue, /src/components/PortalChrome.vue?vue&type=style&index=0&scoped=429570ee&lang.css[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/PortalDetailPage.vue, /src/components/PortalDetailPage.vue?vue&type=style&index=0&scoped=0c397384&lang.css[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/TextWorkbenchPage.vue[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/VideoPage.vue, /src/components/VideoPage.vue?vue&type=style&index=0&scoped=1d493dc3&lang.css[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/WorkbenchPage.vue, /src/components/WorkbenchPage.vue?vue&type=style&index=0&scoped=f37aacb9&lang.css[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/WorkspaceShell.vue, /src/components/WorkspaceShell.vue?vue&type=style&index=0&scoped=8eb35274&lang.css[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/DynamicPage.vue[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/AuthView.vue, /src/views/AuthView.vue?vue&type=style&index=0&scoped=bd851895&lang.css[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/router.ts[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/router.ts[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/AdminView.vue[22m
+[2m00:17:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PortalView.vue[22m
