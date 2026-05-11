@@ -1,0 +1,580 @@
+[2m12:36:38[22m [31m[1m[vite][22m[39m [31mInternal server error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+      at ScriptCompileContext.error (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:19741:11)
+      at C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24218:13
+      at Object.enter (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1554:11)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:116:17)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:146:19)
+      at Object.walk (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:322:19)
+      at Object.walkIdentifiers (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1544:16)
+      at checkInvalidScopeReference (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24215:17)
+[2m12:36:38[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+[2m12:41:12[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+[2m12:43:02[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+[2m12:47:09[22m [31m[1m[vite][22m[39m [31mInternal server error: Invalid end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkbenchPage.vue[39m:642:7
+[33m  640|            </div>
+  641|          </section>
+  642|        </main>
+     |         ^
+  643|  
+  644|        <aside class="workbench-side-panel">[39m
+      at createCompilerError (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1364:17)
+      at emitError (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2949:5)
+      at Object.onclosetag (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2318:9)
+      at Tokenizer.stateInClosingTagName (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:785:16)
+      at Tokenizer.parse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1143:16)
+      at Object.baseParse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2988:13)
+      at Object.parse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:904:23)
+      at Object.parse$1 [as parse] (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1794:24)
+      at createDescriptor (file:///C:/Users/Administrator/Documents/New%20project/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///C:/Users/Administrator/Documents/New%20project/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2205:26)
+[2m12:49:03[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+[2m12:56:26[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+[2m12:57:35[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+[2m12:58:58[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+[2m13:02:08[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+[2m13:02:08[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+[2m13:15:01[22m [31m[1m[vite][22m[39m [31mInternal server error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+      at ScriptCompileContext.error (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:19741:11)
+      at C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24218:13
+      at Object.enter (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1554:11)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:116:17)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:146:19)
+      at Object.walk (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:322:19)
+      at Object.walkIdentifiers (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1544:16)
+      at checkInvalidScopeReference (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24215:17)
+[2m13:15:11[22m [31m[1m[vite][22m[39m [31mInternal server error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+      at ScriptCompileContext.error (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:19741:11)
+      at C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24218:13
+      at Object.enter (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1554:11)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:116:17)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:146:19)
+      at Object.walk (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:322:19)
+      at Object.walkIdentifiers (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1544:16)
+      at checkInvalidScopeReference (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24215:17)
+[2m13:15:12[22m [31m[1m[vite][22m[39m [31mInternal server error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+      at ScriptCompileContext.error (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:19741:11)
+      at C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24218:13
+      at Object.enter (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1554:11)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:116:17)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:146:19)
+      at Object.walk (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:322:19)
+      at Object.walkIdentifiers (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1544:16)
+      at checkInvalidScopeReference (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24215:17)
+[2m13:17:19[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+[2m13:17:19[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+[2m13:17:19[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+[2m13:17:19[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+[2m13:17:19[22m [31m[1m[vite][22m[39m [31mInternal server error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+      at ScriptCompileContext.error (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:19741:11)
+      at C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24218:13
+      at Object.enter (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1554:11)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:116:17)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:146:19)
+      at Object.walk (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:322:19)
+      at Object.walkIdentifiers (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1544:16)
+      at checkInvalidScopeReference (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24215:17)
+[2m13:26:54[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+[2m13:26:54[22m [31m[1m[vite][22m[39m [31mInternal server error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+      at ScriptCompileContext.error (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:19741:11)
+      at C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24218:13
+      at Object.enter (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1554:11)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:116:17)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:146:19)
+      at Object.walk (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:322:19)
+      at Object.walkIdentifiers (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1544:16)
+      at checkInvalidScopeReference (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24215:17)
+[2m13:32:04[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+[2m13:32:04[22m [31m[1m[vite][22m[39m [31mInternal server error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+      at ScriptCompileContext.error (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:19741:11)
+      at C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24218:13
+      at Object.enter (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1554:11)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:116:17)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:146:19)
+      at Object.walk (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:322:19)
+      at Object.walkIdentifiers (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1544:16)
+      at checkInvalidScopeReference (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24215:17)
+[2m13:42:29[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+[2m13:42:29[22m [31m[1m[vite][22m[39m [31mInternal server error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+      at ScriptCompileContext.error (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:19741:11)
+      at C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24218:13
+      at Object.enter (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1554:11)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:116:17)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:146:19)
+      at Object.walk (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:322:19)
+      at Object.walkIdentifiers (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1544:16)
+      at checkInvalidScopeReference (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24215:17)
+[2m13:55:17[22m [31m[1m[vite][22m[39m [31mInternal server error: [@vue/compiler-sfc] `defineProps()` in <script setup> cannot reference locally declared variables because it will be hoisted outside of the setup() function. If your component options require initialization in the module scope, use a separate normal <script> to export the options instead.
+
+C:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue
+32 |      pageIcon: 'Sparkles',
+33 |      variant: 'chat',
+34 |      modules: () => defaultModules
+   |                     ^^^^^^^^^^^^^^
+35 |    }
+36 |  );[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/components/WorkspaceShell.vue[39m
+      at ScriptCompileContext.error (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:19741:11)
+      at C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24218:13
+      at Object.enter (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1554:11)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:116:17)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:153:12)
+      at SyncWalker.visit (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:146:19)
+      at Object.walk (C:\Users\Administrator\Documents\New project\frontend\node_modules\estree-walker\dist\umd\estree-walker.js:322:19)
+      at Object.walkIdentifiers (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1544:16)
+      at checkInvalidScopeReference (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:24215:17)
+[2m14:33:49[22m [31m[1m[vite][22m[39m [31mInternal server error: Element is missing end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/views/PortalView.vue[39m:137:3
+[33m  135|      @open-item="openItem"
+  136|    />
+  137|    <PortalChrome v-else :channels="portal.channels" :active-page-key="activePageKey">
+     |     ^
+  138|      <div class="desktop-shell">
+  139|      <div :class="['app-frame', { 'no-sidebar': !showHomeSidebar }]">[39m
+      at createCompilerError (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1364:17)
+      at emitError (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2949:5)
+      at Object.onclosetag (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2308:13)
+      at Tokenizer.stateInClosingTagName (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:785:16)
+      at Tokenizer.parse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1143:16)
+      at Object.baseParse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2988:13)
+      at Object.parse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:904:23)
+      at Object.parse$1 [as parse] (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1794:24)
+      at createDescriptor (file:///C:/Users/Administrator/Documents/New%20project/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///C:/Users/Administrator/Documents/New%20project/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2205:26)
+[2m14:34:16[22m [31m[1m[vite][22m[39m [31mInternal server error: Element is missing end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/views/PortalView.vue[39m:138:5
+[33m  136|    />
+  137|    <PortalChrome v-else :channels="portal.channels" :active-page-key="activePageKey">
+  138|      <div class="desktop-shell">
+     |       ^
+  139|      <div :class="['app-frame', { 'no-sidebar': !showHomeSidebar }]">
+  140|        <aside v-if="showHomeSidebar" class="sidebar">[39m
+      at createCompilerError (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1364:17)
+      at emitError (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2949:5)
+      at Object.onclosetag (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2308:13)
+      at Tokenizer.stateInClosingTagName (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:785:16)
+      at Tokenizer.parse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1143:16)
+      at Object.baseParse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2988:13)
+      at Object.parse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:904:23)
+      at Object.parse$1 [as parse] (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1794:24)
+      at createDescriptor (file:///C:/Users/Administrator/Documents/New%20project/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///C:/Users/Administrator/Documents/New%20project/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2205:26)
+[2m14:40:11[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: Element is missing end tag.
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/views/PortalView.vue[39m:138:5
+[33m  136|    />
+  137|    <PortalChrome v-else :channels="portal.channels" :active-page-key="activePageKey">
+  138|      <div class="desktop-shell">
+     |       ^
+  139|      <div :class="['app-frame', { 'no-sidebar': !showHomeSidebar }]">
+  140|        <aside v-if="showHomeSidebar" class="sidebar">[39m
+[2m14:40:11[22m [31m[1m[vite][22m[39m [31mInternal server error: Element is missing end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/views/PortalView.vue[39m:138:5
+[33m  136|    />
+  137|    <PortalChrome v-else :channels="portal.channels" :active-page-key="activePageKey">
+  138|      <div class="desktop-shell">
+     |       ^
+  139|      <div :class="['app-frame', { 'no-sidebar': !showHomeSidebar }]">
+  140|        <aside v-if="showHomeSidebar" class="sidebar">[39m
+      at createCompilerError (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1364:17)
+      at emitError (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2949:5)
+      at Object.onclosetag (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2308:13)
+      at Tokenizer.stateInClosingTagName (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:785:16)
+      at Tokenizer.parse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1143:16)
+      at Object.baseParse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2988:13)
+      at Object.parse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:904:23)
+      at Object.parse$1 [as parse] (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1794:24)
+      at createDescriptor (file:///C:/Users/Administrator/Documents/New%20project/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///C:/Users/Administrator/Documents/New%20project/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2205:26)
+[2m14:40:12[22m [31m[1m[vite][22m[39m [31mInternal server error: Element is missing end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/views/PortalView.vue[39m:138:5
+[33m  136|    />
+  137|    <PortalChrome v-else :channels="portal.channels" :active-page-key="activePageKey">
+  138|      <div class="desktop-shell">
+     |       ^
+  139|      <div :class="['app-frame', { 'no-sidebar': !showHomeSidebar }]">
+  140|        <aside v-if="showHomeSidebar" class="sidebar">[39m
+      at createCompilerError (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1364:17)
+      at emitError (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2949:5)
+      at Object.onclosetag (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2308:13)
+      at Tokenizer.stateInClosingTagName (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:785:16)
+      at Tokenizer.parse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1143:16)
+      at Object.baseParse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2988:13)
+      at Object.parse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:904:23)
+      at Object.parse$1 [as parse] (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1794:24)
+      at createDescriptor (file:///C:/Users/Administrator/Documents/New%20project/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///C:/Users/Administrator/Documents/New%20project/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2205:26)
+[2m14:40:23[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: Element is missing end tag.
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/views/PortalView.vue[39m:138:5
+[33m  136|    />
+  137|    <PortalChrome v-else :channels="portal.channels" :active-page-key="activePageKey">
+  138|      <div class="desktop-shell">
+     |       ^
+  139|      <div :class="['app-frame', { 'no-sidebar': !showHomeSidebar }]">
+  140|        <aside v-if="showHomeSidebar" class="sidebar">[39m
+[2m14:40:24[22m [31m[1m[vite][22m[39m [31mInternal server error: Element is missing end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/views/PortalView.vue[39m:138:5
+[33m  136|    />
+  137|    <PortalChrome v-else :channels="portal.channels" :active-page-key="activePageKey">
+  138|      <div class="desktop-shell">
+     |       ^
+  139|      <div :class="['app-frame', { 'no-sidebar': !showHomeSidebar }]">
+  140|        <aside v-if="showHomeSidebar" class="sidebar">[39m
+      at createCompilerError (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1364:17)
+      at emitError (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2949:5)
+      at Object.onclosetag (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2308:13)
+      at Tokenizer.stateInClosingTagName (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:785:16)
+      at Tokenizer.parse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1143:16)
+      at Object.baseParse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2988:13)
+      at Object.parse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:904:23)
+      at Object.parse$1 [as parse] (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1794:24)
+      at createDescriptor (file:///C:/Users/Administrator/Documents/New%20project/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///C:/Users/Administrator/Documents/New%20project/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2205:26)
+[2m14:40:43[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: Element is missing end tag.
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/views/PortalView.vue[39m:138:5
+[33m  136|    />
+  137|    <PortalChrome v-else :channels="portal.channels" :active-page-key="activePageKey">
+  138|      <div class="desktop-shell">
+     |       ^
+  139|      <div :class="['app-frame', { 'no-sidebar': !showHomeSidebar }]">
+  140|        <aside v-if="showHomeSidebar" class="sidebar">[39m
+[2m14:40:43[22m [31m[1m[vite][22m[39m [31mInternal server error: Element is missing end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/views/PortalView.vue[39m:138:5
+[33m  136|    />
+  137|    <PortalChrome v-else :channels="portal.channels" :active-page-key="activePageKey">
+  138|      <div class="desktop-shell">
+     |       ^
+  139|      <div :class="['app-frame', { 'no-sidebar': !showHomeSidebar }]">
+  140|        <aside v-if="showHomeSidebar" class="sidebar">[39m
+      at createCompilerError (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1364:17)
+      at emitError (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2949:5)
+      at Object.onclosetag (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2308:13)
+      at Tokenizer.stateInClosingTagName (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:785:16)
+      at Tokenizer.parse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1143:16)
+      at Object.baseParse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2988:13)
+      at Object.parse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:904:23)
+      at Object.parse$1 [as parse] (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1794:24)
+      at createDescriptor (file:///C:/Users/Administrator/Documents/New%20project/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///C:/Users/Administrator/Documents/New%20project/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2205:26)
+[2m14:41:10[22m [31m[1m[vite][22m[39m [31mInternal server error: Element is missing end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/views/PortalView.vue[39m:138:5
+[33m  136|    />
+  137|    <PortalChrome v-else :channels="portal.channels" :active-page-key="activePageKey">
+  138|      <div class="desktop-shell">
+     |       ^
+  139|      <div :class="['app-frame', { 'no-sidebar': !showHomeSidebar }]">
+  140|        <aside v-if="showHomeSidebar" class="sidebar">[39m
+      at createCompilerError (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1364:17)
+      at emitError (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2949:5)
+      at Object.onclosetag (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2308:13)
+      at Tokenizer.stateInClosingTagName (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:785:16)
+      at Tokenizer.parse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1143:16)
+      at Object.baseParse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2988:13)
+      at Object.parse (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:904:23)
+      at Object.parse$1 [as parse] (C:\Users\Administrator\Documents\New project\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1794:24)
+      at createDescriptor (file:///C:/Users/Administrator/Documents/New%20project/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///C:/Users/Administrator/Documents/New%20project/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2205:26)
+[2m23:21:39[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: Transform failed with 1 error:
+C:/Users/Administrator/Documents/New project/frontend/src/router.ts:29:4: ERROR: Expected "]" but found "{"
+  Plugin: [35mvite:esbuild[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/router.ts[39m:29:4
+[33m  
+  [33mExpected "]" but found "{"[33m
+  27 |      { path: '/learning/:detailPath(.*)*', name: 'portal-detail-learning', component: PortalDetailPage },
+  28 |      { path: '/:pageKey', name: 'portal-page', component: PortalView }
+  29 |      { path: '/:detailPath(.*)*', name: 'portal-detail', component: PortalDetailPage }
+     |      ^
+  30 |    ]
+  31 |  });
+  [39m
+[2m23:21:39[22m [31m[1m[vite][22m[39m [31mInternal server error: Transform failed with 1 error:
+C:/Users/Administrator/Documents/New project/frontend/src/router.ts:29:4: ERROR: Expected "]" but found "{"[39m
+  Plugin: [35mvite:esbuild[39m
+  File: [36mC:/Users/Administrator/Documents/New project/frontend/src/router.ts[39m:29:4
+[33m  
+  [33mExpected "]" but found "{"[33m
+  27 |      { path: '/learning/:detailPath(.*)*', name: 'portal-detail-learning', component: PortalDetailPage },
+  28 |      { path: '/:pageKey', name: 'portal-page', component: PortalView }
+  29 |      { path: '/:detailPath(.*)*', name: 'portal-detail', component: PortalDetailPage }
+     |      ^
+  30 |    ]
+  31 |  });
+  [39m
+      at failureErrorWithLog (C:\Users\Administrator\Documents\New project\frontend\node_modules\esbuild\lib\main.js:1476:15)
+      at C:\Users\Administrator\Documents\New project\frontend\node_modules\esbuild\lib\main.js:755:50
+      at responseCallbacks.<computed> (C:\Users\Administrator\Documents\New project\frontend\node_modules\esbuild\lib\main.js:622:9)
+      at handleIncomingPacket (C:\Users\Administrator\Documents\New project\frontend\node_modules\esbuild\lib\main.js:677:12)
+      at Socket.readFromStdout (C:\Users\Administrator\Documents\New project\frontend\node_modules\esbuild\lib\main.js:600:7)
+      at Socket.emit (node:events:517:28)
+      at addChunk (node:internal/streams/readable:368:12)
+      at readableAddChunk (node:internal/streams/readable:341:9)
+      at Readable.push (node:internal/streams/readable:278:10)
+      at Pipe.onStreamRead (node:internal/stream_base_commons:190:23)
