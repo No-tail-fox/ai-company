@@ -578,3 +578,12 @@ C:/Users/Administrator/Documents/New project/frontend/src/router.ts:29:4: ERROR:
       at readableAddChunk (node:internal/streams/readable:341:9)
       at Readable.push (node:internal/streams/readable:278:10)
       at Pipe.onStreamRead (node:internal/stream_base_commons:190:23)
+[2m00:19:49[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/verification-codes[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1555:16)
+[2m00:19:49[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1555:16)
+[2m00:19:50[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1555:16)
