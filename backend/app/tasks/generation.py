@@ -10,6 +10,7 @@ from app.db import SessionLocal
 from app.models import ChannelRoute, GenerationTask
 from app.services.channel_router import ChannelRouter, ChannelTransport, HttpChannelTransport
 from app.services.generation import GenerationService
+from app.settings import get_settings
 
 
 TERMINAL_FAILURE_STATUSES = {"FAILED", "ERROR", "CANCELED", "CANCELLED"}
@@ -18,6 +19,8 @@ SUCCESS_STATUSES = {"SUCCESS", "SUCCEEDED", "COMPLETED", "DONE"}
 
 
 def enqueue_generation_task(*, tenant_id: str, task_id: str) -> bool:
+    if not get_settings().celery_enabled:
+        return False
     try:
         process_generation_task.apply_async(
             kwargs={"tenant_id": tenant_id, "task_id": task_id},

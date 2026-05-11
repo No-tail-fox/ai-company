@@ -31,6 +31,7 @@ Set values in `.env` before first start:
 
 `JWT_SECRET` should be a long random value.
 `PUBLIC_HTTP_PORT` defaults to `80`; use `8080` or another port if something is already using port 80.
+`CELERY_ENABLED` defaults to `true` in Docker so generation requests are sent to the worker queue.
 `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` default to the bundled Redis service and usually do not need to change.
 
 ## Data

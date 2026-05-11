@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 60 * 24 * 7
     otp_default_code: str = "123456"
+    celery_enabled: bool = False
     celery_broker_url: str = "redis://localhost:6379/0"
     celery_result_backend: str = "redis://localhost:6379/1"
     storage_dir: str = str((BACKEND_ROOT / "storage").as_posix())

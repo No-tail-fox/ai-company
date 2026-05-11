@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from app.models import ApiChannel, Asset, ChannelRoute, GenerationTask, Tenant, User, Wallet
 from app.services.generation import GenerationService
 from app.tasks import generation as generation_task_module
@@ -17,6 +19,12 @@ class ScriptedTransport:
         return response
 
 
+def test_enqueue_generation_task_returns_false_when_queue_is_disabled(monkeypatch):
+    monkeypatch.setattr(generation_task_module, "get_settings", lambda: SimpleNamespace(celery_enabled=False))
+
+    assert enqueue_generation_task(tenant_id="tenant-a", task_id="task-a") is False
+
+
 def test_enqueue_generation_task_returns_false_without_blocking_when_publish_fails(monkeypatch):
     calls = []
 
@@ -24,6 +32,7 @@ def test_enqueue_generation_task_returns_false_without_blocking_when_publish_fai
         calls.append({"kwargs": kwargs, "retry": retry})
         raise RuntimeError("broker unavailable")
 
+    monkeypatch.setattr(generation_task_module, "get_settings", lambda: SimpleNamespace(celery_enabled=True))
     monkeypatch.setattr(generation_task_module.process_generation_task, "apply_async", fail_publish)
 
     assert enqueue_generation_task(tenant_id="tenant-a", task_id="task-a") is False
