@@ -5,6 +5,7 @@ from app.main import create_app
 from datetime import timedelta
 
 from app.models import ContentItem, ContentPage, ContentSection, MembershipPlan, Tenant, User, UserMembership, UserPortalAction, utcnow
+from app.seed import ensure_demo_data
 
 
 def override_session(session):
@@ -90,7 +91,7 @@ def test_admin_content_item_create_is_visible_in_portal(session):
         tenant_id=tenant.id,
         area="home",
         section_key="orders",
-        title="OPC 接单中心",
+        title="新商机 接单中心",
         sort_order=1,
         enabled=True,
     )
@@ -123,6 +124,39 @@ def test_admin_content_item_create_is_visible_in_portal(session):
     config = client.get("/api/v1/portal/config", headers={"X-Tenant-ID": tenant.id}).json()
     assert config["home_sections"][0]["items"][0]["title"] == "AI 自动化定制"
     assert config["home_sections"][0]["items"][0]["required_membership"] is True
+
+
+def test_demo_seed_brand_copy_uses_new_business(session):
+    ensure_demo_data(session)
+
+    tenant = session.get(Tenant, "demo")
+    orders_section = session.query(ContentSection).filter_by(id="section-orders").one()
+
+    assert tenant.name == "新商机"
+    assert orders_section.title == "新商机 接单中心"
+
+
+def test_demo_seed_updates_existing_old_brand_copy(session):
+    session.add(Tenant(id="demo", slug="demo", name="新商机 AI 社区"))
+    session.add(
+        ContentSection(
+            id="section-orders",
+            tenant_id="demo",
+            area="home",
+            section_key="order_center",
+            title="OPC 接单中心",
+            sort_order=20,
+            enabled=True,
+        )
+    )
+    session.commit()
+
+    ensure_demo_data(session)
+
+    tenant = session.get(Tenant, "demo")
+    orders_section = session.get(ContentSection, "section-orders")
+    assert tenant.name == "新商机"
+    assert orders_section.title == "新商机 接单中心"
 
 
 def test_audio_page_config_exposes_workbench_actions(session):

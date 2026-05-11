@@ -321,6 +321,26 @@ class ContentItem(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
 
+class HomeHeroSlide(Base):
+    __tablename__ = "home_hero_slides"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(32), ForeignKey("tenants.id"), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    subtitle: Mapped[str] = mapped_column(String(500), default="")
+    badge: Mapped[str] = mapped_column(String(64), default="")
+    cta_label: Mapped[str] = mapped_column(String(64), default="立即查看")
+    cta_subtitle: Mapped[str] = mapped_column(String(255), default="")
+    image_url: Mapped[str] = mapped_column(Text, default="")
+    action_type: Mapped[str] = mapped_column(String(64), default="route")
+    action_value: Mapped[str] = mapped_column(String(500), default="")
+    sort_order: Mapped[int] = mapped_column(Integer, default=100)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
 class AiAssistant(Base):
     __tablename__ = "ai_assistants"
     __table_args__ = (UniqueConstraint("tenant_id", "assistant_key", name="uq_ai_assistants_tenant_key"),)
@@ -418,3 +438,18 @@ class UserPortalAction(Base):
     result_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class AdminActionLog(Base):
+    __tablename__ = "admin_action_logs"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(32), ForeignKey("tenants.id"), index=True)
+    actor_user_id: Mapped[str] = mapped_column(String(32), ForeignKey("users.id"), index=True)
+    actor_display_name: Mapped[str] = mapped_column(String(255), default="")
+    actor_role: Mapped[str] = mapped_column(String(32), default="ADMIN", index=True)
+    action: Mapped[str] = mapped_column(String(64), index=True)
+    target_type: Mapped[str] = mapped_column(String(64), default="", index=True)
+    target_id: Mapped[str] = mapped_column(String(64), default="", index=True)
+    summary: Mapped[str] = mapped_column(String(500), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

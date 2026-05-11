@@ -284,6 +284,28 @@ test('builds distinct home content for different left menu items', () => {
   expect(toolkit.sections.flatMap((section) => section.items).some((item) => item.category === '专业工具包')).toBe(true);
 });
 
+test('toolkit home menu includes third-party tools with external download metadata', () => {
+  const toolkit = createHomeMenuPageConfig(createFallbackPageConfig('home'), 'toolkit');
+  const thirdPartySection = toolkit.sections.find((section) => section.sectionKey === 'third_party_tools');
+
+  expect(thirdPartySection).toBeDefined();
+  expect(thirdPartySection?.layout).toBe('third-party-tools');
+  expect(thirdPartySection?.items[0]).toMatchObject({
+    itemType: 'third_party_tool',
+    title: '剪映专业版',
+    actionType: 'external_link',
+    actionValue: expect.stringMatching(/^https:\/\//),
+    metadata: {
+      brandMark: 'JY',
+      detail: {
+        download: {
+          url: expect.stringMatching(/^https:\/\//)
+        }
+      }
+    }
+  });
+});
+
 test('home menu filtering does not affect non-home pages', () => {
   const marketing = createFallbackPageConfig('marketing');
 

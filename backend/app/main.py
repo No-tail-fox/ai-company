@@ -11,6 +11,9 @@ from sqlalchemy.orm import Session
 from app.db import get_session, init_db
 from app.models import User
 from app.schemas import (
+    AdminUserCreate,
+    AdminUserUpdate,
+    AccountProfileUpdate,
     AudioTaskCreate,
     AssistantCreate,
     ChatExportCreate,
@@ -27,12 +30,20 @@ from app.schemas import (
     ImageGenerationCreate,
     ImageTaskPayload,
     ImageWorkbenchPayload,
+    HomeHeroSlideCreate,
+    HomeHeroSlideUpdate,
     LoginRequest,
+    MembershipPlanCreate,
+    MembershipPlanUpdate,
     ModelConfigCreate,
     ModelConfigUpdate,
     PortalActionCreate,
     ProviderChannelCreate,
     ProviderChannelUpdate,
+    RechargeOrderCreate,
+    UserMembershipCreate,
+    UserMembershipUpdate,
+    WalletAdjustmentCreate,
     ReorderRequest,
     ToolModelBindingCreate,
     ToolModelBindingUpdate,
@@ -41,15 +52,20 @@ from app.schemas import (
     VideoWorkbenchPayload,
 )
 from app.seed import ensure_demo_data
+from app.services.account import AccountNotFoundError, AccountService
+from app.services.admin_management import AdminManagementService
 from app.services.audio import AudioProviderError, AudioService
 from app.services.chat import ChatNotFoundError, ChatProviderError, ChatService, ChatValidationError
 from app.services.admin_content import AdminContentService
 from app.services.auth import AuthService
 from app.services.channel_router import ChannelTransport, HttpChannelTransport, RouteNotFoundError
 from app.services.image import DEMO_IMAGE_USER_ID, ImageService, ImageUserNotFoundError, ImageValidationError
+from app.services.home_dashboard import HomeDashboardService
 from app.services.memberships import MembershipService
 from app.services.model_configs import ModelConfigError, ModelConfigService
+from app.services.payments import PaymentPackageError, PaymentService, PaymentUserNotFoundError
 from app.services.portal import PortalService
+from app.services.rbac import has_min_role
 from app.services.uploads import UploadService, UploadValidationError
 from app.services.video import DEMO_VIDEO_USER_ID, VideoService, VideoUserNotFoundError, VideoValidationError
 from app.services.wallet import InsufficientBalanceError, WalletNotFoundError
@@ -96,6 +112,25 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    def require_admin(
+        tenant_id: TenantHeader,
+        authorization: AuthorizationHeader = None,
+        db: Session = Depends(get_session),
+    ) -> User:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="missing bearer token")
+        token = authorization.removeprefix("Bearer ").strip()
+        user = AuthService(db).user_from_token(tenant_id=tenant_id, token=token)
+        if user is None:
+            raise HTTPException(status_code=401, detail="invalid bearer token")
+        if not has_min_role(user.role, "READ_ONLY"):
+            raise HTTPException(status_code=403, detail="admin role required")
+        return user
+
+    def require_admin_role(admin: User, minimum_role: str) -> None:
+        if not has_min_role(admin.role, minimum_role):
+            raise HTTPException(status_code=403, detail=f"{minimum_role} role required")
 
     @app.get(f"{settings.api_prefix}/health")
     def health() -> dict[str, str]:
@@ -149,6 +184,14 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
     ) -> dict:
         return PortalService(db).search(tenant_id=tenant_id, query=q, page_key=page_key, limit=limit)
 
+    @app.get(f"{settings.api_prefix}/home/dashboard")
+    def home_dashboard(
+        tenant_id: TenantHeader,
+        user_id: str = "demo-user",
+        db: Session = Depends(get_session),
+    ) -> dict:
+        return HomeDashboardService(db).dashboard(tenant_id=tenant_id, user_id=user_id)
+
     @app.post(f"{settings.api_prefix}/portal/actions")
     def portal_action(
         payload: PortalActionCreate,
@@ -166,6 +209,265 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
     ) -> dict:
         return PortalService(db).user_actions(tenant_id=tenant_id, user_id=user_id, kind=kind, limit=limit)
+
+    @app.get(f"{settings.api_prefix}/admin/overview")
+    def admin_overview(
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        return AdminManagementService(db).overview(tenant_id=tenant_id)
+
+    @app.get(f"{settings.api_prefix}/admin/users")
+    def list_admin_users(
+        tenant_id: TenantHeader,
+        query: str = "",
+        role: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        users = AdminManagementService(db).list_users(tenant_id=tenant_id, query=query, role=role, status=status, limit=limit)
+        return {"tenant_id": tenant_id, "users": users}
+
+    @app.post(f"{settings.api_prefix}/admin/users", status_code=status.HTTP_201_CREATED)
+    def create_admin_user(
+        payload: AdminUserCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "OPERATOR")
+        return AdminManagementService(db).create_user(tenant_id=tenant_id, payload=payload, actor=admin)
+
+    @app.put(f"{settings.api_prefix}/admin/users/{{user_id}}")
+    def update_admin_user(
+        user_id: str,
+        payload: AdminUserUpdate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "OPERATOR")
+        try:
+            return AdminManagementService(db).update_user(tenant_id=tenant_id, user_id=user_id, payload=payload, actor=admin)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.delete(f"{settings.api_prefix}/admin/users/{{user_id}}")
+    def delete_admin_user(
+        user_id: str,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "OPERATOR")
+        try:
+            return AdminManagementService(db).disable_user(tenant_id=tenant_id, user_id=user_id, actor=admin)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get(f"{settings.api_prefix}/admin/wallet-transactions")
+    def list_wallet_transactions(
+        tenant_id: TenantHeader,
+        user_id: str | None = None,
+        limit: int = 100,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        transactions = AdminManagementService(db).list_wallet_transactions(tenant_id=tenant_id, user_id=user_id, limit=limit)
+        return {"tenant_id": tenant_id, "transactions": transactions}
+
+    @app.post(f"{settings.api_prefix}/admin/wallets/{{user_id}}/adjust")
+    def adjust_admin_wallet(
+        user_id: str,
+        payload: WalletAdjustmentCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "OPERATOR")
+        try:
+            return AdminManagementService(db).adjust_wallet(tenant_id=tenant_id, user_id=user_id, payload=payload, actor=admin)
+        except WalletNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (ValueError, InsufficientBalanceError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get(f"{settings.api_prefix}/admin/membership-plans")
+    def list_membership_plans(
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        plans = AdminManagementService(db).list_membership_plans(tenant_id=tenant_id)
+        return {"tenant_id": tenant_id, "plans": plans}
+
+    @app.post(f"{settings.api_prefix}/admin/membership-plans", status_code=status.HTTP_201_CREATED)
+    def create_membership_plan(
+        payload: MembershipPlanCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "OPERATOR")
+        try:
+            return AdminManagementService(db).create_membership_plan(tenant_id=tenant_id, payload=payload, actor=admin)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.put(f"{settings.api_prefix}/admin/membership-plans/{{plan_id}}")
+    def update_membership_plan(
+        plan_id: str,
+        payload: MembershipPlanUpdate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "OPERATOR")
+        try:
+            return AdminManagementService(db).update_membership_plan(
+                tenant_id=tenant_id,
+                plan_id=plan_id,
+                payload=payload,
+                actor=admin,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.delete(f"{settings.api_prefix}/admin/membership-plans/{{plan_id}}")
+    def delete_membership_plan(
+        plan_id: str,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "OPERATOR")
+        try:
+            return AdminManagementService(db).disable_membership_plan(tenant_id=tenant_id, plan_id=plan_id, actor=admin)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get(f"{settings.api_prefix}/admin/user-memberships")
+    def list_user_memberships(
+        tenant_id: TenantHeader,
+        user_id: str | None = None,
+        limit: int = 100,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        memberships = AdminManagementService(db).list_user_memberships(tenant_id=tenant_id, user_id=user_id, limit=limit)
+        return {"tenant_id": tenant_id, "memberships": memberships}
+
+    @app.post(f"{settings.api_prefix}/admin/user-memberships", status_code=status.HTTP_201_CREATED)
+    def create_user_membership(
+        payload: UserMembershipCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "OPERATOR")
+        try:
+            return AdminManagementService(db).grant_membership(tenant_id=tenant_id, payload=payload, actor=admin)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.put(f"{settings.api_prefix}/admin/user-memberships/{{membership_id}}")
+    def update_user_membership(
+        membership_id: str,
+        payload: UserMembershipUpdate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "OPERATOR")
+        try:
+            return AdminManagementService(db).update_user_membership(
+                tenant_id=tenant_id,
+                membership_id=membership_id,
+                payload=payload,
+                actor=admin,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.delete(f"{settings.api_prefix}/admin/user-memberships/{{membership_id}}")
+    def delete_user_membership(
+        membership_id: str,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "OPERATOR")
+        try:
+            return AdminManagementService(db).disable_user_membership(
+                tenant_id=tenant_id,
+                membership_id=membership_id,
+                actor=admin,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get(f"{settings.api_prefix}/admin/audit-logs")
+    def list_audit_logs(
+        tenant_id: TenantHeader,
+        limit: int = 50,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        logs = AdminManagementService(db).list_audit_logs(tenant_id=tenant_id, limit=limit)
+        service = AdminManagementService(db)
+        return {"tenant_id": tenant_id, "logs": [service.audit_log_payload(log) for log in logs]}
+
+    @app.get(f"{settings.api_prefix}/account/summary")
+    def account_summary(
+        tenant_id: TenantHeader,
+        user_id: str = "demo-user",
+        db: Session = Depends(get_session),
+    ) -> dict:
+        try:
+            return AccountService(db).summary(tenant_id=tenant_id, user_id=user_id)
+        except AccountNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.patch(f"{settings.api_prefix}/account/profile")
+    def account_profile(
+        payload: AccountProfileUpdate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        try:
+            return AccountService(db).update_profile(
+                tenant_id=tenant_id,
+                user_id=payload.user_id,
+                display_name=payload.display_name,
+            )
+        except AccountNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post(f"{settings.api_prefix}/payments/recharge-orders", status_code=status.HTTP_201_CREATED)
+    def create_recharge_order(
+        payload: RechargeOrderCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        try:
+            return PaymentService(db).create_recharge_order(
+                tenant_id=tenant_id,
+                user_id=payload.user_id,
+                package_key=payload.package_key,
+            )
+        except PaymentPackageError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except PaymentUserNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     @app.get(f"{settings.api_prefix}/video/workbench", response_model=VideoWorkbenchPayload)
     def video_workbench(
@@ -317,21 +619,6 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
             "user": user_payload(user),
         }
 
-    def require_admin(
-        tenant_id: TenantHeader,
-        authorization: AuthorizationHeader = None,
-        db: Session = Depends(get_session),
-    ) -> User:
-        if not authorization or not authorization.startswith("Bearer "):
-            raise HTTPException(status_code=401, detail="missing bearer token")
-        token = authorization.removeprefix("Bearer ").strip()
-        user = AuthService(db).user_from_token(tenant_id=tenant_id, token=token)
-        if user is None:
-            raise HTTPException(status_code=401, detail="invalid bearer token")
-        if user.role != "ADMIN":
-            raise HTTPException(status_code=403, detail="admin role required")
-        return user
-
     @app.get(f"{settings.api_prefix}/admin/provider-channels")
     def list_provider_channels(
         tenant_id: TenantHeader,
@@ -348,7 +635,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> dict:
-        del admin
+        require_admin_role(admin, "OPERATOR")
         try:
             return ModelConfigService(db).create_provider_channel(tenant_id=tenant_id, payload=payload)
         except ModelConfigError as exc:
@@ -362,7 +649,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> dict:
-        del admin
+        require_admin_role(admin, "OPERATOR")
         try:
             return ModelConfigService(db).update_provider_channel(tenant_id=tenant_id, channel_id=channel_id, payload=payload)
         except ModelConfigError as exc:
@@ -384,7 +671,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> dict:
-        del admin
+        require_admin_role(admin, "OPERATOR")
         try:
             return ModelConfigService(db).create_model_config(tenant_id=tenant_id, payload=payload)
         except ModelConfigError as exc:
@@ -398,7 +685,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> dict:
-        del admin
+        require_admin_role(admin, "OPERATOR")
         try:
             return ModelConfigService(db).update_model_config(
                 tenant_id=tenant_id,
@@ -424,7 +711,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> dict:
-        del admin
+        require_admin_role(admin, "OPERATOR")
         try:
             return ModelConfigService(db).create_tool_model_binding(tenant_id=tenant_id, payload=payload)
         except ModelConfigError as exc:
@@ -438,11 +725,72 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> dict:
-        del admin
+        require_admin_role(admin, "OPERATOR")
         try:
             return ModelConfigService(db).update_tool_model_binding(tenant_id=tenant_id, binding_id=binding_id, payload=payload)
         except ModelConfigError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get(f"{settings.api_prefix}/admin/home-slides")
+    def list_home_slides(
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        slides = HomeDashboardService(db).list_home_slides(tenant_id=tenant_id, include_disabled=True)
+        return {"tenant_id": tenant_id, "slides": slides}
+
+    @app.post(f"{settings.api_prefix}/admin/home-slides", status_code=status.HTTP_201_CREATED)
+    def create_home_slide(
+        payload: HomeHeroSlideCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "CONTENT_EDITOR")
+        return HomeDashboardService(db).create_home_slide(tenant_id=tenant_id, payload=payload)
+
+    @app.post(f"{settings.api_prefix}/admin/home-slides/reorder")
+    def reorder_home_slides(
+        payload: ReorderRequest,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "CONTENT_EDITOR")
+        try:
+            slides = HomeDashboardService(db).reorder_home_slides(tenant_id=tenant_id, ordered_ids=payload.ordered_ids)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return {"tenant_id": tenant_id, "slides": slides}
+
+    @app.put(f"{settings.api_prefix}/admin/home-slides/{{slide_id}}")
+    def update_home_slide(
+        slide_id: str,
+        payload: HomeHeroSlideUpdate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "CONTENT_EDITOR")
+        try:
+            return HomeDashboardService(db).update_home_slide(tenant_id=tenant_id, slide_id=slide_id, payload=payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.delete(f"{settings.api_prefix}/admin/home-slides/{{slide_id}}")
+    def delete_home_slide(
+        slide_id: str,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "CONTENT_EDITOR")
+        try:
+            return HomeDashboardService(db).disable_home_slide(tenant_id=tenant_id, slide_id=slide_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     @app.get(f"{settings.api_prefix}/admin/pages")
     def list_pages(
@@ -460,7 +808,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> dict:
-        del admin
+        require_admin_role(admin, "CONTENT_EDITOR")
         page = AdminContentService(db).create_page(tenant_id=tenant_id, payload=payload)
         return PortalService._page_payload(page)
 
@@ -471,7 +819,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> list[dict]:
-        del admin
+        require_admin_role(admin, "CONTENT_EDITOR")
         try:
             pages = AdminContentService(db).reorder_pages(tenant_id=tenant_id, ordered_ids=payload.ordered_ids)
         except ValueError as exc:
@@ -511,7 +859,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> dict:
-        del admin
+        require_admin_role(admin, "CONTENT_EDITOR")
         try:
             page = AdminContentService(db).update_page(tenant_id=tenant_id, page_id=page_id, payload=payload)
         except ValueError as exc:
@@ -525,7 +873,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> dict:
-        del admin
+        require_admin_role(admin, "CONTENT_EDITOR")
         try:
             page = AdminContentService(db).disable_page(tenant_id=tenant_id, page_id=page_id)
         except ValueError as exc:
@@ -550,7 +898,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> dict:
-        del admin
+        require_admin_role(admin, "CONTENT_EDITOR")
         try:
             section = AdminContentService(db).create_section(tenant_id=tenant_id, payload=payload)
         except ValueError as exc:
@@ -564,7 +912,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> list[dict]:
-        del admin
+        require_admin_role(admin, "CONTENT_EDITOR")
         try:
             sections = AdminContentService(db).reorder_sections(tenant_id=tenant_id, ordered_ids=payload.ordered_ids)
         except ValueError as exc:
@@ -580,7 +928,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> dict:
-        del admin
+        require_admin_role(admin, "CONTENT_EDITOR")
         try:
             section = AdminContentService(db).update_section(tenant_id=tenant_id, section_id=section_id, payload=payload)
         except ValueError as exc:
@@ -594,7 +942,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> dict:
-        del admin
+        require_admin_role(admin, "CONTENT_EDITOR")
         try:
             section = AdminContentService(db).disable_section(tenant_id=tenant_id, section_id=section_id)
         except ValueError as exc:
@@ -631,7 +979,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> dict:
-        del admin
+        require_admin_role(admin, "CONTENT_EDITOR")
         try:
             item = AdminContentService(db).create_content_item(tenant_id=tenant_id, payload=payload)
         except ValueError as exc:
@@ -645,7 +993,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> list[dict]:
-        del admin
+        require_admin_role(admin, "CONTENT_EDITOR")
         if not payload.section_id:
             raise HTTPException(status_code=400, detail="section_id is required")
         try:
@@ -667,7 +1015,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> dict:
-        del admin
+        require_admin_role(admin, "CONTENT_EDITOR")
         try:
             item = AdminContentService(db).update_content_item(tenant_id=tenant_id, item_id=item_id, payload=payload)
         except ValueError as exc:
@@ -681,7 +1029,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
         admin: User = Depends(require_admin),
     ) -> dict:
-        del admin
+        require_admin_role(admin, "CONTENT_EDITOR")
         try:
             item = AdminContentService(db).disable_content_item(tenant_id=tenant_id, item_id=item_id)
         except ValueError as exc:
@@ -694,7 +1042,7 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         file: UploadFile = File(...),
         admin: User = Depends(require_admin),
     ) -> dict:
-        del admin
+        require_admin_role(admin, "CONTENT_EDITOR")
         try:
             return await UploadService().save_image(tenant_id=tenant_id, upload=file)
         except UploadValidationError as exc:

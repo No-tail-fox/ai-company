@@ -63,6 +63,20 @@ export interface EditableItem extends Partial<PortalItem> {
   detailDownloadUrl?: string;
 }
 
+export interface EditableHomeSlide {
+  title: string;
+  subtitle: string;
+  badge: string;
+  ctaLabel: string;
+  ctaSubtitle?: string;
+  imageUrl?: string;
+  actionType?: string;
+  actionValue: string;
+  sortOrder?: number;
+  enabled?: boolean;
+  metadataJson?: Record<string, unknown>;
+}
+
 export function buildPagePayload(page: EditablePage) {
   return {
     page_key: page.pageKey,
@@ -106,6 +120,22 @@ export function buildItemPayload(item: EditableItem) {
     required_membership: item.requiredMembership ?? false,
     point_cost: item.pointCost ?? 0,
     ...(metadata ? { metadata_json: metadata } : {})
+  };
+}
+
+export function buildHomeSlidePayload(slide: EditableHomeSlide) {
+  return {
+    title: slide.title,
+    subtitle: slide.subtitle ?? '',
+    badge: slide.badge ?? '',
+    cta_label: slide.ctaLabel,
+    cta_subtitle: slide.ctaSubtitle ?? '',
+    image_url: slide.imageUrl ?? '',
+    action_type: slide.actionType ?? 'route',
+    action_value: slide.actionValue,
+    sort_order: slide.sortOrder ?? 100,
+    enabled: slide.enabled ?? true,
+    metadata_json: slide.metadataJson ?? {}
   };
 }
 

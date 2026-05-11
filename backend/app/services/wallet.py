@@ -36,6 +36,51 @@ class WalletService:
     def __init__(self, session: Session):
         self.session = session
 
+    def adjust_balance(
+        self,
+        *,
+        tenant_id: str,
+        user_id: str,
+        amount: int,
+        reason: str,
+        request_key: str,
+    ) -> WalletTransaction:
+        if amount == 0:
+            raise ValueError("amount must not be 0")
+        existing = self.session.scalar(
+            select(WalletTransaction).where(
+                WalletTransaction.tenant_id == tenant_id,
+                WalletTransaction.request_key == request_key,
+            )
+        )
+        if existing:
+            return existing
+
+        wallet = self._wallet_for_update(tenant_id, user_id)
+        if amount > 0:
+            wallet.balance += amount
+            transaction_type = "RECHARGE"
+        else:
+            spend = abs(amount)
+            if wallet.balance < spend:
+                raise InsufficientBalanceError("wallet balance is not enough to adjust this request")
+            wallet.balance -= spend
+            transaction_type = "CONSUME"
+
+        transaction = WalletTransaction(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            wallet_id=wallet.id,
+            request_key=request_key,
+            amount=amount,
+            balance_after=wallet.balance,
+            type=transaction_type,
+            remark=reason,
+        )
+        self.session.add(transaction)
+        self.session.commit()
+        return transaction
+
     def reserve_funds(
         self,
         *,
@@ -208,4 +253,3 @@ class WalletService:
     def _assert_positive(amount: int) -> None:
         if amount <= 0:
             raise ValueError("amount must be > 0")
-

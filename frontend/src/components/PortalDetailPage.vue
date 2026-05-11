@@ -228,7 +228,7 @@ function goBack() {
 
 <style scoped>
 .portal-detail-page {
-  min-height: 100vh;
+  min-height: calc(100vh - var(--portal-chrome-height, 0px));
   background: #f6f7fb;
   color: #1f2633;
 }
@@ -490,7 +490,7 @@ function goBack() {
 }
 
 .detail-state {
-  min-height: calc(100vh - 80px);
+  min-height: calc(100vh - var(--portal-chrome-height, 0px) - 80px);
   display: grid;
   place-items: center;
   align-content: center;

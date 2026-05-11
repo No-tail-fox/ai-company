@@ -9,7 +9,7 @@ DEFAULT_DB_PATH = BACKEND_ROOT / "data" / "app.db"
 
 
 class Settings(BaseSettings):
-    app_name: str = "Light AI SaaS"
+    app_name: str = "新商机"
     api_prefix: str = "/api/v1"
     database_url: str = f"sqlite:///{DEFAULT_DB_PATH.as_posix()}"
     jwt_secret: str = "change-me-before-production"
@@ -26,4 +26,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

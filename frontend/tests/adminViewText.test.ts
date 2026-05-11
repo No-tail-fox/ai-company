@@ -3,22 +3,41 @@
 import { expect, test } from 'vitest';
 import adminView from '../src/views/AdminView.vue?raw';
 
-const mojibakeFragments = [
-  '\u6e1a\u6d98\u7c32',
-  '\u93c2\u677f',
-  '\u93c8\ue047',
-  '\u93c6\u509b',
-  '\u59af\u2033',
-  '\u7ec9\ue21a'
-];
+test('admin view exposes a standard SaaS management shell', () => {
+  expect(adminView).toContain('管理后台');
+  expect(adminView).toContain('总览');
+  expect(adminView).toContain('人员管理');
+  expect(adminView).toContain('会员管理');
+  expect(adminView).toContain('积分管理');
+  expect(adminView).toContain('内容管理');
+  expect(adminView).toContain('模型中心');
+  expect(adminView).toContain('审计日志');
+  expect(adminView).toContain('内容预览');
+  expect(adminView).toContain('新增人员');
+  expect(adminView).toContain('新增会员');
+  expect(adminView).toContain('积分调整');
+  expect(adminView).toContain('新增页面');
+  expect(adminView).toContain('新增模型');
+});
 
-test('admin model center uses readable Chinese labels', () => {
-  expect(adminView).toContain('供应商渠道');
-  expect(adminView).toContain('新增渠道');
-  expect(adminView).toContain('未设置密钥');
-  expect(adminView).toContain('暂无模型配置');
-  expect(adminView).toContain('工具绑定列表');
-  for (const fragment of mojibakeFragments) {
-    expect(adminView).not.toContain(fragment);
-  }
+test('admin view exposes configurable home carousel management', () => {
+  expect(adminView).toContain('adminListHomeSlides');
+  expect(adminView).toContain('adminCreateHomeSlide');
+  expect(adminView).toContain('home-slide');
+  expect(adminView).toContain('promo-carousel');
+});
+
+test('admin item editor exposes the current drawer form and detail fields', () => {
+  expect(adminView).toContain('modal-backdrop');
+  expect(adminView).toContain('form-card');
+  expect(adminView).toContain('卡片类型');
+  expect(adminView).toContain('动作类型');
+  expect(adminView).toContain('详情摘要');
+});
+
+test('admin add dialogs share a centered modal shell', () => {
+  expect(adminView).toContain('modal-backdrop-center');
+  expect(adminView).toContain('admin-modal-shell');
+  expect(adminView).toContain('admin-card-modal');
+  expect(adminView).not.toContain('admin-drawer');
 });

@@ -1,9 +1,21 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Search } from 'lucide-vue-next';
-import { fetchMembershipStatus, searchPortal } from '../services/api';
-import type { PortalSearchResult } from '../services/viewModel';
+import {
+  ChevronDown,
+  CreditCard,
+  ReceiptText,
+  Search,
+  Settings,
+  ShieldCheck
+} from 'lucide-vue-next';
+import {
+  createRechargeOrder,
+  fetchAccountSummary,
+  searchPortal,
+  updateAccountProfile
+} from '../services/api';
+import type { AccountSummary, PortalSearchResult, RechargeOrder } from '../services/viewModel';
 
 interface ChromeChannel {
   key: string;
@@ -25,6 +37,34 @@ const defaultChannels: ChromeChannel[] = [
   { key: 'office', label: 'AI 办公' }
 ];
 
+const accountPackages = [
+  { key: 'points_1000', points: 1000, amountCents: 990, label: '1000 积分', price: '￥9.90' },
+  { key: 'points_5000', points: 5000, amountCents: 4900, label: '5000 积分', price: '￥49.00' },
+  { key: 'points_10000', points: 10000, amountCents: 8900, label: '10000 积分', price: '￥89.00' }
+] as const;
+
+const demoUserId = 'demo-user';
+const fallbackSummary = (): AccountSummary => ({
+  user: {
+    id: demoUserId,
+    tenantId: 'demo',
+    phone: '',
+    displayName: '演示用户',
+    role: 'USER',
+    status: 'ACTIVE'
+  },
+  wallet: {
+    balance: 0,
+    frozenBalance: 0,
+    currency: 'POINT'
+  },
+  membership: {
+    active: false,
+    plan: null,
+    entitlements: []
+  }
+});
+
 const props = withDefaults(defineProps<{
   enabled?: boolean;
   activePageKey: string;
@@ -34,23 +74,45 @@ const props = withDefaults(defineProps<{
 });
 
 const router = useRouter();
-const visibleChannels = computed(() => (props.channels.length > 0 ? props.channels : defaultChannels));
+const visibleChannels = computed(() =>
+  (props.channels.length > 0 ? props.channels : defaultChannels).map((channel) =>
+    channel.key === 'home' ? { ...channel, label: '常用' } : channel
+  )
+);
 const showChrome = computed(() => props.enabled && props.activePageKey.length > 0);
 const searchQuery = ref('');
 const searchResults = ref<PortalSearchResult[]>([]);
 const searchOpen = ref(false);
 const searching = ref(false);
 const membershipOpen = ref(false);
-const membershipStatus = ref<any | null>(null);
-let searchTimer = 0;
+const accountOpen = ref(false);
+const accountPanel = ref<'settings' | 'recharge' | ''>('');
+const accountSummary = ref<AccountSummary>(fallbackSummary());
+const profileName = ref('');
+const profileSaving = ref(false);
+const rechargePackageKey = ref<(typeof accountPackages)[number]['key']>('points_1000');
+const rechargeOrder = ref<RechargeOrder | null>(null);
+const accountMessage = ref('');
+const searchTimer = ref<number | undefined>(undefined);
+const chromeBodyRef = ref<HTMLElement | null>(null);
+
+const accountName = computed(() => accountSummary.value.user.displayName?.trim() || '演示用户');
+const accountPhone = computed(() => accountSummary.value.user.phone || 'demo-user');
+const avatarLabel = computed(() => (accountName.value.charAt(0) || 'U').toUpperCase());
+const pointsText = computed(() => formatPoints(accountSummary.value.wallet.balance));
+const frozenPointsText = computed(() => formatPoints(accountSummary.value.wallet.frozenBalance));
+const membership = computed(() => accountSummary.value.membership);
+const currentRechargePackage = computed(
+  () => accountPackages.find((pkg) => pkg.key === rechargePackageKey.value) ?? accountPackages[0]
+);
 
 watch(searchQuery, (value) => {
-  window.clearTimeout(searchTimer);
+  window.clearTimeout(searchTimer.value);
   if (value.trim().length < 2) {
     searchResults.value = [];
     return;
   }
-  searchTimer = window.setTimeout(() => {
+  searchTimer.value = window.setTimeout(() => {
     void runSearch();
   }, 260);
 });
@@ -58,10 +120,31 @@ watch(searchQuery, (value) => {
 watch(() => props.activePageKey, () => {
   searchOpen.value = false;
   membershipOpen.value = false;
+  accountOpen.value = false;
+  accountPanel.value = '';
+});
+
+onMounted(() => {
+  void refreshAccountSummary();
+  window.addEventListener('keydown', handleScrollKeys, { passive: false });
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleScrollKeys);
 });
 
 function goPage(pageKey: string) {
   void router.push(`/${pageKey}`);
+}
+
+async function refreshAccountSummary() {
+  try {
+    accountSummary.value = await fetchAccountSummary(demoUserId);
+    profileName.value = accountSummary.value.user.displayName;
+  } catch {
+    accountSummary.value = fallbackSummary();
+    profileName.value = accountSummary.value.user.displayName;
+  }
 }
 
 async function runSearch() {
@@ -85,14 +168,116 @@ function openSearchResult(result: PortalSearchResult) {
   void router.push(target);
 }
 
-async function toggleMembershipPanel() {
-  membershipOpen.value = !membershipOpen.value;
-  if (membershipOpen.value && !membershipStatus.value) {
-    try {
-      membershipStatus.value = await fetchMembershipStatus('demo-user');
-    } catch {
-      membershipStatus.value = { active: false, plan: null, entitlements: [] };
+function toggleMembershipPanel() {
+  void router.push('/membership/benefits');
+}
+
+function openAccountMenu() {
+  accountOpen.value = !accountOpen.value;
+  if (accountOpen.value) {
+    membershipOpen.value = false;
+    accountMessage.value = '';
+    if (accountPanel.value === 'settings') {
+      profileName.value = accountSummary.value.user.displayName;
     }
+  } else {
+    accountPanel.value = '';
+  }
+}
+
+function openSettingsPanel() {
+  accountOpen.value = true;
+  membershipOpen.value = false;
+  accountPanel.value = 'settings';
+  profileName.value = accountSummary.value.user.displayName;
+}
+
+function openRechargePanel() {
+  accountOpen.value = true;
+  membershipOpen.value = false;
+  accountPanel.value = 'recharge';
+  accountMessage.value = '';
+}
+
+async function saveProfile() {
+  const nextName = profileName.value.trim();
+  if (!nextName) {
+    accountMessage.value = '昵称不能为空';
+    return;
+  }
+  profileSaving.value = true;
+  try {
+    const user = await updateAccountProfile({ userId: demoUserId, displayName: nextName });
+    accountSummary.value.user = {
+      ...accountSummary.value.user,
+      ...user
+    };
+    profileName.value = accountSummary.value.user.displayName;
+    accountMessage.value = '昵称已保存';
+  } finally {
+    profileSaving.value = false;
+  }
+}
+
+async function submitRecharge() {
+  accountMessage.value = '';
+  rechargeOrder.value = null;
+  try {
+    rechargeOrder.value = await createRechargeOrder({
+      userId: demoUserId,
+      packageKey: rechargePackageKey.value
+    });
+    accountMessage.value = rechargeOrder.value.message || '订单已创建';
+  } catch (error) {
+    accountMessage.value = error instanceof Error ? error.message : '创建订单失败';
+  }
+}
+
+function closeAccountPanels() {
+  accountOpen.value = false;
+  accountPanel.value = '';
+}
+
+function formatPoints(value: number) {
+  return new Intl.NumberFormat('zh-CN').format(value);
+}
+
+function handleScrollKeys(event: KeyboardEvent) {
+  if (!showChrome.value) {
+    return;
+  }
+  if (event.defaultPrevented) {
+    return;
+  }
+  const active = document.activeElement as HTMLElement | null;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT' || active.isContentEditable)) {
+    return;
+  }
+
+  const body = chromeBodyRef.value;
+  if (!body) {
+    return;
+  }
+
+  const pageStep = Math.max(220, body.clientHeight - 88);
+  if (event.key === 'PageDown' || (event.key === ' ' && !event.shiftKey)) {
+    event.preventDefault();
+    body.scrollBy({ top: pageStep, behavior: 'smooth' });
+    return;
+  }
+  if (event.key === 'PageUp' || (event.key === ' ' && event.shiftKey)) {
+    event.preventDefault();
+    body.scrollBy({ top: -pageStep, behavior: 'smooth' });
+    return;
+  }
+  if (event.key === 'Home') {
+    event.preventDefault();
+    body.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  if (event.key === 'End') {
+    event.preventDefault();
+    body.scrollTo({ top: body.scrollHeight, behavior: 'smooth' });
   }
 }
 </script>
@@ -100,8 +285,8 @@ async function toggleMembershipPanel() {
 <template>
   <div v-if="showChrome" class="portal-chrome-shell">
     <section class="brand-row">
-      <button class="logo" @click="goPage('home')">
-        <span class="logo-red">新商盟</span>
+      <button class="logo" type="button" @click="goPage('home')">
+        <span class="logo-red">新商机</span>
         <span class="logo-gold">OPC社区</span>
       </button>
 
@@ -112,12 +297,12 @@ async function toggleMembershipPanel() {
           placeholder="搜索你需要的 AI 助理、工具或模板"
           @focus="searchOpen = true"
         />
-        <button aria-label="搜索" type="submit"><Search :size="24" /></button>
+        <button aria-label="搜索" type="submit"><Search :size="22" /></button>
       </form>
 
       <section v-if="searchOpen && (searchQuery || searchResults.length)" class="search-results-panel">
         <span v-if="searching">搜索中...</span>
-        <button v-for="result in searchResults" :key="result.id + result.path" @click="openSearchResult(result)">
+        <button v-for="result in searchResults" :key="result.id + result.path" type="button" @click="openSearchResult(result)">
           <strong>{{ result.title }}</strong>
           <small>{{ result.subtitle || result.path }}</small>
         </button>
@@ -126,16 +311,115 @@ async function toggleMembershipPanel() {
 
       <div class="vip-strip">
         <span class="vip-mark">VIP</span>
-        <span>{{ membershipStatus?.active ? membershipStatus?.plan?.name || '会员已生效' : '开通会员，享 100+ 办公权益' }}</span>
-        <button type="button" @click="toggleMembershipPanel">{{ membershipStatus?.active ? '查看权益' : '会员状态' }}</button>
+        <span>{{ membership.active ? membership.plan?.name || '会员已生效' : '开通会员，享 100+ 办公权益' }}</span>
+        <button type="button" @click="toggleMembershipPanel">{{ membership.active ? '查看权益' : '会员状态' }}</button>
+      </div>
+
+      <div class="account-zone">
+        <button class="account-chip" type="button" @click="openAccountMenu">
+          <span class="account-avatar">{{ avatarLabel }}</span>
+          <span class="account-copy">
+            <strong>{{ accountName }}</strong>
+            <small>{{ pointsText }} 积分</small>
+          </span>
+          <ChevronDown :size="16" />
+        </button>
+
+        <section v-if="accountOpen" class="account-menu" @click.stop>
+          <header class="account-summary">
+            <div class="account-summary-user">
+              <span class="account-avatar account-avatar-large">{{ avatarLabel }}</span>
+              <span>
+                <strong>{{ accountName }}</strong>
+                <small>{{ accountPhone }}</small>
+              </span>
+            </div>
+            <div class="account-summary-points">
+              <strong>{{ pointsText }}</strong>
+              <span>可用积分</span>
+            </div>
+          </header>
+
+          <div class="account-meta">
+            <span>冻结 {{ frozenPointsText }}</span>
+            <button type="button" @click="toggleMembershipPanel">
+              <ShieldCheck :size="16" />
+              <span>{{ membership.active ? '会员权益' : '会员状态' }}</span>
+            </button>
+          </div>
+
+          <div class="account-menu-actions">
+            <button :class="{ active: accountPanel === 'settings' }" type="button" @click="openSettingsPanel">
+              <Settings :size="16" />
+              <span>账号设置</span>
+            </button>
+            <button :class="{ active: accountPanel === 'recharge' }" type="button" @click="openRechargePanel">
+              <ReceiptText :size="16" />
+              <span>积分充值</span>
+            </button>
+            <button type="button" @click="toggleMembershipPanel">
+              <CreditCard :size="16" />
+              <span>会员权益</span>
+            </button>
+          </div>
+
+          <section v-if="accountPanel === 'settings'" class="account-settings-panel">
+            <strong>账号设置</strong>
+            <label>
+              <span>昵称</span>
+              <input v-model="profileName" maxlength="64" placeholder="请输入昵称" />
+            </label>
+            <div class="panel-actions">
+              <button type="button" @click="closeAccountPanels">关闭</button>
+              <button :disabled="profileSaving" type="button" @click="saveProfile">
+                {{ profileSaving ? '保存中...' : '保存昵称' }}
+              </button>
+            </div>
+            <p v-if="accountMessage" class="panel-note">{{ accountMessage }}</p>
+          </section>
+
+          <section v-else-if="accountPanel === 'recharge'" class="recharge-panel">
+            <strong>积分充值</strong>
+            <div class="recharge-options">
+              <button
+                v-for="pkg in accountPackages"
+                :key="pkg.key"
+                :class="{ active: rechargePackageKey === pkg.key }"
+                type="button"
+                @click="rechargePackageKey = pkg.key"
+              >
+                <strong>{{ pkg.label }}</strong>
+                <small>{{ pkg.price }}</small>
+              </button>
+            </div>
+            <div class="recharge-summary">
+              <span>当前选择</span>
+              <strong>{{ currentRechargePackage.label }} · {{ currentRechargePackage.price }}</strong>
+            </div>
+            <div class="panel-actions">
+              <button type="button" @click="closeAccountPanels">关闭</button>
+              <button type="button" @click="submitRecharge">创建待支付订单</button>
+            </div>
+            <p class="panel-note">订单会保持 PENDING，实际到账仍由支付回调完成。</p>
+            <article v-if="rechargeOrder" class="recharge-order">
+              <strong>{{ rechargeOrder.status }}</strong>
+              <span>订单号 {{ rechargeOrder.providerOrderNo }}</span>
+              <span>{{ rechargeOrder.points }} 积分 · {{ rechargeOrder.amountCents / 100 }} 元</span>
+              <small>{{ rechargeOrder.message }}</small>
+            </article>
+            <p v-if="accountMessage" class="panel-note">{{ accountMessage }}</p>
+          </section>
+
+          <p v-else class="account-empty">从上面的按钮进入设置或充值。</p>
+        </section>
       </div>
 
       <section v-if="membershipOpen" class="membership-panel">
-        <strong>{{ membershipStatus?.active ? '会员权益已开启' : '当前为普通用户' }}</strong>
-        <p v-if="membershipStatus?.active">有效期至 {{ membershipStatus?.expires_at || '长期' }}</p>
-        <p v-else>第一轮不接真实支付，这里只展示站内会员状态和可用权益。</p>
+        <strong>{{ membership.active ? '会员权益已开启' : '当前为普通用户' }}</strong>
+        <p v-if="membership.active">有效期至 {{ membership.expiresAt || '长期' }}</p>
+        <p v-else>这里展示会员状态和可用权益，暂不接真实支付成功回调。</p>
         <ul>
-          <li v-for="entitlement in membershipStatus?.entitlements ?? ['模板下载', '社群入口', '高阶课程']" :key="entitlement">
+          <li v-for="entitlement in membership.entitlements.length > 0 ? membership.entitlements : ['模板下载', '社群入口', '高阶课程']" :key="entitlement">
             {{ entitlement }}
           </li>
         </ul>
@@ -147,13 +431,14 @@ async function toggleMembershipPanel() {
         v-for="channel in visibleChannels"
         :key="channel.key"
         :class="{ active: activePageKey === channel.key }"
+        type="button"
         @click="goPage(channel.key)"
       >
         {{ channel.label }}
       </button>
     </nav>
 
-    <div class="portal-chrome-body">
+    <div ref="chromeBodyRef" class="portal-chrome-body" tabindex="0">
       <slot />
     </div>
   </div>
@@ -163,6 +448,7 @@ async function toggleMembershipPanel() {
 <style scoped>
 .portal-chrome-shell {
   --portal-chrome-height: 136px;
+  height: 100vh;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -173,5 +459,7 @@ async function toggleMembershipPanel() {
 .portal-chrome-body {
   flex: 1;
   min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
 }
 </style>

@@ -15,6 +15,7 @@ from app.models import (
     ContentSection,
     ChatMessage,
     ChatSession,
+    HomeHeroSlide,
     MembershipPlan,
     ModelConfig,
     PromptTemplate,
@@ -28,10 +29,19 @@ from app.models import (
 from app.services.auth import hash_password
 
 
+BRAND_NAME = "新商机"
+DEMO_TENANT_NAME = BRAND_NAME
+DEMO_ORDER_SECTION_TITLE = f"{BRAND_NAME} 接单中心"
+LEGACY_DEMO_TENANT_NAMES = {"新商机 AI 社区", "新商盟 AI 社区", "OPC社区", "Light AI SaaS"}
+LEGACY_ORDER_SECTION_TITLES = {"OPC 接单中心"}
+
+
 def ensure_demo_data(session: Session, *, tenant_id: str = "demo") -> None:
     tenant = session.get(Tenant, tenant_id)
     if tenant is None:
-        session.add(Tenant(id=tenant_id, slug="demo", name="新商机 AI 社区"))
+        session.add(Tenant(id=tenant_id, slug="demo", name=DEMO_TENANT_NAME))
+    elif tenant.name in LEGACY_DEMO_TENANT_NAMES:
+        tenant.name = DEMO_TENANT_NAME
 
     user = session.get(User, "demo-user")
     if user is None:
@@ -52,6 +62,7 @@ def ensure_demo_data(session: Session, *, tenant_id: str = "demo") -> None:
         )
 
     _add_pages(session, tenant_id)
+    _add_home_hero_slides(session, tenant_id)
     _add_sections(session, tenant_id)
     _add_items(session, tenant_id)
     _add_assistants(session, tenant_id)
@@ -97,10 +108,79 @@ def _add_pages(session: Session, tenant_id: str) -> None:
             )
 
 
+def _add_home_hero_slides(session: Session, tenant_id: str) -> None:
+    slides = [
+        (
+            "home-slide-vip",
+            "会员活动限时特惠",
+            "开通会员解锁模板、社群和交付资料",
+            "会员专享",
+            "立即开通",
+            "查看权益，不走支付",
+            "/membership/benefits",
+            10,
+            {"accent": "gold", "theme": "vip"},
+        ),
+        (
+            "home-slide-template",
+            "模板上新不停",
+            "PPT、报价单、社媒和交付模板持续更新",
+            "今日上新",
+            "立即查看",
+            "今天就能直接用",
+            "/templates",
+            20,
+            {"accent": "blue", "theme": "template"},
+        ),
+        (
+            "home-slide-community",
+            "社群和工作台一起用",
+            "入门群、打卡群、接单群和资源群都在这里",
+            "社群活跃",
+            "进入社群",
+            "打开首页就能直达",
+            "/community/starter",
+            30,
+            {"accent": "green", "theme": "community"},
+        ),
+    ]
+    for id_, title, subtitle, badge, cta_label, cta_subtitle, action_value, order, metadata in slides:
+        existing = session.get(HomeHeroSlide, id_)
+        if existing is None:
+            session.add(
+                HomeHeroSlide(
+                    id=id_,
+                    tenant_id=tenant_id,
+                    title=title,
+                    subtitle=subtitle,
+                    badge=badge,
+                    cta_label=cta_label,
+                    cta_subtitle=cta_subtitle,
+                    image_url="",
+                    action_type="route",
+                    action_value=action_value,
+                    sort_order=order,
+                    enabled=True,
+                    metadata_json=metadata,
+                )
+            )
+        else:
+            existing.title = title
+            existing.subtitle = subtitle
+            existing.badge = badge
+            existing.cta_label = cta_label
+            existing.cta_subtitle = cta_subtitle
+            existing.action_value = action_value
+            existing.sort_order = order
+            existing.enabled = True
+            existing.metadata_json = metadata
+
+
 def _add_sections(session: Session, tenant_id: str) -> None:
     sections = _section_definitions()
     for id_, area, key, title, subtitle, layout, order in sections:
-        if session.get(ContentSection, id_) is None:
+        existing = session.get(ContentSection, id_)
+        if existing is None:
             session.add(
                 ContentSection(
                     id=id_,
@@ -114,6 +194,8 @@ def _add_sections(session: Session, tenant_id: str) -> None:
                     enabled=True,
                 )
             )
+        elif id_ == "section-orders" and existing.title in LEGACY_ORDER_SECTION_TITLES:
+            existing.title = title
 
 
 def _add_items(session: Session, tenant_id: str) -> None:
@@ -125,6 +207,14 @@ def _add_items(session: Session, tenant_id: str) -> None:
             category=category,
             action_value=action_value,
         )
+        custom_metadata = _third_party_tool_metadata(
+            item_id=id_,
+            title=title,
+            subtitle=subtitle,
+            action_value=action_value,
+        )
+        if custom_metadata:
+            metadata = _merge_item_metadata(metadata, custom_metadata)
         existing = session.get(ContentItem, id_)
         if existing is None:
             session.add(
@@ -154,9 +244,12 @@ def _add_items(session: Session, tenant_id: str) -> None:
 def _section_definitions() -> list[tuple[str, str, str, str, str, str, int]]:
     sections = [
         ("section-learning", "home", "learning_center", "常用AI学习中心", "课程、实战和变现路径", "learning-grid", 10),
-        ("section-orders", "home", "order_center", "OPC 接单中心", "适合新手和团队交付的接单入口", "order-grid", 20),
+        ("section-orders", "home", "order_center", DEMO_ORDER_SECTION_TITLE, "适合新手和团队交付的接单入口", "order-grid", 20),
         ("section-communities", "home", "communities", "兴趣社群", "按成长阶段和赛道加入社群", "banner-row", 30),
         ("section-banners", "home", "banners", "热门活动", "模板、活动和会员福利", "promo", 40),
+        ("section-home-promo", "home", "membership_benefits", "会员权益详情", "一键查看会员专享内容", "promo-carousel", 15),
+        ("section-home-workbench", "home", "workbench_shortcuts", "我的工作台", "AI 对话、图片生成、视频脚本、PPT 办公、接单交付、素材库", "tool-grid", 16),
+        ("section-home-tools", "home", "home_tools", "工具框", "常用工具、办公模板、接单报价、内容生成、电商优化", "tool-grid", 35),
         ("section-quick-start", "home", "quick_start", "新人快速上手", "账号、工具和首个提示词任务", "task-list", 50),
         ("section-growth-path", "home", "growth_path", "进阶成长路径", "训练营、作业拆解和案例复盘", "learning-grid", 60),
         ("section-earning-templates", "home", "earning_templates", "接单交付模板", "报价、验收和复购跟进", "template-list", 70),
@@ -164,6 +257,7 @@ def _section_definitions() -> list[tuple[str, str, str, str, str, str, int]]:
         ("section-project-cocreation", "home", "project_cocreation", "项目共创广场", "组队招募、协作交付和共创案例", "order-grid", 90),
         ("section-workspace-tools", "home", "workspace_tools", "常用工作台", "高频 AI 工具一键启动", "tool-grid", 100),
         ("section-task-board", "home", "task_board", "任务入口", "最近使用、待交付项目和素材库", "stat-strip", 110),
+        ("section-third-party-tools", "home", "third_party_tools", "第三方工具展示区", "外部工具、官网链接和客户端下载入口", "third-party-tools", 115),
         ("section-toolkit", "home", "toolkit", "专业工具包", "模板列表、行业工具和效率组件", "template-list", 120),
         ("section-template-ranking", "home", "template_ranking", "工具包排行榜", "近期高频使用模板", "ranking-list", 130),
     ]
@@ -201,6 +295,19 @@ def _item_definitions() -> list[tuple[str, str, str, str, str, str, str, str, st
         ("banner-01", "section-banners", "banner", "热门模板上新！", "一键轻松取用办公模板", "运营活动", "Gift", "linear-red", "route", "/templates", 10, True, 0),
         ("banner-02", "section-banners", "banner", "商业计划书模板", "融资路演、商业策划、项目计划", "专业工具包", "ChartColumn", "linear-blue", "route", "/templates/business", 20, True, 0),
         ("banner-03", "section-banners", "banner", "资源内测邀请", "优先体验新的合作资源和资料包", "资源对接", "Sparkles", "linear-purple", "route", "/resources/trial", 30, False, 0),
+        ("banner-vip", "section-home-promo", "banner", "会员活动限时特惠", "开通会员领取模板、社群和接单资料", "会员专享", "Crown", "", "route", "/membership/benefits", 15, True, 0),
+        ("home-vip-1", "section-home-promo", "promo", "会员权益详情", "查看会员专享模板、社群和资料", "会员专享", "Crown", "", "route", "/membership/benefits", 10, False, 0),
+        ("home-workbench-1", "section-home-workbench", "tool", "AI 对话", "写作、问答和方案梳理", "应用工作台", "Bot", "", "route", "/workbench", 10, False, 0),
+        ("home-workbench-2", "section-home-workbench", "tool", "图片生成", "海报、封面和详情图", "应用工作台", "Image", "", "route", "/workbench/image", 20, False, 0),
+        ("home-workbench-3", "section-home-workbench", "tool", "视频脚本", "选题、分镜和口播脚本", "应用工作台", "MonitorPlay", "", "route", "/workbench/video", 30, False, 0),
+        ("home-workbench-4", "section-home-workbench", "tool", "PPT 办公", "大纲到页面快速生成", "应用工作台", "Presentation", "", "route", "/workspace/ppt", 40, False, 0),
+        ("home-workbench-5", "section-home-workbench", "tool", "接单交付", "报价、交付和复购跟进", "接单变现", "BriefcaseBusiness", "", "route", "/workspace/deliveries", 50, True, 0),
+        ("home-workbench-6", "section-home-workbench", "tool", "素材库", "图片、模板和提示词资产", "应用工作台", "CloudUpload", "", "route", "/workspace/assets", 60, True, 0),
+        ("home-tool-1", "section-home-tools", "template", "常用工具", "高频 AI 工具入口集合", "工具框", "LayoutGrid", "", "route", "/workbench", 10, False, 0),
+        ("home-tool-2", "section-home-tools", "template", "办公模板", "PPT、表格和会议纪要模板", "工具框", "Presentation", "", "route", "/toolkit/office", 20, False, 0),
+        ("home-tool-3", "section-home-tools", "template", "接单报价", "报价、验收和复购话术", "接单变现", "ReceiptText", "", "route", "/templates/quote", 30, False, 0),
+        ("home-tool-4", "section-home-tools", "template", "内容生成", "文案、脚本和社媒内容", "增长", "Feather", "", "route", "/marketing", 40, False, 0),
+        ("home-tool-5", "section-home-tools", "template", "电商优化", "标题、详情页和客服话术", "电商", "WandSparkles", "", "route", "/workspace/ecommerce", 50, True, 0),
         ("quick-01", "section-quick-start", "task", "配置个人 AI 工具箱", "完成账号、常用模型和提示词收藏", "基础必备", "LayoutGrid", "", "route", "/workspace/setup", 10, False, 0),
         ("quick-02", "section-quick-start", "task", "完成首个提示词任务", "用模板生成一份可交付内容", "基础必备", "Sparkles", "", "route", "/workspace/first-task", 20, False, 0),
         ("quick-03", "section-quick-start", "task", "领取新手资料包", "下载工具清单、学习路线和案例库", "基础必备", "Download", "", "route", "/resources/starter-kit", 30, False, 0),
@@ -224,6 +331,10 @@ def _item_definitions() -> list[tuple[str, str, str, str, str, str, str, str, st
         ("task-01", "section-task-board", "task", "最近使用", "继续上次的工具和内容生成任务", "应用工作台", "Clock3", "", "route", "/workspace/recent", 10, False, 0),
         ("task-02", "section-task-board", "task", "待交付项目", "查看接单任务、素材和交付节点", "应用工作台", "BriefcaseBusiness", "", "route", "/workspace/deliveries", 20, True, 0),
         ("task-03", "section-task-board", "task", "素材库", "管理上传图片、模板和提示词资产", "应用工作台", "CloudUpload", "", "route", "/workspace/assets", 30, True, 0),
+        ("third-tool-jianying", "section-third-party-tools", "third_party_tool", "剪映专业版", "视频剪辑与模板包装", "视频", "Scissors", "", "external_link", "https://example.com/tools/jianying", 10, False, 0),
+        ("third-tool-feishu", "section-third-party-tools", "third_party_tool", "飞书多维表格", "项目表格与团队协作", "办公", "Sheet", "", "external_link", "https://example.com/tools/feishu-base", 20, False, 0),
+        ("third-tool-meeting", "section-third-party-tools", "third_party_tool", "腾讯会议", "远程沟通与交付复盘", "协作", "Users", "", "external_link", "https://example.com/tools/meeting", 30, False, 0),
+        ("third-tool-apifox", "section-third-party-tools", "third_party_tool", "Apifox", "接口调试与接口文档", "开发", "Workflow", "", "external_link", "https://example.com/tools/apifox", 40, False, 0),
         ("toolkit-01", "section-toolkit", "template", "商业计划书套件", "路演大纲、财务假设和页面结构", "专业工具包", "ChartColumn", "", "route", "/toolkit/business-plan", 10, True, 0),
         ("toolkit-02", "section-toolkit", "template", "短视频脚本套件", "选题、分镜、标题和口播脚本", "专业工具包", "FileVideo", "", "route", "/toolkit/video-script", 20, True, 0),
         ("toolkit-03", "section-toolkit", "template", "合同审查清单", "常见风险条款和修改建议模板", "专业工具包", "Scale", "", "route", "/toolkit/legal", 30, True, 0),
@@ -815,6 +926,61 @@ def _default_item_metadata(*, title: str, subtitle: str, category: str, action_v
             "secondaryActions": [{"key": "favorite", "label": "收藏"}],
             "download": download,
         }
+    }
+
+
+def _merge_item_metadata(base: dict, override: dict) -> dict:
+    return {
+        **base,
+        **override,
+        "detail": {
+            **base.get("detail", {}),
+            **override.get("detail", {}),
+        },
+    }
+
+
+def _third_party_tool_metadata(*, item_id: str, title: str, subtitle: str, action_value: str) -> dict:
+    brand_marks = {
+        "third-tool-jianying": "JY",
+        "third-tool-feishu": "FS",
+        "third-tool-meeting": "TX",
+        "third-tool-apifox": "AP",
+    }
+    download_urls = {
+        "third-tool-jianying": "https://example.com/downloads/jianying",
+        "third-tool-feishu": "https://example.com/downloads/feishu",
+        "third-tool-meeting": "https://example.com/downloads/meeting",
+        "third-tool-apifox": "https://example.com/downloads/apifox",
+    }
+    if item_id not in brand_marks:
+        return {}
+    return {
+        "brandMark": brand_marks[item_id],
+        "summary": subtitle,
+        "detail": {
+            "summary": subtitle or f"{title} 的官网和客户端下载入口。",
+            "highlights": [
+                "支持官网访问和客户端下载",
+                "可在管理端维护跳转链接",
+                "适合沉淀常用第三方工具",
+            ],
+            "steps": [
+                "查看工具用途",
+                "访问官网确认适用版本",
+                "点击下载客户端",
+            ],
+            "deliverables": [
+                "第三方工具官网入口",
+                "客户端下载链接",
+            ],
+            "primaryAction": {"key": "download", "label": "下载客户端"},
+            "download": {
+                "fileName": f"{item_id}.url",
+                "url": download_urls[item_id],
+                "sourceUrl": action_value,
+            },
+        },
     }
 
 

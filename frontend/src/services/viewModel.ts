@@ -67,6 +67,7 @@ export interface PortalItem {
   effectivePointCost?: number;
   modelConfig?: ModelConfigSummary | null;
   metadata: Record<string, any>;
+  menuKeys?: string[];
 }
 
 export interface PortalSection {
@@ -94,6 +95,44 @@ export interface PortalPageConfig {
   tenantId: string;
   page: PageConfigSummary;
   sections: PortalSection[];
+}
+
+export interface HomeDashboardSlide {
+  id: string;
+  tenantId?: string;
+  title: string;
+  subtitle: string;
+  badge: string;
+  ctaLabel: string;
+  ctaSubtitle: string;
+  imageUrl: string;
+  actionType: string;
+  actionValue: string;
+  sortOrder: number;
+  enabled: boolean;
+  metadata: Record<string, any>;
+}
+
+export interface HomeDashboardKpiCard {
+  id: string;
+  label: string;
+  value: string;
+  trend: string;
+  icon: string;
+  tone: string;
+  actionType: string;
+  actionValue: string;
+}
+
+export interface HomeDashboardModel {
+  tenantId: string;
+  page: PageConfigSummary;
+  sections: PortalSection[];
+  heroSlides: HomeDashboardSlide[];
+  kpiCards: HomeDashboardKpiCard[];
+  workbenchShortcuts: PortalItem[];
+  communityCards: PortalItem[];
+  toolCards: PortalItem[];
 }
 
 export interface AssistantCard {
@@ -133,6 +172,109 @@ export interface ToolModelBindingSummary {
   modelConfig?: ModelConfigSummary | null;
 }
 
+export interface AdminOverviewSummary {
+  tenantId?: string;
+  users: {
+    total: number;
+    active: number;
+    admins: number;
+  };
+  membershipPlans: {
+    total: number;
+    enabled: number;
+  };
+  wallets: {
+    totalBalance: number;
+    frozenBalance: number;
+  };
+  content: {
+    pages: number;
+    sections: number;
+    items: number;
+  };
+  models: {
+    channels: number;
+    modelConfigs: number;
+    bindings: number;
+  };
+  recentLogs: AdminAuditLogSummary[];
+}
+
+export interface AdminUserSummary {
+  id: string;
+  tenantId?: string;
+  phone: string;
+  displayName: string;
+  role: string;
+  status: string;
+  balance: number;
+  frozenBalance: number;
+  currency: string;
+  membershipPlanId?: string | null;
+  membershipPlanKey?: string | null;
+  membershipPlanName?: string | null;
+  membershipStatus?: string | null;
+  membershipExpiresAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface AdminMembershipPlanSummary {
+  id: string;
+  tenantId?: string;
+  planKey: string;
+  name: string;
+  priceCents: number;
+  durationDays: number;
+  entitlements: string[];
+  enabled: boolean;
+  sortOrder: number;
+  activeUserCount: number;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface AdminUserMembershipSummary {
+  id: string;
+  tenantId?: string;
+  userId: string;
+  userDisplayName: string;
+  userPhone: string;
+  plan: AdminMembershipPlanSummary;
+  status: string;
+  startedAt?: string | null;
+  expiresAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface AdminWalletTransactionSummary {
+  id: string;
+  tenantId?: string;
+  userId: string;
+  userDisplayName: string;
+  requestKey: string;
+  amount: number;
+  balanceAfter: number;
+  type: string;
+  remark: string;
+  relatedRef: string;
+  createdAt?: string | null;
+}
+
+export interface AdminAuditLogSummary {
+  id: string;
+  tenantId?: string;
+  actorUserId: string;
+  actorDisplayName: string;
+  actorRole: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  summary: string;
+  createdAt?: string | null;
+}
+
 export interface AssistantCenter {
   categories: string[];
   featured: AssistantCard[];
@@ -167,6 +309,54 @@ export interface AudioTask {
   errorMessage?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+}
+
+export interface AccountUser {
+  id: string;
+  tenantId?: string;
+  phone: string;
+  displayName: string;
+  role: string;
+  status: string;
+}
+
+export interface AccountWallet {
+  balance: number;
+  frozenBalance: number;
+  currency: string;
+}
+
+export interface MembershipSummary {
+  active: boolean;
+  plan: {
+    id: string;
+    planKey: string;
+    name: string;
+  } | null;
+  expiresAt?: string | null;
+  entitlements: string[];
+}
+
+export interface AccountSummary {
+  user: AccountUser;
+  wallet: AccountWallet;
+  membership: MembershipSummary;
+}
+
+export interface RechargeOrder {
+  id: string;
+  tenantId?: string;
+  userId: string;
+  provider: string;
+  providerOrderNo: string;
+  requestKey: string;
+  packageKey: string;
+  amountCents: number;
+  points: number;
+  status: string;
+  message: string;
+  createdAt?: string | null;
+  paidAt?: string | null;
 }
 
 export interface MarketingMetric {
@@ -454,6 +644,8 @@ const fallbackPages: PageConfigSummary[] = [
 ];
 
 const DEFAULT_HOME_MENU_KEY = 'basic';
+const HOME_PAGE_KEY = 'home';
+export const HOME_PROMO_CAROUSEL_LAYOUT = 'promo-carousel';
 const MARKETING_PAGE_KEY = 'marketing';
 const IMAGE_PAGE_KEY = 'image';
 const AUDIO_PAGE_KEY = 'audio';
@@ -530,10 +722,10 @@ const homeMenuRules: Record<string, HomeMenuRule> = {
   toolkit: {
     key: 'toolkit',
     title: '专业工具包',
-    subtitle: '模板列表、行业工具、效率组件和排行榜',
+    subtitle: '模板列表、行业工具、效率组件和第三方下载入口',
     icon: 'BriefcaseBusiness',
     hint: '模板排行',
-    sectionKeys: ['toolkit', 'template_ranking', 'banners'],
+    sectionKeys: ['third_party_tools', 'banners', 'toolkit', 'template_ranking'],
     categories: ['专业工具包']
   }
 };
@@ -546,7 +738,11 @@ export function formatUsageCount(count: number): string {
 }
 
 export function shouldShowHomeSidebar(pageKey: string): boolean {
-  return pageKey === 'home';
+  return pageKey === HOME_PAGE_KEY;
+}
+
+export function shouldUseHomeDashboardPage(pageKey: string, menuKey = DEFAULT_HOME_MENU_KEY): boolean {
+  return pageKey === HOME_PAGE_KEY && menuKey === DEFAULT_HOME_MENU_KEY;
 }
 
 export function shouldUseAssistantPage(pageKey: string): boolean {
@@ -609,7 +805,7 @@ export function shouldUseVideoPage(pageKey: string): boolean {
 }
 
 export function shouldHideWorkspaceDock(pageKey: string): boolean {
-  return shouldUseCodingPage(pageKey) || shouldUseWritingPage(pageKey);
+  return shouldUseHomeDashboardPage(pageKey) || shouldUseCodingPage(pageKey) || shouldUseWritingPage(pageKey);
 }
 
 export function groupChatSessionsByRecency(
@@ -653,7 +849,8 @@ export function createHomeMenuPageConfig(pageConfig: PortalPageConfig, menuKey: 
   const rule = homeMenuRules[menuKey] ?? homeMenuRules[DEFAULT_HOME_MENU_KEY];
   const sections = pageConfig.sections
     .map((sectionItem) => filterHomeSection(sectionItem, rule))
-    .filter((sectionItem): sectionItem is PortalSection => Boolean(sectionItem));
+    .filter((sectionItem): sectionItem is PortalSection => Boolean(sectionItem))
+    .sort((left, right) => homeSectionOrder(left, rule) - homeSectionOrder(right, rule));
 
   return {
     ...pageConfig,
@@ -678,6 +875,116 @@ function filterHomeSection(sectionItem: PortalSection, rule: HomeMenuRule): Port
   return {
     ...sectionItem,
     items: matchedItems.length > 0 ? matchedItems : sectionItem.items
+  };
+}
+
+export function buildHomeDashboardModel(
+  pageConfig: PortalPageConfig,
+  dashboard: HomeDashboardModel | null = null
+): HomeDashboardModel {
+  const fallback = createFallbackHomeDashboard(pageConfig);
+  const source = dashboard ?? fallback;
+  return {
+    tenantId: source.tenantId || pageConfig.tenantId,
+    page: source.page?.pageKey ? source.page : pageConfig.page,
+    sections: pageConfig.sections,
+    heroSlides: source.heroSlides.length > 0 ? source.heroSlides : fallback.heroSlides,
+    kpiCards: source.kpiCards.length > 0 ? source.kpiCards : fallback.kpiCards,
+    workbenchShortcuts: source.workbenchShortcuts.length > 0 ? source.workbenchShortcuts : fallback.workbenchShortcuts,
+    communityCards: source.communityCards.length > 0 ? source.communityCards : fallback.communityCards,
+    toolCards: source.toolCards.length > 0 ? source.toolCards : fallback.toolCards
+  };
+}
+
+export function createFallbackHomeDashboard(pageConfig: PortalPageConfig = createFallbackPageConfig(HOME_PAGE_KEY)): HomeDashboardModel {
+  const page = pageConfig.page.pageKey === HOME_PAGE_KEY ? pageConfig.page : createFallbackPageConfig(HOME_PAGE_KEY).page;
+  const workbenchShortcuts = [
+    withMenuKeys(item('home-workbench-chat', 'tool', 'AI 对话', '写作、问答和方案梳理', '应用工作台', 'Bot', '/workbench', false, 0), ['workspace']),
+    withMenuKeys(item('home-workbench-image', 'tool', '图片生成', '海报、封面和详情图', '应用工作台', 'Image', '/workbench/image', false, 0), ['workspace']),
+    withMenuKeys(item('home-workbench-video', 'tool', '视频脚本', '选题、分镜和口播脚本', '应用工作台', 'MonitorPlay', '/workbench/video', false, 0), ['workspace']),
+    withMenuKeys(item('home-workbench-ppt', 'tool', 'PPT 办公', '大纲到页面快速生成', '应用工作台', 'Presentation', '/workspace/ppt', false, 0), ['workspace']),
+    withMenuKeys(item('home-workbench-delivery', 'tool', '接单交付', '报价、交付和复购跟进', '接单变现', 'BriefcaseBusiness', '/workspace/deliveries', false, 0), ['orders']),
+    withMenuKeys(item('home-workbench-assets', 'tool', '素材库', '图片、模板和提示词资产', '应用工作台', 'CloudUpload', '/workspace/assets', false, 0), ['resources', 'workspace'])
+  ];
+  const communityCards = [
+    withMenuKeys(item('home-community-starter', 'community', '入门交流群', '新人答疑、工具清单和上手路线', '社群', 'MessageCircle', '/community/starter', false, 0), ['basic', 'growth']),
+    withMenuKeys(item('home-community-study', 'community', '学习打卡群', '每日任务、案例拆解和作业反馈', '学习成长', 'GraduationCap', '/community/study', true, 0), ['growth']),
+    withMenuKeys(item('home-community-orders', 'community', '接单变现群', '接单案例、报价模板和交付流程', '接单变现', 'Handshake', '/community/orders', true, 0), ['orders']),
+    withMenuKeys(item('home-community-resources', 'community', '资源对接群', '工具资源、客户线索和行业资料交换', '资源对接', 'Network', '/community/resources', true, 0), ['resources', 'toolkit'])
+  ];
+  const toolCards = [
+    withMenuKeys(item('home-tool-common', 'template', '常用工具', '高频 AI 工具入口集合', '工作台', 'LayoutGrid', '/workbench', false, 0), ['basic', 'workspace']),
+    withMenuKeys(item('home-tool-office', 'template', '办公模板', 'PPT、表格和会议纪要模板', '工具框', 'Presentation', '/toolkit/office', true, 0), ['workspace', 'toolkit']),
+    withMenuKeys(item('home-tool-quote', 'template', '接单报价', '报价、验收和复购话术', '接单变现', 'ReceiptText', '/templates/quote', true, 0), ['orders']),
+    withMenuKeys(item('home-tool-copy', 'template', '内容生成', '文案、脚本和社媒内容', '增长', 'Feather', '/marketing', false, 0), ['growth', 'orders']),
+    withMenuKeys(item('home-tool-ecommerce', 'template', '电商优化', '标题、详情页和客服话术', '电商', 'WandSparkles', '/workspace/ecommerce', true, 0), ['orders', 'resources'])
+  ];
+
+  return {
+    tenantId: pageConfig.tenantId || 'demo',
+    page,
+    sections: pageConfig.sections,
+    heroSlides: [
+      {
+        id: 'home-slide-vip',
+        title: '会员活动限时特惠',
+        subtitle: '开通会员解锁模板、社群和交付资料',
+        badge: '会员专享',
+        ctaLabel: '立即开通',
+        ctaSubtitle: '查看权益，不走支付',
+        imageUrl: '',
+        actionType: 'route',
+        actionValue: '/membership/benefits',
+        sortOrder: 10,
+        enabled: true,
+        metadata: { accent: 'gold', theme: 'vip' }
+      },
+      {
+        id: 'home-slide-template',
+        title: '模板上新不停',
+        subtitle: 'PPT、报价单、社媒和交付模板持续更新',
+        badge: '今日上新',
+        ctaLabel: '立即查看',
+        ctaSubtitle: '今天就能直接用',
+        imageUrl: '',
+        actionType: 'route',
+        actionValue: '/templates',
+        sortOrder: 20,
+        enabled: true,
+        metadata: { accent: 'blue', theme: 'template' }
+      },
+      {
+        id: 'home-slide-community',
+        title: '社群和工作台一起用',
+        subtitle: '入门群、打卡群、接单群和资源群都在这里',
+        badge: '社群活跃',
+        ctaLabel: '进入社群',
+        ctaSubtitle: '打开首页就能直达',
+        imageUrl: '',
+        actionType: 'route',
+        actionValue: '/community/starter',
+        sortOrder: 30,
+        enabled: true,
+        metadata: { accent: 'green', theme: 'community' }
+      }
+    ],
+    kpiCards: [
+      { id: 'today-new', label: '今日上新', value: '3', trend: '模板与活动持续更新', icon: 'Sparkles', tone: 'blue', actionType: 'route', actionValue: '/templates' },
+      { id: 'vip-exclusive', label: '会员专享', value: '18', trend: '权益与内容已就绪', icon: 'Crown', tone: 'gold', actionType: 'route', actionValue: '/membership/benefits' },
+      { id: 'todo-task', label: '待办任务', value: '6', trend: '继续处理工作台任务', icon: 'CheckSquare', tone: 'orange', actionType: 'route', actionValue: '/workbench' },
+      { id: 'community-active', label: '社群活跃', value: '32', trend: '社群与工具持续补充', icon: 'Users', tone: 'green', actionType: 'route', actionValue: '/community/starter' }
+    ],
+    workbenchShortcuts,
+    communityCards,
+    toolCards
+  };
+}
+
+function withMenuKeys(itemItem: PortalItem, menuKeys: string[]): PortalItem {
+  return {
+    ...itemItem,
+    menuKeys,
+    metadata: { ...itemItem.metadata, menuKeys }
   };
 }
 
@@ -1080,7 +1387,7 @@ export function createFallbackPortalConfig(): PortalConfig {
         item('learn-05', 'course', '《AI 进阶实战营》', '从工具使用到项目交付的系统训练', '学习成长', 'NotebookTabs', '/workspace/course/advanced', true, 30),
         item('learn-06', 'course', '《AI 项目交付训练》', '拆解真实客户需求并完成可复用方案', '项目共创', 'BriefcaseBusiness', '/workspace/course/project', true, 30)
       ]),
-      section('section-orders', 'home', 'order_center', 'OPC 接单中心', 'order-grid', [
+      section('section-orders', 'home', 'order_center', '新商机 接单中心', 'order-grid', [
         item('order-01', 'service', 'AI创作订单', 'PPT、文案、图片与短视频交付', '接单变现', 'Feather', '/workspace/orders', true, 20),
         item('order-02', 'service', 'AI自动化定制', '为客户定制办公自动化流程', '项目共创', 'FileText', '/workspace/automation', true, 50),
         item('order-03', 'service', 'AI电商优化', '商品标题、详情页与客服话术', 'AI电商', 'WandSparkles', '/workspace/ecommerce', true, 30),
@@ -1140,6 +1447,12 @@ export function createFallbackPortalConfig(): PortalConfig {
         item('toolkit-02', 'template', '短视频脚本套件', '选题、分镜、标题和口播脚本', '专业工具包', 'FileVideo', '/toolkit/video-script', true, 0),
         item('toolkit-03', 'template', '合同审查清单', '常见风险条款和修改建议模板', '专业工具包', 'Scale', '/toolkit/legal', true, 0),
         item('toolkit-04', 'template', '办公自动化组件', '表格、邮件和审批流程提示词', '专业工具包', 'Workflow', '/toolkit/office', true, 0)
+      ]),
+      section('section-third-party-tools', 'home', 'third_party_tools', '第三方工具展示区', 'third-party-tools', [
+        thirdPartyTool('third-tool-jianying', '剪映专业版', '视频剪辑与模板包装', '视频', 'JY', 'https://example.com/tools/jianying', 'https://example.com/downloads/jianying'),
+        thirdPartyTool('third-tool-feishu', '飞书多维表格', '项目表格与团队协作', '办公', 'FS', 'https://example.com/tools/feishu-base', 'https://example.com/downloads/feishu'),
+        thirdPartyTool('third-tool-meeting', '腾讯会议', '远程沟通与交付复盘', '协作', 'TX', 'https://example.com/tools/meeting', 'https://example.com/downloads/meeting'),
+        thirdPartyTool('third-tool-apifox', 'Apifox', '接口调试与接口文档', '开发', 'AP', 'https://example.com/tools/apifox', 'https://example.com/downloads/apifox')
       ]),
       section('section-template-ranking', 'home', 'template_ranking', '工具包排行榜', 'ranking-list', [
         item('rank-01', 'ranking', 'PPT 提案模板', '近 7 日 12.8 万次使用', '专业工具包', 'Presentation', '/toolkit/ranking/ppt', false, 0),
@@ -1242,6 +1555,59 @@ export function normalizePageConfig(payload: any): PortalPageConfig {
     tenantId: payload.tenant_id ?? payload.tenantId ?? 'demo',
     page: normalizePageSummary(payload.page ?? {}),
     sections: (payload.sections ?? []).map(normalizeSection)
+  };
+}
+
+export function normalizeHomeDashboard(payload: any): HomeDashboardModel {
+  const fallback = createFallbackHomeDashboard();
+  const normalized: HomeDashboardModel = {
+    tenantId: payload.tenant_id ?? payload.tenantId ?? fallback.tenantId,
+    page: normalizePageSummary(payload.page ?? fallback.page),
+    sections: (payload.sections ?? []).map(normalizeSection),
+    heroSlides: (payload.hero_slides ?? payload.heroSlides ?? []).map(normalizeHomeDashboardSlide),
+    kpiCards: (payload.kpi_cards ?? payload.kpiCards ?? []).map(normalizeHomeDashboardKpiCard),
+    workbenchShortcuts: (payload.workbench_shortcuts ?? payload.workbenchShortcuts ?? []).map(normalizePortalItem),
+    communityCards: (payload.community_cards ?? payload.communityCards ?? []).map(normalizePortalItem),
+    toolCards: (payload.tool_cards ?? payload.toolCards ?? []).map(normalizePortalItem)
+  };
+  return buildHomeDashboardModel(
+    {
+      tenantId: normalized.tenantId,
+      page: normalized.page,
+      sections: normalized.sections
+    },
+    normalized
+  );
+}
+
+export function normalizeHomeDashboardSlide(payload: any): HomeDashboardSlide {
+  return {
+    id: payload.id ?? '',
+    tenantId: payload.tenant_id ?? payload.tenantId,
+    title: payload.title ?? '',
+    subtitle: payload.subtitle ?? '',
+    badge: payload.badge ?? '',
+    ctaLabel: payload.cta_label ?? payload.ctaLabel ?? '立即查看',
+    ctaSubtitle: payload.cta_subtitle ?? payload.ctaSubtitle ?? '',
+    imageUrl: payload.image_url ?? payload.imageUrl ?? '',
+    actionType: payload.action_type ?? payload.actionType ?? 'route',
+    actionValue: payload.action_value ?? payload.actionValue ?? '',
+    sortOrder: Number(payload.sort_order ?? payload.sortOrder ?? 100),
+    enabled: Boolean(payload.enabled ?? true),
+    metadata: normalizeMetadata(payload.metadata_json ?? payload.metadataJson ?? payload.metadata)
+  };
+}
+
+export function normalizeHomeDashboardKpiCard(payload: any): HomeDashboardKpiCard {
+  return {
+    id: payload.id ?? '',
+    label: payload.label ?? '',
+    value: String(payload.value ?? ''),
+    trend: payload.trend ?? '',
+    icon: payload.icon ?? 'Sparkles',
+    tone: payload.tone ?? 'blue',
+    actionType: payload.action_type ?? payload.actionType ?? 'route',
+    actionValue: payload.action_value ?? payload.actionValue ?? ''
   };
 }
 
@@ -1401,6 +1767,68 @@ export function normalizeAudioTask(payload: any): AudioTask {
     errorMessage: payload.error_message ?? payload.errorMessage ?? null,
     createdAt: payload.created_at ?? payload.createdAt ?? null,
     updatedAt: payload.updated_at ?? payload.updatedAt ?? null
+  };
+}
+
+function homeSectionOrder(sectionItem: PortalSection, rule: HomeMenuRule): number {
+  const index = rule.sectionKeys.indexOf(sectionItem.sectionKey);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+}
+
+export function normalizeAccountSummary(payload: any): AccountSummary {
+  return {
+    user: normalizeAccountUser(payload.user ?? {}),
+    wallet: {
+      balance: Number(payload.wallet?.balance ?? 0),
+      frozenBalance: Number(payload.wallet?.frozen_balance ?? payload.wallet?.frozenBalance ?? 0),
+      currency: payload.wallet?.currency ?? 'POINT'
+    },
+    membership: normalizeMembershipSummary(payload.membership ?? {})
+  };
+}
+
+export function normalizeAccountUser(payload: any): AccountUser {
+  return {
+    id: payload.id ?? 'demo-user',
+    tenantId: payload.tenant_id ?? payload.tenantId,
+    phone: payload.phone ?? '',
+    displayName: payload.display_name ?? payload.displayName ?? '演示用户',
+    role: payload.role ?? 'USER',
+    status: payload.status ?? 'ACTIVE'
+  };
+}
+
+export function normalizeMembershipSummary(payload: any): MembershipSummary {
+  const planPayload = payload.plan ?? null;
+  return {
+    active: Boolean(payload.active),
+    plan: planPayload
+      ? {
+          id: planPayload.id ?? '',
+          planKey: planPayload.plan_key ?? planPayload.planKey ?? '',
+          name: planPayload.name ?? ''
+        }
+      : null,
+    expiresAt: payload.expires_at ?? payload.expiresAt ?? null,
+    entitlements: payload.entitlements ?? []
+  };
+}
+
+export function normalizeRechargeOrder(payload: any): RechargeOrder {
+  return {
+    id: payload.id ?? '',
+    tenantId: payload.tenant_id ?? payload.tenantId,
+    userId: payload.user_id ?? payload.userId ?? 'demo-user',
+    provider: payload.provider ?? '',
+    providerOrderNo: payload.provider_order_no ?? payload.providerOrderNo ?? '',
+    requestKey: payload.request_key ?? payload.requestKey ?? '',
+    packageKey: payload.package_key ?? payload.packageKey ?? '',
+    amountCents: Number(payload.amount_cents ?? payload.amountCents ?? 0),
+    points: Number(payload.points ?? 0),
+    status: payload.status ?? '',
+    message: payload.message ?? '',
+    createdAt: payload.created_at ?? payload.createdAt ?? null,
+    paidAt: payload.paid_at ?? payload.paidAt ?? null
   };
 }
 
@@ -1582,6 +2010,8 @@ function normalizeSection(payload: any): PortalSection {
 function normalizePortalItem(payload: any): PortalItem {
   const pointCost = Number(payload.point_cost ?? payload.pointCost ?? 0);
   const effectivePointCostValue = payload.effective_point_cost ?? payload.effectivePointCost;
+  const metadata = normalizeMetadata(payload.metadata_json ?? payload.metadataJson ?? payload.metadata);
+  const menuKeys = normalizeStringList(payload.menu_keys ?? payload.menuKeys ?? metadata.menuKeys ?? metadata.menu_keys ?? []);
   return {
     id: payload.id,
     tenantId: payload.tenant_id ?? payload.tenantId,
@@ -1602,7 +2032,8 @@ function normalizePortalItem(payload: any): PortalItem {
     pointCost,
     effectivePointCost: effectivePointCostValue == null ? pointCost : Number(effectivePointCostValue),
     modelConfig: normalizeModelConfig(payload.model_config ?? payload.modelConfig),
-    metadata: normalizeMetadata(payload.metadata_json ?? payload.metadataJson ?? payload.metadata)
+    metadata,
+    menuKeys
   };
 }
 
@@ -1691,6 +2122,121 @@ export function normalizeToolModelBinding(payload: any): ToolModelBindingSummary
         : Number(payload.effective_point_cost),
     enabled: Boolean(payload.enabled ?? true),
     modelConfig: normalizeModelConfig(payload.model_config ?? payload.modelConfig)
+  };
+}
+
+export function normalizeAdminOverview(payload: any): AdminOverviewSummary {
+  return {
+    tenantId: payload.tenant_id ?? payload.tenantId,
+    users: {
+      total: Number(payload.users?.total ?? 0),
+      active: Number(payload.users?.active ?? 0),
+      admins: Number(payload.users?.admins ?? 0)
+    },
+    membershipPlans: {
+      total: Number(payload.membership_plans?.total ?? payload.membershipPlans?.total ?? 0),
+      enabled: Number(payload.membership_plans?.enabled ?? payload.membershipPlans?.enabled ?? 0)
+    },
+    wallets: {
+      totalBalance: Number(payload.wallets?.total_balance ?? payload.wallets?.totalBalance ?? 0),
+      frozenBalance: Number(payload.wallets?.frozen_balance ?? payload.wallets?.frozenBalance ?? 0)
+    },
+    content: {
+      pages: Number(payload.content?.pages ?? 0),
+      sections: Number(payload.content?.sections ?? 0),
+      items: Number(payload.content?.items ?? 0)
+    },
+    models: {
+      channels: Number(payload.models?.channels ?? 0),
+      modelConfigs: Number(payload.models?.model_configs ?? payload.models?.modelConfigs ?? 0),
+      bindings: Number(payload.models?.bindings ?? 0)
+    },
+    recentLogs: (payload.recent_logs ?? payload.recentLogs ?? []).map(normalizeAdminAuditLog)
+  };
+}
+
+export function normalizeAdminUser(payload: any): AdminUserSummary {
+  return {
+    id: payload.id,
+    tenantId: payload.tenant_id ?? payload.tenantId,
+    phone: payload.phone ?? '',
+    displayName: payload.display_name ?? payload.displayName ?? '',
+    role: payload.role ?? '',
+    status: payload.status ?? '',
+    balance: Number(payload.balance ?? 0),
+    frozenBalance: Number(payload.frozen_balance ?? payload.frozenBalance ?? 0),
+    currency: payload.currency ?? 'POINT',
+    membershipPlanId: payload.membership_plan_id ?? payload.membershipPlanId ?? null,
+    membershipPlanKey: payload.membership_plan_key ?? payload.membershipPlanKey ?? null,
+    membershipPlanName: payload.membership_plan_name ?? payload.membershipPlanName ?? null,
+    membershipStatus: payload.membership_status ?? payload.membershipStatus ?? null,
+    membershipExpiresAt: payload.membership_expires_at ?? payload.membershipExpiresAt ?? null,
+    createdAt: payload.created_at ?? payload.createdAt ?? null,
+    updatedAt: payload.updated_at ?? payload.updatedAt ?? null
+  };
+}
+
+export function normalizeAdminMembershipPlan(payload: any): AdminMembershipPlanSummary {
+  return {
+    id: payload.id,
+    tenantId: payload.tenant_id ?? payload.tenantId,
+    planKey: payload.plan_key ?? payload.planKey ?? '',
+    name: payload.name ?? '',
+    priceCents: Number(payload.price_cents ?? payload.priceCents ?? 0),
+    durationDays: Number(payload.duration_days ?? payload.durationDays ?? 0),
+    entitlements: normalizeStringList(payload.entitlements),
+    enabled: Boolean(payload.enabled ?? true),
+    sortOrder: Number(payload.sort_order ?? payload.sortOrder ?? 100),
+    activeUserCount: Number(payload.active_user_count ?? payload.activeUserCount ?? 0),
+    createdAt: payload.created_at ?? payload.createdAt ?? null,
+    updatedAt: payload.updated_at ?? payload.updatedAt ?? null
+  };
+}
+
+export function normalizeAdminUserMembership(payload: any): AdminUserMembershipSummary {
+  return {
+    id: payload.id,
+    tenantId: payload.tenant_id ?? payload.tenantId,
+    userId: payload.user_id ?? payload.userId ?? '',
+    userDisplayName: payload.user_display_name ?? payload.userDisplayName ?? '',
+    userPhone: payload.user_phone ?? payload.userPhone ?? '',
+    plan: normalizeAdminMembershipPlan(payload.plan ?? payload.membership_plan ?? payload.membershipPlan ?? {}),
+    status: payload.status ?? '',
+    startedAt: payload.started_at ?? payload.startedAt ?? null,
+    expiresAt: payload.expires_at ?? payload.expiresAt ?? null,
+    createdAt: payload.created_at ?? payload.createdAt ?? null,
+    updatedAt: payload.updated_at ?? payload.updatedAt ?? null
+  };
+}
+
+export function normalizeAdminWalletTransaction(payload: any): AdminWalletTransactionSummary {
+  return {
+    id: payload.id,
+    tenantId: payload.tenant_id ?? payload.tenantId,
+    userId: payload.user_id ?? payload.userId ?? '',
+    userDisplayName: payload.user_display_name ?? payload.userDisplayName ?? '',
+    requestKey: payload.request_key ?? payload.requestKey ?? '',
+    amount: Number(payload.amount ?? 0),
+    balanceAfter: Number(payload.balance_after ?? payload.balanceAfter ?? 0),
+    type: payload.type ?? '',
+    remark: payload.remark ?? '',
+    relatedRef: payload.related_ref ?? payload.relatedRef ?? '',
+    createdAt: payload.created_at ?? payload.createdAt ?? null
+  };
+}
+
+export function normalizeAdminAuditLog(payload: any): AdminAuditLogSummary {
+  return {
+    id: payload.id,
+    tenantId: payload.tenant_id ?? payload.tenantId,
+    actorUserId: payload.actor_user_id ?? payload.actorUserId ?? '',
+    actorDisplayName: payload.actor_display_name ?? payload.actorDisplayName ?? '',
+    actorRole: payload.actor_role ?? payload.actorRole ?? '',
+    action: payload.action ?? '',
+    targetType: payload.target_type ?? payload.targetType ?? '',
+    targetId: payload.target_id ?? payload.targetId ?? '',
+    summary: payload.summary ?? '',
+    createdAt: payload.created_at ?? payload.createdAt ?? null
   };
 }
 
@@ -1912,6 +2458,45 @@ function item(
     enabled: true,
     tags: [],
     metadata: {}
+  };
+}
+
+function thirdPartyTool(
+  id: string,
+  title: string,
+  subtitle: string,
+  category: string,
+  brandMark: string,
+  actionValue: string,
+  downloadUrl: string
+): PortalItem {
+  return {
+    id,
+    itemType: 'third_party_tool',
+    title,
+    subtitle,
+    category,
+    icon: 'Download',
+    actionType: 'external_link',
+    actionValue,
+    requiredMembership: false,
+    pointCost: 0,
+    effectivePointCost: 0,
+    sortOrder: 100,
+    enabled: true,
+    tags: [category, '第三方工具'],
+    metadata: {
+      brandMark,
+      detail: {
+        summary: subtitle,
+        primaryAction: { key: 'download', label: '下载客户端' },
+        secondaryActions: [{ key: 'favorite', label: '收藏' }],
+        download: {
+          fileName: `${id}.url`,
+          url: downloadUrl
+        }
+      }
+    }
   };
 }
 

@@ -6,6 +6,17 @@ import {
   createFallbackPortalConfig,
   createFallbackVideoWorkbench,
   buildAudioTaskPayload,
+  normalizeAccountSummary,
+  normalizeAccountUser,
+  normalizeAdminAuditLog,
+  normalizeAdminMembershipPlan,
+  normalizeAdminOverview,
+  normalizeAdminUser,
+  normalizeAdminUserMembership,
+  normalizeAdminWalletTransaction,
+  normalizeRechargeOrder,
+  normalizeHomeDashboard,
+  normalizeHomeDashboardSlide,
   normalizeModelConfig,
   normalizeProviderChannel,
   normalizeToolModelBinding,
@@ -25,6 +36,14 @@ import {
   normalizeVideoWorkbench,
   type ModelConfigSummary,
   type AssistantCenter,
+  type AccountSummary,
+  type AccountUser,
+  type AdminAuditLogSummary,
+  type AdminMembershipPlanSummary,
+  type AdminOverviewSummary,
+  type AdminUserMembershipSummary,
+  type AdminUserSummary,
+  type AdminWalletTransactionSummary,
   type AudioTask,
   type AudioTaskPayload,
   type ChatActiveSession,
@@ -32,6 +51,8 @@ import {
   type ChatSendResult,
   type ChatWorkbench,
   type GenerationSurface,
+  type HomeDashboardModel,
+  type HomeDashboardSlide,
   type ImageTask,
   type ImageWorkbench,
   type ProviderChannelSummary,
@@ -42,6 +63,7 @@ import {
   type PortalItem,
   type PortalPageConfig,
   type PortalSearchResult,
+  type RechargeOrder,
   type ToolModelBindingSummary,
   type UserPortalAction,
   type VideoTask,
@@ -87,6 +109,71 @@ export interface LoginResult {
   };
 }
 
+export interface AccountProfileUpdateRequest {
+  userId: string;
+  displayName: string;
+}
+
+export interface RechargeOrderRequest {
+  userId: string;
+  packageKey: string;
+}
+
+export interface AdminUserRequest {
+  phone: string;
+  displayName: string;
+  role?: string;
+  status?: string;
+  password?: string;
+}
+
+export interface AdminUserUpdateRequest {
+  phone?: string;
+  displayName?: string;
+  role?: string;
+  status?: string;
+  password?: string;
+}
+
+export interface WalletAdjustmentRequest {
+  amount: number;
+  reason?: string;
+  requestKey?: string;
+}
+
+export interface MembershipPlanRequest {
+  planKey: string;
+  name: string;
+  priceCents?: number;
+  durationDays?: number;
+  entitlements?: string[];
+  enabled?: boolean;
+  sortOrder?: number;
+}
+
+export interface MembershipPlanUpdateRequest {
+  planKey?: string;
+  name?: string;
+  priceCents?: number;
+  durationDays?: number;
+  entitlements?: string[];
+  enabled?: boolean;
+  sortOrder?: number;
+}
+
+export interface UserMembershipRequest {
+  userId: string;
+  planId: string;
+  durationDays?: number;
+  status?: string;
+}
+
+export interface UserMembershipUpdateRequest {
+  planId?: string;
+  status?: string;
+  expiresAt?: string;
+}
+
 export function getAdminToken(): string {
   return window.localStorage.getItem(tokenKey) ?? '';
 }
@@ -120,6 +207,34 @@ export async function loginAdmin(phone: string, password: string): Promise<Login
   return result;
 }
 
+export async function fetchAccountSummary(userId = 'demo-user'): Promise<AccountSummary> {
+  const params = new URLSearchParams({ user_id: userId });
+  return normalizeAccountSummary(await request(`/api/v1/account/summary?${params.toString()}`));
+}
+
+export async function updateAccountProfile(payload: AccountProfileUpdateRequest): Promise<AccountUser> {
+  const response = await request('/api/v1/account/profile', {
+    method: 'PATCH',
+    body: JSON.stringify({
+      user_id: payload.userId,
+      display_name: payload.displayName
+    })
+  });
+  return normalizeAccountUser(response.user ?? response);
+}
+
+export async function createRechargeOrder(payload: RechargeOrderRequest): Promise<RechargeOrder> {
+  return normalizeRechargeOrder(
+    await request('/api/v1/payments/recharge-orders', {
+      method: 'POST',
+      body: JSON.stringify({
+        user_id: payload.userId,
+        package_key: payload.packageKey
+      })
+    })
+  );
+}
+
 export async function fetchPortalConfig(): Promise<PortalConfig> {
   try {
     return normalizePortalConfig(await request('/api/v1/portal/config'));
@@ -133,6 +248,14 @@ export async function fetchPortalPage(pageKey: string): Promise<PortalPageConfig
     return normalizePageConfig(await request(`/api/v1/portal/pages/${encodeURIComponent(pageKey)}`));
   } catch {
     return createFallbackPageConfig(pageKey);
+  }
+}
+
+export async function fetchHomeDashboard(): Promise<HomeDashboardModel> {
+  try {
+    return normalizeHomeDashboard(await request('/api/v1/home/dashboard'));
+  } catch {
+    return normalizeHomeDashboard({});
   }
 }
 
@@ -343,6 +466,193 @@ export async function createAudioTaskForTool(tool: PortalItem, prompt: string, v
   return createAudioTask(buildAudioTaskPayload(tool, prompt, voice, sourceUrl));
 }
 
+export async function adminListOverview(): Promise<AdminOverviewSummary> {
+  return normalizeAdminOverview(await request('/api/v1/admin/overview', { auth: true }));
+}
+
+export async function adminListUsers(params: { query?: string; role?: string; status?: string; limit?: number } = {}): Promise<AdminUserSummary[]> {
+  const search = new URLSearchParams();
+  if (params.query) {
+    search.set('query', params.query);
+  }
+  if (params.role) {
+    search.set('role', params.role);
+  }
+  if (params.status) {
+    search.set('status', params.status);
+  }
+  if (params.limit !== undefined) {
+    search.set('limit', String(params.limit));
+  }
+  const suffix = search.toString();
+  const payload = await request(`/api/v1/admin/users${suffix ? `?${suffix}` : ''}`, { auth: true });
+  return (payload.users ?? payload ?? []).map(normalizeAdminUser);
+}
+
+export async function adminCreateUser(payload: AdminUserRequest): Promise<AdminUserSummary> {
+  return normalizeAdminUser(
+    await request('/api/v1/admin/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        phone: payload.phone,
+        display_name: payload.displayName,
+        role: payload.role ?? 'USER',
+        status: payload.status ?? 'ACTIVE',
+        password: payload.password ?? ''
+      }),
+      auth: true
+    })
+  );
+}
+
+export async function adminUpdateUser(userId: string, payload: AdminUserUpdateRequest): Promise<AdminUserSummary> {
+  return normalizeAdminUser(
+    await request(`/api/v1/admin/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        phone: payload.phone,
+        display_name: payload.displayName,
+        role: payload.role,
+        status: payload.status,
+        password: payload.password
+      }),
+      auth: true
+    })
+  );
+}
+
+export async function adminDeleteUser(userId: string): Promise<AdminUserSummary> {
+  return normalizeAdminUser(await request(`/api/v1/admin/users/${userId}`, { method: 'DELETE', auth: true }));
+}
+
+export async function adminAdjustWallet(
+  userId: string,
+  payload: WalletAdjustmentRequest
+): Promise<{ balance: number; frozenBalance: number; currency: string; transaction: AdminWalletTransactionSummary }> {
+  const response = await request(`/api/v1/admin/wallets/${userId}/adjust`, {
+    method: 'POST',
+    body: JSON.stringify({
+      amount: payload.amount,
+      reason: payload.reason ?? '',
+      request_key: payload.requestKey
+    }),
+    auth: true
+  });
+  return {
+    balance: Number(response.balance ?? 0),
+    frozenBalance: Number(response.frozen_balance ?? response.frozenBalance ?? 0),
+    currency: response.currency ?? 'POINT',
+    transaction: normalizeAdminWalletTransaction(response.transaction ?? response)
+  };
+}
+
+export async function adminListWalletTransactions(userId = '', limit = 100): Promise<AdminWalletTransactionSummary[]> {
+  const params = new URLSearchParams();
+  if (userId) {
+    params.set('user_id', userId);
+  }
+  params.set('limit', String(limit));
+  const payload = await request(`/api/v1/admin/wallet-transactions?${params.toString()}`, { auth: true });
+  return (payload.transactions ?? payload ?? []).map(normalizeAdminWalletTransaction);
+}
+
+export async function adminListMembershipPlans(): Promise<AdminMembershipPlanSummary[]> {
+  const payload = await request('/api/v1/admin/membership-plans', { auth: true });
+  return (payload.plans ?? payload ?? []).map(normalizeAdminMembershipPlan);
+}
+
+export async function adminCreateMembershipPlan(payload: MembershipPlanRequest): Promise<AdminMembershipPlanSummary> {
+  return normalizeAdminMembershipPlan(
+    await request('/api/v1/admin/membership-plans', {
+      method: 'POST',
+      body: JSON.stringify({
+        plan_key: payload.planKey,
+        name: payload.name,
+        price_cents: payload.priceCents ?? 0,
+        duration_days: payload.durationDays ?? 31,
+        entitlements: payload.entitlements ?? [],
+        enabled: payload.enabled ?? true,
+        sort_order: payload.sortOrder ?? 100
+      }),
+      auth: true
+    })
+  );
+}
+
+export async function adminUpdateMembershipPlan(planId: string, payload: MembershipPlanUpdateRequest): Promise<AdminMembershipPlanSummary> {
+  return normalizeAdminMembershipPlan(
+    await request(`/api/v1/admin/membership-plans/${planId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        plan_key: payload.planKey,
+        name: payload.name,
+        price_cents: payload.priceCents,
+        duration_days: payload.durationDays,
+        entitlements: payload.entitlements,
+        enabled: payload.enabled,
+        sort_order: payload.sortOrder
+      }),
+      auth: true
+    })
+  );
+}
+
+export async function adminDeleteMembershipPlan(planId: string): Promise<AdminMembershipPlanSummary> {
+  return normalizeAdminMembershipPlan(await request(`/api/v1/admin/membership-plans/${planId}`, { method: 'DELETE', auth: true }));
+}
+
+export async function adminListUserMemberships(userId = '', limit = 100): Promise<AdminUserMembershipSummary[]> {
+  const params = new URLSearchParams();
+  if (userId) {
+    params.set('user_id', userId);
+  }
+  params.set('limit', String(limit));
+  const payload = await request(`/api/v1/admin/user-memberships?${params.toString()}`, { auth: true });
+  return (payload.memberships ?? payload ?? []).map(normalizeAdminUserMembership);
+}
+
+export async function adminGrantMembership(payload: UserMembershipRequest): Promise<AdminUserMembershipSummary> {
+  const body: Record<string, unknown> = {
+    user_id: payload.userId,
+    plan_id: payload.planId,
+    duration_days: payload.durationDays
+  };
+  if (payload.status) {
+    body.status = payload.status;
+  }
+  return normalizeAdminUserMembership(
+    await request('/api/v1/admin/user-memberships', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      auth: true
+    })
+  );
+}
+
+export async function adminUpdateUserMembership(membershipId: string, payload: UserMembershipUpdateRequest): Promise<AdminUserMembershipSummary> {
+  return normalizeAdminUserMembership(
+    await request(`/api/v1/admin/user-memberships/${membershipId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        plan_id: payload.planId,
+        status: payload.status,
+        expires_at: payload.expiresAt
+      }),
+      auth: true
+    })
+  );
+}
+
+export async function adminDeleteUserMembership(membershipId: string): Promise<AdminUserMembershipSummary> {
+  return normalizeAdminUserMembership(await request(`/api/v1/admin/user-memberships/${membershipId}`, { method: 'DELETE', auth: true }));
+}
+
+export async function adminListAuditLogs(limit = 50): Promise<AdminAuditLogSummary[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  const payload = await request(`/api/v1/admin/audit-logs?${params.toString()}`, { auth: true });
+  return (payload.logs ?? payload ?? []).map(normalizeAdminAuditLog);
+}
+
 export async function adminListProviderChannels(): Promise<ProviderChannelSummary[]> {
   const payload = await request('/api/v1/admin/provider-channels', { auth: true });
   return (payload.channels ?? payload ?? []).map(normalizeProviderChannel);
@@ -419,6 +729,44 @@ export async function adminUpdateToolModelBinding(bindingId: string, payload: Re
       auth: true
     })
   );
+}
+
+export async function adminListHomeSlides(): Promise<HomeDashboardSlide[]> {
+  const payload = await request('/api/v1/admin/home-slides', { auth: true });
+  return (payload.slides ?? payload ?? []).map(normalizeHomeDashboardSlide);
+}
+
+export async function adminCreateHomeSlide(payload: Record<string, unknown>): Promise<HomeDashboardSlide> {
+  return normalizeHomeDashboardSlide(
+    await request('/api/v1/admin/home-slides', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      auth: true
+    })
+  );
+}
+
+export async function adminUpdateHomeSlide(slideId: string, payload: Record<string, unknown>): Promise<HomeDashboardSlide> {
+  return normalizeHomeDashboardSlide(
+    await request(`/api/v1/admin/home-slides/${slideId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+      auth: true
+    })
+  );
+}
+
+export async function adminReorderHomeSlides(slides: Array<{ id: string }>): Promise<HomeDashboardSlide[]> {
+  const payload = await request('/api/v1/admin/home-slides/reorder', {
+    method: 'POST',
+    body: JSON.stringify({ ordered_ids: slides.map((slide) => slide.id) }),
+    auth: true
+  });
+  return (payload.slides ?? payload ?? []).map(normalizeHomeDashboardSlide);
+}
+
+export async function adminDeleteHomeSlide(slideId: string): Promise<HomeDashboardSlide> {
+  return normalizeHomeDashboardSlide(await request(`/api/v1/admin/home-slides/${slideId}`, { method: 'DELETE', auth: true }));
 }
 
 export async function uploadAudio(file: File) {

@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import { expect, test } from 'vitest';
+import app from '../src/App.vue?raw';
 import portalView from '../src/views/PortalView.vue?raw';
 import routerSource from '../src/router.ts?raw';
 import audioPage from '../src/components/AudioPage.vue?raw';
@@ -19,7 +20,10 @@ test('router isolates workbench pages from portal catalog routes', () => {
   expect(routerSource).toContain('PortalDetailPage');
   expect(routerSource).toContain("path: '/:detailPath(.*)*'");
   expect(routerSource).toContain("path: '/:pageKey'");
-  expect(portalView).toContain('PortalChrome');
+  expect(app).toContain('PortalChrome');
+  expect(app).toContain("route.path.startsWith('/workbench')");
+  expect(app).toContain("route.path.startsWith('/workspace')");
+  expect(portalView).not.toContain('PortalChrome');
   expect(portalView).toContain('DynamicPage');
   expect(portalView).toContain('workbenchRoute');
   expect(portalView).toContain('workbenchDockLabel');

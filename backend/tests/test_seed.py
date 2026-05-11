@@ -101,6 +101,22 @@ def test_demo_seed_contains_marketing_dashboard_content(session):
         title="AI 工作台",
         action_value="/workbench",
     ).count() == 1
+    third_party_section = session.query(ContentSection).filter_by(
+        tenant_id="demo",
+        area="home",
+        section_key="third_party_tools",
+    ).one()
+    third_party_tool = session.query(ContentItem).filter_by(
+        tenant_id="demo",
+        section_id=third_party_section.id,
+        title="剪映专业版",
+    ).one()
+    assert third_party_section.layout == "third-party-tools"
+    assert third_party_tool.item_type == "third_party_tool"
+    assert third_party_tool.action_type == "external_link"
+    assert third_party_tool.action_value.startswith("https://")
+    assert third_party_tool.metadata_json["brandMark"] == "JY"
+    assert third_party_tool.metadata_json["detail"]["download"]["url"].startswith("https://")
 
 
 def test_demo_seed_includes_workbench_and_chat_runtime(session):

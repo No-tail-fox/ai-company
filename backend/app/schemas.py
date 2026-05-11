@@ -11,6 +11,71 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class AccountProfileUpdate(BaseModel):
+    user_id: str = "demo-user"
+    display_name: str = Field(min_length=1, max_length=64)
+
+
+class RechargeOrderCreate(BaseModel):
+    user_id: str = "demo-user"
+    package_key: str
+
+
+class AdminUserCreate(BaseModel):
+    phone: str
+    display_name: str
+    role: str = "USER"
+    status: str = "ACTIVE"
+    password: str = ""
+
+
+class AdminUserUpdate(BaseModel):
+    phone: str | None = None
+    display_name: str | None = None
+    role: str | None = None
+    status: str | None = None
+    password: str | None = None
+
+
+class WalletAdjustmentCreate(BaseModel):
+    amount: int
+    reason: str = ""
+    request_key: str | None = None
+
+
+class MembershipPlanCreate(BaseModel):
+    plan_key: str
+    name: str
+    price_cents: int = 0
+    duration_days: int = 31
+    entitlements: list[str] = Field(default_factory=list)
+    enabled: bool = True
+    sort_order: int = 100
+
+
+class MembershipPlanUpdate(BaseModel):
+    plan_key: str | None = None
+    name: str | None = None
+    price_cents: int | None = None
+    duration_days: int | None = None
+    entitlements: list[str] | None = None
+    enabled: bool | None = None
+    sort_order: int | None = None
+
+
+class UserMembershipCreate(BaseModel):
+    user_id: str
+    plan_id: str
+    duration_days: int | None = None
+    status: str = "ACTIVE"
+
+
+class UserMembershipUpdate(BaseModel):
+    plan_id: str | None = None
+    status: str | None = None
+    expires_at: str | None = None
+
+
 class ContentPageCreate(BaseModel):
     page_key: str
     label: str
@@ -87,6 +152,34 @@ class ContentItemUpdate(BaseModel):
     action_value: str | None = None
     required_membership: bool | None = None
     point_cost: int | None = None
+    metadata_json: dict | None = None
+
+
+class HomeHeroSlideCreate(BaseModel):
+    title: str
+    subtitle: str = ""
+    badge: str = ""
+    cta_label: str = "立即查看"
+    cta_subtitle: str = ""
+    image_url: str = ""
+    action_type: str = "route"
+    action_value: str = ""
+    sort_order: int = 100
+    enabled: bool = True
+    metadata_json: dict | None = None
+
+
+class HomeHeroSlideUpdate(BaseModel):
+    title: str | None = None
+    subtitle: str | None = None
+    badge: str | None = None
+    cta_label: str | None = None
+    cta_subtitle: str | None = None
+    image_url: str | None = None
+    action_type: str | None = None
+    action_value: str | None = None
+    sort_order: int | None = None
+    enabled: bool | None = None
     metadata_json: dict | None = None
 
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { ChevronRight, Lock, PlayCircle } from 'lucide-vue-next';
+import { ChevronRight, Download, ExternalLink, Lock, PlayCircle, Plus, Search } from 'lucide-vue-next';
 import { getIcon } from '../services/icons';
 import type { PortalItem, PortalPageConfig, PortalSection } from '../services/viewModel';
 
@@ -14,6 +14,8 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
+const thirdPartySearch = ref('');
+const thirdPartyCategory = ref('全部');
 const primarySections = computed(() => props.pageConfig.sections.filter((section) => section.layout !== 'ranking-list'));
 const rankingSection = computed(() => props.pageConfig.sections.find((section) => section.layout === 'ranking-list'));
 const isHomePage = computed(() => props.pageConfig.page.pageKey === 'home');
@@ -53,11 +55,25 @@ function cardClass(section: PortalSection) {
     'template-list': section.layout === 'template-list',
     'task-list': section.layout === 'task-list',
     'stat-strip': section.layout === 'stat-strip',
-    'default-grid': !['tool-grid', 'learning-grid', 'order-grid', 'banner-row', 'promo', 'template-list', 'task-list', 'stat-strip'].includes(section.layout)
+    'default-grid': ![
+      'tool-grid',
+      'learning-grid',
+      'order-grid',
+      'banner-row',
+      'promo',
+      'template-list',
+      'task-list',
+      'stat-strip',
+      'third-party-tools'
+    ].includes(section.layout)
   };
 }
 
 function handleItem(item: PortalItem) {
+  if (isExternalUrl(item.actionValue)) {
+    window.open(item.actionValue, '_blank', 'noreferrer');
+    return;
+  }
   if (item.actionValue === '/workbench') {
     void router.push('/workbench');
     return;
@@ -79,6 +95,74 @@ function openWorkbench(route = '/workbench') {
 
 function openSidePromo() {
   void router.push('/templates');
+}
+
+function isThirdPartyToolsSection(section: PortalSection) {
+  return section.layout === 'third-party-tools';
+}
+
+function thirdPartyCategories(section: PortalSection) {
+  return [
+    '全部',
+    ...Array.from(new Set(section.items.map((item) => item.category).filter(Boolean)))
+  ];
+}
+
+function filteredThirdPartyItems(section: PortalSection) {
+  const query = thirdPartySearch.value.trim().toLowerCase();
+  const availableCategories = thirdPartyCategories(section);
+  const activeCategory = availableCategories.includes(thirdPartyCategory.value) ? thirdPartyCategory.value : '全部';
+  return section.items.filter((item) => {
+    const matchesCategory = activeCategory === '全部' || item.category === activeCategory;
+    const searchable = [
+      item.title,
+      item.subtitle,
+      item.category,
+      item.actionValue,
+      ...(item.tags ?? [])
+    ].join(' ').toLowerCase();
+    return matchesCategory && (!query || searchable.includes(query));
+  });
+}
+
+function setThirdPartyCategory(category: string) {
+  thirdPartyCategory.value = category;
+}
+
+function thirdPartyBrandMark(item: PortalItem) {
+  const mark = item.metadata?.brandMark ?? item.metadata?.brand_mark ?? item.badge;
+  if (typeof mark === 'string' && mark.trim()) {
+    return mark.trim().slice(0, 3).toUpperCase();
+  }
+  return item.title.trim().slice(0, 2).toUpperCase() || 'AI';
+}
+
+function thirdPartyVisitUrl(item: PortalItem) {
+  return item.actionValue || thirdPartyDownloadUrl(item) || '#';
+}
+
+function thirdPartyDisplayUrl(item: PortalItem) {
+  const value = thirdPartyVisitUrl(item);
+  return value.replace(/^https?:\/\//, '').replace(/\/$/, '');
+}
+
+function thirdPartyDownloadUrl(item: PortalItem) {
+  const detail = item.metadata?.detail;
+  const download = detail && typeof detail === 'object' ? detail.download : null;
+  const url = download && typeof download === 'object' ? download.url : '';
+  return String(url || item.metadata?.downloadUrl || item.metadata?.download_url || '').trim();
+}
+
+function isExternalUrl(value: string) {
+  return /^https?:\/\//i.test(value);
+}
+
+function thirdPartyLinkTarget(url: string) {
+  return isExternalUrl(url) ? '_blank' : '_self';
+}
+
+function openAddThirdPartyTool() {
+  void router.push('/admin');
 }
 </script>
 
@@ -119,7 +203,75 @@ function openSidePromo() {
             </button>
           </div>
 
-          <div :class="['module-items', cardClass(section)]">
+          <div v-if="isThirdPartyToolsSection(section)" class="third-party-tools-panel">
+            <div class="third-party-tools-toolbar">
+              <label class="third-party-search">
+                <Search :size="18" />
+                <input v-model="thirdPartySearch" placeholder="搜索工具名称、用途或下载链接" />
+              </label>
+              <div class="third-party-segments" aria-label="第三方工具分类">
+                <button
+                  v-for="category in thirdPartyCategories(section)"
+                  :key="category"
+                  :class="{ active: thirdPartyCategory === category }"
+                  type="button"
+                  @click="setThirdPartyCategory(category)"
+                >
+                  {{ category }}
+                </button>
+              </div>
+              <button class="third-party-add" type="button" @click="openAddThirdPartyTool">
+                <Plus :size="16" />
+                添加工具
+              </button>
+            </div>
+
+            <div class="third-party-tools-grid">
+              <article v-for="item in filteredThirdPartyItems(section)" :key="item.id" class="third-party-tool-card">
+                <header>
+                  <span class="third-party-mark">{{ thirdPartyBrandMark(item) }}</span>
+                  <span class="third-party-title">
+                    <strong>{{ item.title }}</strong>
+                    <small>{{ item.subtitle }}</small>
+                  </span>
+                  <span class="third-party-tag">{{ item.category || '工具' }}</span>
+                </header>
+                <p>{{ item.metadata?.summary || item.subtitle }}</p>
+                <a
+                  class="third-party-link"
+                  :href="thirdPartyVisitUrl(item)"
+                  :target="thirdPartyLinkTarget(thirdPartyVisitUrl(item))"
+                  rel="noreferrer"
+                >
+                  官网链接 · {{ thirdPartyDisplayUrl(item) }}
+                </a>
+                <div class="third-party-actions">
+                  <a
+                    class="third-party-visit"
+                    :href="thirdPartyVisitUrl(item)"
+                    :target="thirdPartyLinkTarget(thirdPartyVisitUrl(item))"
+                    rel="noreferrer"
+                  >
+                    <ExternalLink :size="15" />
+                    访问官网
+                  </a>
+                  <a
+                    v-if="thirdPartyDownloadUrl(item)"
+                    class="third-party-download"
+                    :href="thirdPartyDownloadUrl(item)"
+                    :target="thirdPartyLinkTarget(thirdPartyDownloadUrl(item))"
+                    rel="noreferrer"
+                  >
+                    <Download :size="15" />
+                    下载客户端
+                  </a>
+                  <button v-else class="third-party-download" type="button" @click="handleItem(item)">查看详情</button>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <div v-else :class="['module-items', cardClass(section)]">
             <button v-for="item in section.items" :key="item.id" class="module-card" @click="handleItem(item)">
               <span class="icon-tile"><component :is="getIcon(item.icon)" :size="28" /></span>
               <div class="card-copy">

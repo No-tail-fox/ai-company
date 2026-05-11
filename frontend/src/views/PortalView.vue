@@ -9,13 +9,22 @@ import {
   Sparkles
 } from 'lucide-vue-next';
 import AssistantPage from '../components/AssistantPage.vue';
+import HomeDashboardPage from '../components/HomeDashboardPage.vue';
 import DynamicPage from '../components/DynamicPage.vue';
 import MarketingPage from '../components/MarketingPage.vue';
-import PortalChrome from '../components/PortalChrome.vue';
 import TextWorkbenchPage from '../components/TextWorkbenchPage.vue';
-import { fetchAssistantCenter, fetchPortalConfig, fetchPortalPage, fetchPortalUserActions, runPortalAction } from '../services/api';
+import {
+  fetchAssistantCenter,
+  fetchHomeDashboard,
+  fetchPortalConfig,
+  fetchPortalPage,
+  fetchPortalUserActions,
+  runPortalAction
+} from '../services/api';
 import { getIcon } from '../services/icons';
 import {
+  buildHomeDashboardModel,
+  createFallbackHomeDashboard,
   createFallbackAssistantCenter,
   createFallbackPageConfig,
   createFallbackPortalConfig,
@@ -24,9 +33,11 @@ import {
   shouldHideWorkspaceDock,
   shouldUseAssistantPage,
   shouldUseCodingPage,
+  shouldUseHomeDashboardPage,
   shouldUseMarketingPage,
   shouldUseWritingPage,
   shouldShowHomeSidebar,
+  type HomeDashboardModel,
   type AssistantCard,
   type AssistantCenter,
   type PromptTemplate,
@@ -40,6 +51,7 @@ const route = useRoute();
 const router = useRouter();
 const portal = ref<PortalConfig>(createFallbackPortalConfig());
 const pageConfig = ref<PortalPageConfig>(createFallbackPageConfig(String(route.params.pageKey || 'home')));
+const homeDashboard = ref<HomeDashboardModel>(createFallbackHomeDashboard(pageConfig.value));
 const assistantCenter = ref<AssistantCenter>(createFallbackAssistantCenter());
 const activeHomeMenuKey = ref('basic');
 const selectedTool = ref('');
@@ -52,6 +64,7 @@ const floatMessage = ref('');
 
 const activePageKey = computed(() => String(route.params.pageKey || 'home'));
 const showHomeSidebar = computed(() => shouldShowHomeSidebar(activePageKey.value));
+const showHomeDashboard = computed(() => shouldUseHomeDashboardPage(activePageKey.value, activeHomeMenuKey.value));
 const isAssistantPage = computed(() => shouldUseAssistantPage(activePageKey.value));
 const isMarketingPage = computed(() => shouldUseMarketingPage(activePageKey.value));
 const isCodingPage = computed(() => shouldUseCodingPage(activePageKey.value));
@@ -103,6 +116,7 @@ const dockPrompt = computed(() => promptText.value || defaultDockCopy.value.prom
 const displayPageConfig = computed(() =>
   showHomeSidebar.value ? createHomeMenuPageConfig(pageConfig.value, activeHomeMenuKey.value) : pageConfig.value
 );
+const homeDashboardModel = computed(() => buildHomeDashboardModel(pageConfig.value, homeDashboard.value));
 const floatPanelTitle = computed(() => {
   const titles = {
     message: '站内消息',
@@ -127,6 +141,10 @@ watch(activePageKey, async (pageKey) => {
 
 async function loadPage(pageKey: string) {
   pageConfig.value = await fetchPortalPage(pageKey);
+  if (pageKey === 'home') {
+    activeHomeMenuKey.value = 'basic';
+  }
+  homeDashboard.value = pageKey === 'home' ? await fetchHomeDashboard() : createFallbackHomeDashboard(pageConfig.value);
   if (shouldUseAssistantPage(pageKey)) {
     assistantCenter.value = await fetchAssistantCenter();
   }
@@ -197,7 +215,12 @@ function closeFloatPanel() {
 }
 
 function scrollToTop() {
-  const content = document.querySelector('.content');
+  const chromeBody = document.querySelector('.portal-chrome-body') as HTMLElement | null;
+  if (chromeBody) {
+    chromeBody.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  const content = document.querySelector('.content') as HTMLElement | null;
   if (content) {
     content.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -206,86 +229,85 @@ function scrollToTop() {
 </script>
 
 <template>
-  <PortalChrome :channels="portal.channels" :active-page-key="activePageKey">
-    <div class="desktop-shell">
-      <div :class="['app-frame', { 'no-sidebar': !showHomeSidebar }]">
-        <aside v-if="showHomeSidebar" class="sidebar">
-          <button
-            v-for="nav in portal.leftNav"
-            :key="nav.key"
-            :class="{ active: activeHomeMenuKey === nav.key }"
-            @click="selectHomeMenu(nav.key)"
-          >
-            <component :is="getIcon(nav.icon)" :size="22" />
-            <span class="nav-copy">
-              <strong>{{ nav.label }}</strong>
-              <small>{{ getHomeMenuHint(nav.key) }}</small>
-            </span>
-          </button>
-          <div class="backup-card">
-            <button class="backup-action" :class="{ active: backupEnabled }" @click="enableBackup">
-              <CloudUpload :size="18" />{{ backupEnabled ? '已开启备份' : '开启备份' }}
-            </button>
-            <strong>工作与学习文件备份</strong>
-          </div>
-        </aside>
-
-        <main
-          :class="[
-            'content',
-            {
-              'marketing-content': isMarketingPage,
-              'craft-content': isCodingPage || isWritingPage
-            }
-          ]"
+  <div :class="['desktop-shell', { 'home-shell': showHomeSidebar }]">
+    <div :class="['app-frame', { 'no-sidebar': !showHomeSidebar }]">
+      <aside v-if="showHomeSidebar" class="sidebar">
+        <button
+          v-for="nav in portal.leftNav"
+          :key="nav.key"
+          :class="{ active: activeHomeMenuKey === nav.key }"
+          @click="selectHomeMenu(nav.key)"
         >
-          <AssistantPage
-            v-if="isAssistantPage"
-            :center="assistantCenter"
-            @open-assistant="openAssistant"
-            @open-template="openTemplate"
-          />
-          <MarketingPage v-else-if="isMarketingPage" :page-config="displayPageConfig" @open-item="openItem" />
-          <TextWorkbenchPage v-else-if="isCodingPage || isWritingPage" :page-config="displayPageConfig" />
-          <DynamicPage v-else :page-config="displayPageConfig" @open-item="openItem" />
-          <section v-if="!hideWorkspaceDock" class="workspace-dock">
-            <div>
-              <Sparkles :size="22" />
-              <strong>{{ dockTitle }}</strong>
-              <span>{{ dockPrompt }}</span>
-            </div>
-            <button @click="goWorkbench">{{ workbenchDockLabel }}</button>
-          </section>
-        </main>
+          <component :is="getIcon(nav.icon)" :size="22" />
+          <span class="nav-copy">
+            <strong>{{ nav.label }}</strong>
+            <small>{{ getHomeMenuHint(nav.key) }}</small>
+          </span>
+        </button>
+        <div class="backup-card">
+          <button class="backup-action" :class="{ active: backupEnabled }" @click="enableBackup">
+            <CloudUpload :size="18" />{{ backupEnabled ? '已开启备份' : '开启备份' }}
+          </button>
+          <strong>工作与学习文件备份</strong>
+        </div>
+      </aside>
 
-        <aside v-if="!hideFloatTools" class="float-tools portal-float-actions">
-          <button @click="openFloatPanel('message')"><Bell :size="20" /><span>消息</span></button>
-          <button @click="openFloatPanel('download')"><Download :size="20" /><span>下载</span></button>
-          <button @click="openFloatPanel('support')"><Headphones :size="20" /><span>客服</span></button>
-          <button class="top-btn" @click="scrollToTop">TOP</button>
-        </aside>
-
-        <section v-if="floatPanel" class="float-panel">
-          <header>
-            <strong>{{ floatPanelTitle }}</strong>
-            <button @click="closeFloatPanel">关闭</button>
-          </header>
-          <p v-if="floatMessage">{{ floatMessage }}</p>
-          <p v-if="floatLoading">加载中...</p>
-          <div v-else-if="floatPanel === 'support'" class="support-panel">
-            <strong>OPC 客服</strong>
-            <span>已为你打开站内客服入口，工作日 10:00-19:00 处理课程、模板、下载和会员问题。</span>
-            <button @click="router.push('/community/starter')">进入入门交流群</button>
+      <main
+        :class="[
+          'content',
+          {
+            'marketing-content': isMarketingPage,
+            'craft-content': isCodingPage || isWritingPage
+          }
+        ]"
+      >
+        <AssistantPage
+          v-if="isAssistantPage"
+          :center="assistantCenter"
+          @open-assistant="openAssistant"
+          @open-template="openTemplate"
+        />
+        <HomeDashboardPage v-else-if="showHomeDashboard" :model="homeDashboardModel" @open-item="openItem" />
+        <MarketingPage v-else-if="isMarketingPage" :page-config="displayPageConfig" @open-item="openItem" />
+        <TextWorkbenchPage v-else-if="isCodingPage || isWritingPage" :page-config="displayPageConfig" />
+        <DynamicPage v-else :page-config="displayPageConfig" @open-item="openItem" />
+        <section v-if="!hideWorkspaceDock" class="workspace-dock">
+          <div>
+            <Sparkles :size="22" />
+            <strong>{{ dockTitle }}</strong>
+            <span>{{ dockPrompt }}</span>
           </div>
-          <div v-else class="float-action-list">
-            <button v-for="action in floatActions" :key="action.id" @click="router.push(action.detailPath)">
-              <strong>{{ action.message || action.actionKey }}</strong>
-              <span>{{ action.detailPath }}</span>
-            </button>
-            <span v-if="floatActions.length === 0">暂无记录</span>
-          </div>
+          <button @click="goWorkbench">{{ workbenchDockLabel }}</button>
         </section>
-      </div>
+      </main>
+
+      <aside v-if="!hideFloatTools" class="float-tools portal-float-actions">
+        <button @click="openFloatPanel('message')"><Bell :size="20" /><span>消息</span></button>
+        <button @click="openFloatPanel('download')"><Download :size="20" /><span>下载</span></button>
+        <button @click="openFloatPanel('support')"><Headphones :size="20" /><span>客服</span></button>
+        <button class="top-btn" @click="scrollToTop">TOP</button>
+      </aside>
+
+      <section v-if="floatPanel" class="float-panel">
+        <header>
+          <strong>{{ floatPanelTitle }}</strong>
+          <button @click="closeFloatPanel">关闭</button>
+        </header>
+        <p v-if="floatMessage">{{ floatMessage }}</p>
+        <p v-if="floatLoading">加载中...</p>
+        <div v-else-if="floatPanel === 'support'" class="support-panel">
+          <strong>新商机 客服</strong>
+          <span>已为你打开站内客服入口，工作日 10:00-19:00 处理课程、模板、下载和会员问题。</span>
+          <button @click="router.push('/community/starter')">进入入门交流群</button>
+        </div>
+        <div v-else class="float-action-list">
+          <button v-for="action in floatActions" :key="action.id" @click="router.push(action.detailPath)">
+            <strong>{{ action.message || action.actionKey }}</strong>
+            <span>{{ action.detailPath }}</span>
+          </button>
+          <span v-if="floatActions.length === 0">暂无记录</span>
+        </div>
+      </section>
     </div>
-  </PortalChrome>
+  </div>
 </template>
