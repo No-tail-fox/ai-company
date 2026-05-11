@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { CircleUserRound } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight, CircleUserRound } from 'lucide-vue-next';
 import { getIcon } from '../services/icons';
 
 interface WorkspaceModule {
@@ -34,7 +34,15 @@ const props = withDefaults(
 );
 
 const router = useRouter();
+const WORKSPACE_RAIL_COLLAPSED_KEY = 'opc_workspace_rail_collapsed';
 const pageIcon = computed(() => getIcon(props.pageIcon));
+const railCollapsed = ref(loadRailCollapsed());
+
+watch(railCollapsed, (value) => {
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(WORKSPACE_RAIL_COLLAPSED_KEY, value ? '1' : '0');
+  }
+});
 
 function navigateModule(item: WorkspaceModule) {
   if (item.route) {
@@ -42,19 +50,42 @@ function navigateModule(item: WorkspaceModule) {
   }
 }
 
+function toggleRail() {
+  railCollapsed.value = !railCollapsed.value;
+}
+
 function openAdmin() {
   void router.push('/admin');
+}
+
+function loadRailCollapsed(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return window.localStorage.getItem(WORKSPACE_RAIL_COLLAPSED_KEY) === '1';
 }
 </script>
 
 <template>
-  <section :class="['workspace-shell', 'workspace-shared-shell', `workspace-${variant}`]">
+  <section :class="['workspace-shell', 'workspace-shared-shell', `workspace-${variant}`, { collapsed: railCollapsed }]">
     <aside class="workspace-rail">
+      <button
+        class="workspace-rail-toggle"
+        type="button"
+        :aria-label="railCollapsed ? '展开侧栏' : '收起侧栏'"
+        :title="railCollapsed ? '展开侧栏' : '收起侧栏'"
+        @click="toggleRail"
+      >
+        <ChevronRight v-if="railCollapsed" :size="20" />
+        <ChevronLeft v-else :size="20" />
+      </button>
+
       <nav class="workspace-rail-nav" aria-label="工作台模块">
         <button
           v-for="item in modules"
           :key="item.key"
           :class="['workspace-rail-button', { active: item.key === activeModuleKey }]"
+          :title="item.label"
           @click="navigateModule(item)"
         >
           <component :is="getIcon(item.icon)" :size="26" />
@@ -114,6 +145,10 @@ function openAdmin() {
     linear-gradient(180deg, #fbfdff 0%, #f7f9fd 100%);
 }
 
+.workspace-shell.collapsed {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
 .workspace-image {
   --workspace-accent: #5264ff;
   --workspace-accent-soft: #f1f3ff;
@@ -132,11 +167,29 @@ function openAdmin() {
 .workspace-rail {
   min-width: 0;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 20px;
   padding: 30px 18px 24px;
   border-right: 1px solid #e4e9f1;
   background: rgba(255, 255, 255, 0.84);
+}
+
+.workspace-rail-toggle {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  justify-self: end;
+  border: 1px solid #dfe5ef;
+  border-radius: 8px;
+  color: #4b5563;
+  background: #fff;
+  cursor: pointer;
+}
+
+.workspace-rail-toggle:hover {
+  border-color: #c9d0ff;
+  color: var(--workspace-accent);
 }
 
 .workspace-rail-nav {
@@ -158,6 +211,7 @@ function openAdmin() {
   font-size: 16px;
   font-weight: 800;
   text-align: left;
+  cursor: pointer;
 }
 
 .workspace-rail-button svg {
@@ -175,15 +229,38 @@ function openAdmin() {
   gap: 12px;
 }
 
+.workspace-shell.collapsed .workspace-rail {
+  padding: 24px 10px;
+}
+
+.workspace-shell.collapsed .workspace-rail-toggle {
+  justify-self: center;
+}
+
+.workspace-shell.collapsed .workspace-rail-button {
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+}
+
+.workspace-shell.collapsed .workspace-rail-button span,
+.workspace-shell.collapsed .workspace-rail-footer {
+  display: none;
+}
+
 .workspace-content {
   min-width: 0;
   min-height: 0;
-  display: grid;
-  grid-template-rows: 88px minmax(0, 1fr);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .workspace-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   min-width: 0;
+  min-height: 88px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -250,20 +327,20 @@ function openAdmin() {
 
 .workspace-inner {
   min-width: 0;
-  min-height: 0;
+  min-height: calc(100vh - var(--portal-chrome-height, 0px) - 88px);
   display: grid;
   grid-template-columns: minmax(0, 1fr) 344px;
+  align-items: start;
   gap: 20px;
   padding: 20px 20px 20px 18px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .workspace-main,
 .workspace-side {
   min-width: 0;
   min-height: 0;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
+  overflow: visible;
 }
 
 .workspace-side {
@@ -278,10 +355,45 @@ function openAdmin() {
     grid-template-columns: 220px minmax(0, 1fr);
   }
 
+  .workspace-shell.collapsed {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
   .workspace-inner {
     grid-template-columns: minmax(0, 1fr) 320px;
     gap: 16px;
     padding-inline: 16px;
+  }
+}
+
+@media (max-width: 960px) {
+  .workspace-shell,
+  .workspace-shell.collapsed {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .workspace-rail {
+    padding: 20px 10px;
+  }
+
+  .workspace-rail-toggle,
+  .workspace-rail-button {
+    justify-self: center;
+  }
+
+  .workspace-rail-button {
+    justify-content: center;
+    gap: 0;
+    padding: 0;
+  }
+
+  .workspace-rail-button span,
+  .workspace-rail-footer {
+    display: none;
+  }
+
+  .workspace-inner {
+    grid-template-columns: 1fr;
   }
 }
 </style>

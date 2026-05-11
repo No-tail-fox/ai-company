@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.db import get_session
 from app.main import create_app
 from app.models import ChannelRoute, GenerationTask, Tenant, User, Wallet
+from app.services import image as image_module
 
 
 def override_session(session):
@@ -39,8 +40,15 @@ def seed_image_runtime(session, *, tenant_id="tenant-a", user_id="demo-user", ba
     return wallet
 
 
-def test_image_generation_creates_pending_task_and_reserves_wallet_points(session):
+def test_image_generation_creates_pending_task_reserves_wallet_points_and_enqueues_worker(session, monkeypatch):
     wallet = seed_image_runtime(session)
+    enqueued = []
+    monkeypatch.setattr(
+        image_module,
+        "enqueue_generation_task",
+        lambda *, tenant_id, task_id: enqueued.append((tenant_id, task_id)),
+        raising=False,
+    )
     client = make_client(session)
 
     response = client.post(
@@ -59,6 +67,7 @@ def test_image_generation_creates_pending_task_and_reserves_wallet_points(sessio
     assert payload["surface"] == "portal"
     assert wallet.balance == 920
     assert wallet.frozen_balance == 80
+    assert enqueued == [("tenant-a", payload["id"])]
 
 
 def test_image_generation_supports_workbench_surface(session):

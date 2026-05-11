@@ -56,6 +56,18 @@ test('workbench page uses the shared shell and real chat behaviors', () => {
   expect(workbenchPage).toContain('workbench-file-card');
 });
 
+test('shared workbench shell supports a collapsed rail and single content scroll', () => {
+  expect(workspaceShell).toContain('WORKSPACE_RAIL_COLLAPSED_KEY');
+  expect(workspaceShell).toContain('railCollapsed');
+  expect(workspaceShell).toContain('workspace-rail-toggle');
+  expect(workspaceShell).toContain('.workspace-shell.collapsed');
+  expect(workspaceShell).toContain('grid-template-columns: 64px minmax(0, 1fr)');
+  expect(workspaceShell).toContain('overflow-y: auto');
+  expect(workspaceShell).not.toContain('.workspace-main,\n.workspace-side {\n  min-width: 0;\n  min-height: 0;\n  overflow-y: auto;');
+  expect(workbenchPage).not.toContain('workbench-side-panel');
+  expect(workbenchPage).not.toContain('workbench-thread {\n  min-height: 0;\n  padding: 24px 28px;\n  overflow-y: auto;');
+});
+
 test('creative workbench child pages use workbench surface and local drafts', () => {
   for (const source of [imagePage, videoPage, audioPage]) {
     expect(source).toContain('<WorkspaceShell');
@@ -70,4 +82,17 @@ test('creative workbench child pages use workbench surface and local drafts', ()
   expect(videoPage).toContain('surface: SURFACE');
   expect(audioPage).toContain('fetchAudioTasks(SURFACE)');
   expect(audioPage).toContain('buildAudioTaskPayload');
+});
+
+test('creative workbench pages poll real generation tasks and render provider media', () => {
+  for (const source of [imagePage, videoPage, audioPage]) {
+    expect(source).toContain('startTaskPolling');
+    expect(source).toContain('hasActiveTasks');
+    expect(source).toContain('onBeforeUnmount');
+    expect(source).not.toContain('queueRows.length > 0\n    ? queueRows\n    : [');
+  }
+  expect(imagePage).toContain('<img v-if="card.url"');
+  expect(videoPage).toContain('<video v-if="latestVideoResult"');
+  expect(audioPage).toContain('<audio v-if="latestAudioResult"');
+  expect(audioPage).toContain('task.errorMessage');
 });

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
   Download,
   Expand,
@@ -66,12 +66,13 @@ const defaultDraft: ImageDraft = {
   streaming: true
 };
 
-const workbench = ref<ImageWorkbench>(createFallbackImageWorkbench());
+const workbench = ref<ImageWorkbench>({ ...createFallbackImageWorkbench(), tasks: [] });
 const draft = ref<ImageDraft>(loadWorkbenchDraft(DRAFT_KEY, defaultDraft));
 const isCreating = ref(false);
 const createError = ref('');
-const activeHistoryId = ref('history-city');
+const activeHistoryId = ref('');
 const viewMode = ref<'grid' | 'list'>('grid');
+const pollTimer = ref<number | null>(null);
 
 const modelOptions = ['通用绘图', '商品摄影', '海报设计', '国风插画'];
 const sizeOptions = ['1024 x 1024', '1344 x 768', '768 x 1344', '1536 x 1024'];
@@ -83,19 +84,9 @@ const historyRows = computed(() => {
     id: task.id,
     title: compact(task.prompt, 14),
     time: formatTime(task.createdAt),
-    group: '今天'
+    group: task.status === 'FAILED' ? '失败' : '任务'
   }));
-  return [
-    ...taskRows,
-    { id: 'history-city', title: '霓虹城市夜景', time: '14:35', group: '今天' },
-    { id: 'history-product', title: '极简产品海报', time: '11:20', group: '今天' },
-    { id: 'history-toy', title: '毛绒玩具电商图', time: '09:47', group: '今天' },
-    { id: 'history-landscape', title: '中国风山水', time: '昨天 16:42', group: '昨天' },
-    { id: 'history-room', title: '现代客厅室内设计', time: '昨天 10:18', group: '昨天' },
-    { id: 'history-earphone', title: '科技感耳机渲染', time: '周二 15:30', group: '本周' },
-    { id: 'history-shoes', title: '运动鞋产品图', time: '周二 11:05', group: '本周' },
-    { id: 'history-cafe', title: '咖啡店海报设计', time: '周一 18:22', group: '本周' }
-  ];
+  return taskRows;
 });
 
 const groupedHistory = computed(() => {
@@ -113,7 +104,7 @@ const groupedHistory = computed(() => {
 
 const previewCards = computed<PreviewCard[]>(() => {
   const successfulTasks = workbench.value.tasks
-    .filter((task) => task.resultUrl)
+    .filter((task) => task.status === 'SUCCESS' && task.resultUrl)
     .slice(0, 2)
     .map((task, index) => ({
       id: task.id,
@@ -123,14 +114,7 @@ const previewCards = computed<PreviewCard[]>(() => {
       accent: index % 2 === 0 ? 'city' : 'moon',
       featured: index === 0
     }));
-  return [
-    ...successfulTasks,
-    { id: 'preview-a', title: '霓虹城市夜景', label: '方案 A', accent: 'city', featured: successfulTasks.length === 0 },
-    { id: 'preview-b', title: '雨夜街道', label: '方案 B', accent: 'street' },
-    { id: 'preview-c', title: '月色天际线', label: '方案 C', accent: 'moon' },
-    { id: 'preview-d', title: '窄巷霓虹', label: '方案 D', accent: 'alley' },
-    { id: 'preview-e', title: '跑车街景', label: '方案 E', accent: 'car' }
-  ].slice(0, 5);
+  return successfulTasks;
 });
 
 const queueRows = computed(() => {
@@ -141,15 +125,10 @@ const queueRows = computed(() => {
     status: statusMeta(task.status).label,
     tone: statusMeta(task.status).tone,
     time: task.status === 'PENDING' ? '刚刚' : formatTime(task.createdAt),
-    progress: statusMeta(task.status).progress
+    progress: statusMeta(task.status).progress,
+    errorMessage: task.errorMessage
   }));
-  return taskRows.length > 0
-    ? taskRows
-    : [
-        { id: 'queue-1', title: '图像生成 #1024', subtitle: '霓虹城市夜景', status: '排队中', tone: 'pending', time: '刚刚', progress: 12 },
-        { id: 'queue-2', title: '图像生成 #1023', subtitle: '极简产品海报', status: '生成中', tone: 'processing', time: '2 分钟前', progress: 65 },
-        { id: 'queue-3', title: '图像生成 #1022', subtitle: '毛绒玩具电商图', status: '已完成', tone: 'success', time: '8 分钟前', progress: 100 }
-      ];
+  return taskRows;
 });
 
 const recentRuns = computed(() =>
@@ -158,6 +137,7 @@ const recentRuns = computed(() =>
     icon: index % 3 === 0 ? 'MessageCircle' : index % 3 === 1 ? 'Image' : 'Headphones'
   }))
 );
+const hasActiveTasks = computed(() => workbench.value.tasks.some(isActiveTask));
 
 watch(
   draft,
@@ -165,10 +145,32 @@ watch(
   { deep: true }
 );
 
-onMounted(loadWorkbench);
+onMounted(async () => {
+  await loadWorkbench();
+  startTaskPolling();
+});
 
-async function loadWorkbench() {
-  workbench.value = await fetchImageWorkbench(SURFACE);
+onBeforeUnmount(stopTaskPolling);
+
+watch(hasActiveTasks, (active) => {
+  if (active) {
+    startTaskPolling();
+  } else {
+    stopTaskPolling();
+  }
+});
+
+async function loadWorkbench(silent = false) {
+  try {
+    workbench.value = await fetchImageWorkbench(SURFACE);
+    if (!silent) {
+      createError.value = '';
+    }
+  } catch (error) {
+    if (!silent) {
+      createError.value = error instanceof Error ? error.message : '图像任务加载失败';
+    }
+  }
 }
 
 async function createFromPrompt() {
@@ -193,11 +195,36 @@ async function createFromPrompt() {
     }
     workbench.value = refreshed;
     activeHistoryId.value = created.id;
+    startTaskPolling();
   } catch (error) {
     createError.value = error instanceof Error ? error.message : '图像任务创建失败';
   } finally {
     isCreating.value = false;
   }
+}
+
+function startTaskPolling() {
+  if (!hasActiveTasks.value || pollTimer.value !== null || typeof window === 'undefined') {
+    return;
+  }
+  pollTimer.value = window.setInterval(() => {
+    void loadWorkbench(true).then(() => {
+      if (!hasActiveTasks.value) {
+        stopTaskPolling();
+      }
+    });
+  }, 3000);
+}
+
+function stopTaskPolling() {
+  if (pollTimer.value !== null && typeof window !== 'undefined') {
+    window.clearInterval(pollTimer.value);
+  }
+  pollTimer.value = null;
+}
+
+function isActiveTask(task: ImageTask): boolean {
+  return task.status === 'PENDING' || task.status === 'PROCESSING';
 }
 
 function statusMeta(status: string) {
@@ -334,7 +361,7 @@ function compact(value: string, max = 18) {
                 </button>
               </div>
             </header>
-            <div class="wb-preview-grid">
+            <div v-if="previewCards.length" class="wb-preview-grid">
               <article
                 v-for="card in previewCards"
                 :key="card.id"
@@ -353,6 +380,11 @@ function compact(value: string, max = 18) {
                   <button type="button" aria-label="放大"><Expand :size="18" /></button>
                 </footer>
               </article>
+            </div>
+            <div v-else class="wb-empty-state">
+              <ImageIcon :size="34" />
+              <strong>还没有完成的图像</strong>
+              <span>提交任务后，成功结果会在这里显示真实图片。</span>
             </div>
           </section>
         </div>
@@ -397,6 +429,7 @@ function compact(value: string, max = 18) {
           <div>
             <strong>{{ task.title }}</strong>
             <small>{{ task.subtitle }}</small>
+            <small v-if="task.errorMessage" class="wb-task-error">{{ task.errorMessage }}</small>
             <div v-if="task.progress < 100" class="wb-progress">
               <i :style="{ width: `${task.progress}%` }"></i>
             </div>
@@ -731,6 +764,23 @@ function compact(value: string, max = 18) {
   gap: 16px;
 }
 
+.wb-empty-state {
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: #64748b;
+  text-align: center;
+}
+
+.wb-empty-state strong {
+  color: #172033;
+  font-size: 18px;
+}
+
 .wb-preview-card {
   min-height: 218px;
   display: grid;
@@ -982,6 +1032,10 @@ function compact(value: string, max = 18) {
 .wb-run-row small,
 .wb-task-row time {
   color: #8791a3;
+}
+
+.wb-task-error {
+  color: #d92d20 !important;
 }
 
 .wb-task-row em {

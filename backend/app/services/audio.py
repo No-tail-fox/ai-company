@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-from typing import Any
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import ChannelRoute, GenerationTask, new_id
 from app.schemas import AudioTaskCreate
-from app.services.channel_router import ChannelRouter, ChannelTransport, NoHealthyChannelError, RouteNotFoundError
+from app.services.channel_router import ChannelTransport, RouteNotFoundError
 from app.services.generation import GenerationService
 from app.services.generation_surface import namespace_request_key, normalize_generation_surface, surface_clause, surface_from_request_key
 from app.services.model_configs import ModelConfigService
 from app.services.wallet import InsufficientBalanceError, WalletNotFoundError
+from app.tasks.generation import enqueue_generation_task
 
 
 DEMO_AUDIO_USER_ID = "demo-user"
@@ -50,39 +49,9 @@ class AudioService:
             estimated_cost=resolved.effective_point_cost,
             request_key=request_key,
         )
-        try:
-            dispatch = ChannelRouter(self.session, self.transport).dispatch(
-                tenant_id=tenant_id,
-                route_key=route.route_key,
-                payload=_provider_payload(payload, task.id),
-            )
-            generation.mark_processing(tenant_id=tenant_id, task_id=task.id, provider_task_id=dispatch.provider_task_id)
-            if not dispatch.result_url:
-                generation.complete_task(
-                    tenant_id=tenant_id,
-                    task_id=task.id,
-                    status="FAILED",
-                    actual_cost=0,
-                    error_message="audio provider did not return result_url",
-                )
-                raise AudioProviderError("audio provider did not return result_url")
-            completed = generation.complete_task(
-                tenant_id=tenant_id,
-                task_id=task.id,
-                status="SUCCESS",
-                actual_cost=resolved.effective_point_cost,
-                result_url=dispatch.result_url,
-            )
-            return self._task_payload(completed)
-        except (NoHealthyChannelError, RouteNotFoundError) as exc:
-            generation.complete_task(
-                tenant_id=tenant_id,
-                task_id=task.id,
-                status="FAILED",
-                actual_cost=0,
-                error_message=str(exc),
-            )
-            raise AudioProviderError(str(exc)) from exc
+        if task.status == "PENDING":
+            enqueue_generation_task(tenant_id=tenant_id, task_id=task.id)
+        return self._task_payload(task)
 
     def list_tasks(self, *, tenant_id: str, user_id: str = DEMO_AUDIO_USER_ID, surface: str = "portal", limit: int = 20) -> dict:
         normalized_surface = normalize_generation_surface(surface)
@@ -144,20 +113,6 @@ class AudioService:
             "created_at": task.created_at.isoformat() if task.created_at else None,
             "updated_at": task.updated_at.isoformat() if task.updated_at else None,
         }
-
-
-def _provider_payload(payload: AudioTaskCreate, task_id: str) -> dict[str, Any]:
-    return {
-        key: value
-        for key, value in {
-            "task_id": task_id,
-            "task_type": payload.task_type,
-            "prompt": payload.prompt,
-            "source_url": payload.source_url,
-            "voice_key": payload.voice_key,
-        }.items()
-        if value
-    }
 
 
 __all__ = [

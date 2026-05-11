@@ -513,12 +513,8 @@ export async function exportChatSession(sessionId: string): Promise<ChatExportRe
 }
 
 export async function fetchVideoWorkbench(surface: GenerationSurface = 'portal'): Promise<VideoWorkbench> {
-  try {
-    const params = new URLSearchParams({ user_id: 'demo-user', surface });
-    return normalizeVideoWorkbench(await request(`/api/v1/video/workbench?${params.toString()}`));
-  } catch {
-    return createFallbackVideoWorkbench();
-  }
+  const params = new URLSearchParams({ user_id: 'demo-user', surface });
+  return normalizeVideoWorkbench(await request(`/api/v1/video/workbench?${params.toString()}`));
 }
 
 export async function createVideoGeneration(
@@ -548,12 +544,8 @@ export async function createVideoGeneration(
 }
 
 export async function fetchImageWorkbench(surface: GenerationSurface = 'portal'): Promise<ImageWorkbench> {
-  try {
-    const params = new URLSearchParams({ user_id: 'demo-user', surface });
-    return normalizeImageWorkbench(await request(`/api/v1/image/workbench?${params.toString()}`));
-  } catch {
-    return createFallbackImageWorkbench();
-  }
+  const params = new URLSearchParams({ user_id: 'demo-user', surface });
+  return normalizeImageWorkbench(await request(`/api/v1/image/workbench?${params.toString()}`));
 }
 
 export async function createImageGeneration(
@@ -583,13 +575,9 @@ export async function createImageGeneration(
 }
 
 export async function fetchAudioTasks(surface: GenerationSurface = 'portal'): Promise<AudioTask[]> {
-  try {
-    const params = new URLSearchParams({ surface });
-    const payload = await request(`/api/v1/audio/tasks?${params.toString()}`);
-    return (payload.tasks ?? []).map(normalizeAudioTask);
-  } catch {
-    return [];
-  }
+  const params = new URLSearchParams({ surface });
+  const payload = await request(`/api/v1/audio/tasks?${params.toString()}`);
+  return (payload.tasks ?? []).map(normalizeAudioTask);
 }
 
 export async function createAudioTask(payload: AudioTaskPayload): Promise<AudioTask> {

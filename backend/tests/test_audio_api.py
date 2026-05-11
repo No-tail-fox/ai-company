@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.db import get_session
 from app.main import create_app
 from app.models import ApiChannel, Asset, ChannelRoute, GenerationTask, Tenant, User, Wallet
+from app.services import audio as audio_module
 
 
 def override_session(session):
@@ -94,9 +95,16 @@ def test_audio_upload_rejects_non_audio_files(session, tmp_path, monkeypatch):
     assert response.status_code == 400
 
 
-def test_audio_task_dispatches_sync_provider_and_creates_asset(session):
+def test_audio_task_enqueues_pending_task_and_reserves_wallet_points(session, monkeypatch):
     wallet = seed_audio_runtime(session)
     transport = FakeAudioTransport()
+    enqueued = []
+    monkeypatch.setattr(
+        audio_module,
+        "enqueue_generation_task",
+        lambda *, tenant_id, task_id: enqueued.append((tenant_id, task_id)),
+        raising=False,
+    )
     client = make_client(session, transport)
 
     response = client.post(
@@ -112,14 +120,15 @@ def test_audio_task_dispatches_sync_provider_and_creates_asset(session):
 
     assert response.status_code == 201
     payload = response.json()
-    assert payload["status"] == "SUCCESS"
-    assert payload["result_url"] == "https://cdn.example.com/audio.mp3"
-    assert payload["actual_cost"] == 120
+    assert payload["status"] == "PENDING"
+    assert payload["result_url"] is None
+    assert payload["actual_cost"] is None
     assert payload["surface"] == "portal"
     assert wallet.balance == 880
-    assert wallet.frozen_balance == 0
-    assert session.query(Asset).filter_by(asset_type="TTS").count() == 1
-    assert transport.calls[0]["payload"]["voice_key"] == "voice-warm-female"
+    assert wallet.frozen_balance == 120
+    assert session.query(Asset).filter_by(asset_type="TTS").count() == 0
+    assert transport.calls == []
+    assert enqueued == [("tenant-a", payload["id"])]
 
 
 def test_audio_task_create_supports_workbench_surface(session):
@@ -147,9 +156,16 @@ def test_audio_task_create_supports_workbench_surface(session):
     assert task.request_key.startswith("workbench:")
 
 
-def test_audio_task_failure_releases_reserved_wallet_funds(session):
+def test_audio_task_provider_failure_is_deferred_to_worker(session, monkeypatch):
     wallet = seed_audio_runtime(session)
     transport = FakeAudioTransport(result_url=None)
+    enqueued = []
+    monkeypatch.setattr(
+        audio_module,
+        "enqueue_generation_task",
+        lambda *, tenant_id, task_id: enqueued.append((tenant_id, task_id)),
+        raising=False,
+    )
     client = make_client(session, transport)
 
     response = client.post(
@@ -158,11 +174,15 @@ def test_audio_task_failure_releases_reserved_wallet_funds(session):
         json={"task_type": "TTS", "route_key": "audio_tts", "prompt": "missing result"},
     )
 
-    assert response.status_code == 502
+    assert response.status_code == 201
+    payload = response.json()
     task = session.query(GenerationTask).filter_by(route_key="audio_tts").one()
-    assert task.status == "FAILED"
-    assert wallet.balance == 1000
-    assert wallet.frozen_balance == 0
+    assert task.status == "PENDING"
+    assert payload["status"] == "PENDING"
+    assert wallet.balance == 880
+    assert wallet.frozen_balance == 120
+    assert transport.calls == []
+    assert enqueued == [("tenant-a", payload["id"])]
 
 
 def test_audio_tasks_list_returns_demo_user_tasks_for_current_tenant(session):

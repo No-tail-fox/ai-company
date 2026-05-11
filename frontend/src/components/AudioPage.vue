@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
   Bookmark,
   CircleHelp,
@@ -87,6 +87,7 @@ const isSubmitting = ref(false);
 const isLoadingTasks = ref(false);
 const notice = ref('');
 const playingId = ref('');
+const pollTimer = ref<number | null>(null);
 
 const voiceItems = computed(() => voicesSection.value?.items ?? []);
 const audioTools = computed(() => toolsSection.value?.items ?? []);
@@ -115,15 +116,10 @@ const queueRows = computed(() => {
     status: statusLabel(task.status),
     tone: statusTone(task.status),
     time: task.status === 'PROCESSING' ? '剩余 00:12' : formatDate(task.createdAt),
-    progress: progressForStatus(task.status)
+    progress: progressForStatus(task.status),
+    errorMessage: task.errorMessage
   }));
-  return rows.length > 0
-    ? rows
-    : [
-        { id: 'queue-audio-1', title: '音频生成 #2048', subtitle: '女声 · 清澈 · 旁白', status: '生成中', tone: 'processing', time: '剩余 00:12', progress: 62 },
-        { id: 'queue-audio-2', title: '降噪处理 #2047', subtitle: '48kHz · 立体声', status: '已完成', tone: 'success', time: '2 分钟前', progress: 100 },
-        { id: 'queue-audio-3', title: '导出任务 #2046', subtitle: 'WAV · 48kHz', status: '排队中', tone: 'pending', time: '预计 3 分钟后', progress: 12 }
-      ];
+  return rows;
 });
 
 const recentRuns = computed(() => {
@@ -133,16 +129,10 @@ const recentRuns = computed(() => {
     subtitle: task.prompt ? compact(task.prompt, 18) : `${selectedVoiceTitle.value} · ${draft.value.mode}`,
     date: formatDate(task.createdAt)
   }));
-  return rows.length > 0
-    ? rows
-    : [
-        { id: 'run-audio-1', title: '音频生成 #2045', subtitle: '女声 · 清澈 · 旁白', date: '2025-05-12 14:28' },
-        { id: 'run-audio-2', title: '人声增强 #2044', subtitle: '立体声 · 中等强度', date: '2025-05-12 14:05' },
-        { id: 'run-audio-3', title: '降噪处理 #2043', subtitle: '48kHz · 立体声', date: '2025-05-12 13:41' },
-        { id: 'run-audio-4', title: '导出任务 #2042', subtitle: 'MP3 · 44.1kHz', date: '2025-05-12 13:22' },
-        { id: 'run-audio-5', title: '音频生成 #2041', subtitle: '男声 · 磁性 · 播客', date: '2025-05-12 12:58' }
-      ];
+  return rows;
 });
+const latestAudioResult = computed(() => tasks.value.find((task) => task.status === 'SUCCESS' && task.resultUrl) ?? null);
+const hasActiveTasks = computed(() => tasks.value.some(isActiveTask));
 
 const transcriptRows = [
   ['00:00 - 00:10', '欢迎收听本期节目，我们今天聊聊如何提升专注力。'],
@@ -165,7 +155,20 @@ watch(
   { deep: true }
 );
 
-onMounted(loadTasks);
+onMounted(async () => {
+  await loadTasks();
+  startTaskPolling();
+});
+
+onBeforeUnmount(stopTaskPolling);
+
+watch(hasActiveTasks, (active) => {
+  if (active) {
+    startTaskPolling();
+  } else {
+    stopTaskPolling();
+  }
+});
 
 function selectDefaults() {
   selectedTool.value = selectedTool.value ?? audioTools.value[0] ?? workbenchSection.value?.items[0] ?? null;
@@ -186,6 +189,7 @@ async function submitAudioTask() {
     );
     tasks.value = [task, ...tasks.value.filter((existing) => existing.id !== task.id)];
     notice.value = task.status === 'SUCCESS' ? '音频任务已完成，可在最近运行中查看。' : '音频任务已提交。';
+    startTaskPolling();
   } catch (error) {
     notice.value = error instanceof Error ? error.message : '音频任务提交失败';
   } finally {
@@ -197,9 +201,35 @@ async function loadTasks() {
   isLoadingTasks.value = true;
   try {
     tasks.value = await fetchAudioTasks(SURFACE);
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '音频任务加载失败';
   } finally {
     isLoadingTasks.value = false;
   }
+}
+
+function startTaskPolling() {
+  if (!hasActiveTasks.value || pollTimer.value !== null || typeof window === 'undefined') {
+    return;
+  }
+  pollTimer.value = window.setInterval(() => {
+    void loadTasks().then(() => {
+      if (!hasActiveTasks.value) {
+        stopTaskPolling();
+      }
+    });
+  }, 3000);
+}
+
+function stopTaskPolling() {
+  if (pollTimer.value !== null && typeof window !== 'undefined') {
+    window.clearInterval(pollTimer.value);
+  }
+  pollTimer.value = null;
+}
+
+function isActiveTask(task: AudioTask): boolean {
+  return task.status === 'PENDING' || task.status === 'PROCESSING';
 }
 
 async function handleAudioUpload(event: Event) {
@@ -419,6 +449,7 @@ function compact(value: string, max = 18) {
         <section class="audio-bottom-grid">
           <article class="audio-playback-panel">
             <h2>播放控制</h2>
+            <audio v-if="latestAudioResult" class="audio-result-player" :src="latestAudioResult.resultUrl || ''" controls />
             <div class="audio-player-buttons">
               <button type="button" aria-label="上一段"><RefreshCw :size="22" /></button>
               <button class="primary" type="button" @click="togglePlay('main')">
@@ -497,6 +528,7 @@ function compact(value: string, max = 18) {
           <div>
             <strong>{{ task.title }}</strong>
             <small>{{ task.subtitle }}</small>
+            <small v-if="task.errorMessage" class="audio-task-error">{{ task.errorMessage }}</small>
             <div v-if="task.progress < 100" class="audio-progress">
               <i :style="{ width: `${task.progress}%` }"></i>
             </div>
@@ -851,6 +883,10 @@ function compact(value: string, max = 18) {
   gap: 26px;
 }
 
+.audio-result-player {
+  width: 100%;
+}
+
 .audio-player-buttons .primary {
   width: 58px;
   height: 58px;
@@ -1010,6 +1046,10 @@ function compact(value: string, max = 18) {
 .audio-run-row small,
 .audio-task-row time {
   color: #8791a3;
+}
+
+.audio-task-error {
+  color: #d92d20 !important;
 }
 
 .audio-task-row em {

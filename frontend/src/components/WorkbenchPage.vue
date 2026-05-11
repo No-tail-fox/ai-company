@@ -775,12 +775,11 @@ function formatFileSize(size?: number): string {
 }
 
 .workbench-chat-card {
-  height: 100%;
   min-height: 620px;
   border: 1px solid #dfe5ef;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.88);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .workbench-toolbar {
@@ -838,7 +837,7 @@ function formatFileSize(size?: number): string {
 }
 
 .workbench-chat-layout {
-  height: calc(100% - 72px);
+  min-height: 560px;
   display: grid;
   grid-template-columns: 255px minmax(0, 1fr);
 }
@@ -846,7 +845,6 @@ function formatFileSize(size?: number): string {
 .workbench-session-menu {
   padding: 16px 12px;
   border-right: 1px solid #e4e9f1;
-  overflow-y: auto;
 }
 
 .workbench-session-search {
@@ -952,7 +950,6 @@ function formatFileSize(size?: number): string {
 .workbench-thread {
   min-height: 0;
   padding: 24px 28px;
-  overflow-y: auto;
 }
 
 .workbench-message {
@@ -1127,16 +1124,6 @@ function formatFileSize(size?: number): string {
   bottom: -22px;
   color: #64748b;
   font-size: 12px;
-}
-
-.workbench-side-panel {
-  display: grid;
-  align-content: start;
-  gap: 18px;
-  padding: 16px 16px 22px;
-  border-left: 1px solid #e4e9f1;
-  overflow-y: auto;
-  background: rgba(255, 255, 255, 0.7);
 }
 
 .workbench-side-card {

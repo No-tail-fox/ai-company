@@ -1,6 +1,13 @@
 name: ai-company
 
 services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -10,6 +17,10 @@ services:
       DATABASE_URL: sqlite:////data/app.db
       STORAGE_DIR: /storage
       JWT_SECRET: ${JWT_SECRET:-change-me-before-production}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+    depends_on:
+      - redis
     expose:
       - "8000"
     volumes:
@@ -22,6 +33,26 @@ services:
       timeout: 5s
       retries: 6
       start_period: 20s
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["celery", "-A", "app.celery_app:celery_app", "worker", "--loglevel=info", "--pool=solo", "--concurrency=1"]
+    environment:
+      APP_NAME: Light AI SaaS
+      DATABASE_URL: sqlite:////data/app.db
+      STORAGE_DIR: /storage
+      JWT_SECRET: ${JWT_SECRET:-change-me-before-production}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+    depends_on:
+      - redis
+      - backend
+    volumes:
+      - backend_data:/data
+      - backend_storage:/storage
+    restart: unless-stopped
 
   frontend:
     build:
@@ -38,3 +69,5 @@ volumes:
     name: ai-company-backend-data
   backend_storage:
     name: ai-company-backend-storage
+  redis_data:
+    name: ai-company-redis-data

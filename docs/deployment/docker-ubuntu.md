@@ -1,8 +1,10 @@
 # Docker Ubuntu Deployment
 
-This project can run as a two-container stack:
+This project can run as a four-container stack:
 
 - `backend`: FastAPI + SQLite + persistent storage
+- `worker`: Celery worker for image, video, and audio generation tasks
+- `redis`: queue and Celery result backend
 - `frontend`: Nginx serving the Vue build and proxying `/api` and `/storage`
 
 ## Prerequisites
@@ -29,6 +31,7 @@ Set values in `.env` before first start:
 
 `JWT_SECRET` should be a long random value.
 `PUBLIC_HTTP_PORT` defaults to `80`; use `8080` or another port if something is already using port 80.
+`CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` default to the bundled Redis service and usually do not need to change.
 
 ## Data
 
@@ -36,6 +39,7 @@ Persistent data is stored in named volumes:
 
 - `ai-company-backend-data` for `sqlite` database files
 - `ai-company-backend-storage` for uploads and generated files
+- `ai-company-redis-data` for Redis queue durability
 
 ## Health Checks
 

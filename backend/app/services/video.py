@@ -10,6 +10,7 @@ from app.services.generation import GenerationService
 from app.services.generation_surface import namespace_request_key, normalize_generation_surface, surface_clause, surface_from_request_key
 from app.services.model_configs import ModelConfigService
 from app.services.wallet import InsufficientBalanceError, WalletNotFoundError
+from app.tasks.generation import enqueue_generation_task
 
 
 DEMO_VIDEO_USER_ID = "demo-user"
@@ -105,6 +106,8 @@ class VideoService:
             estimated_cost=resolved.effective_point_cost,
             request_key=request_key,
         )
+        if task.status == "PENDING":
+            enqueue_generation_task(tenant_id=tenant_id, task_id=task.id)
         return self._task_payload(task)
 
     def _user(self, *, tenant_id: str, user_id: str) -> User:

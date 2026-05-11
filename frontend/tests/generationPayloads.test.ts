@@ -1,5 +1,11 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { createImageGeneration, createVideoGeneration } from '../src/services/api';
+import {
+  createImageGeneration,
+  createVideoGeneration,
+  fetchAudioTasks,
+  fetchImageWorkbench,
+  fetchVideoWorkbench
+} from '../src/services/api';
 
 function mockFetchResponse(payload: any) {
   return {
@@ -104,4 +110,12 @@ test('generation request options can target the workbench namespace', async () =
 
   const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
   expect(body.surface).toBe('workbench');
+});
+
+test('media workbench task fetches surface backend failures instead of local fallbacks', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503, json: async () => ({}) } as Response));
+
+  await expect(fetchImageWorkbench('workbench')).rejects.toThrow('503');
+  await expect(fetchVideoWorkbench('workbench')).rejects.toThrow('503');
+  await expect(fetchAudioTasks('workbench')).rejects.toThrow('503');
 });

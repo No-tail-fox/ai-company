@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
   Clapperboard,
   Download,
@@ -25,6 +25,7 @@ import {
   getVideoStatusMeta,
   loadWorkbenchDraft,
   saveWorkbenchDraft,
+  type VideoTask,
   type VideoWorkbench
 } from '../services/viewModel';
 import WorkspaceShell from './WorkspaceShell.vue';
@@ -68,11 +69,12 @@ const defaultDraft: VideoDraft = {
   negativeOpen: false
 };
 
-const workbench = ref<VideoWorkbench>(createFallbackVideoWorkbench());
+const workbench = ref<VideoWorkbench>({ ...createFallbackVideoWorkbench(), tasks: [] });
 const draft = ref<VideoDraft>(loadWorkbenchDraft(DRAFT_KEY, defaultDraft));
 const selectedSceneId = ref('scene-02');
 const isCreating = ref(false);
 const createError = ref('');
+const pollTimer = ref<number | null>(null);
 
 const durationOptions = ['10s', '15s', '30s', '45s', '60s'];
 const ratioOptions = ['16:9', '9:16', '1:1', '21:9'];
@@ -100,16 +102,10 @@ const queueRows = computed(() => {
     status: statusMeta(task.status).label,
     tone: statusMeta(task.status).tone,
     time: task.status === 'PROCESSING' ? '剩余 00:32' : formatDate(task.createdAt),
-    progress: statusMeta(task.status).progress
+    progress: statusMeta(task.status).progress,
+    errorMessage: task.errorMessage
   }));
-  return taskRows.length > 0
-    ? taskRows
-    : [
-        { id: 'queue-video-1', title: '视频生成 #2048', subtitle: '生成中 45%', status: '生成中', tone: 'processing', time: '剩余 00:32', progress: 45 },
-        { id: 'queue-video-2', title: '镜头渲染 #2047', subtitle: '预计开始 2 分钟后', status: '排队中', tone: 'pending', time: '', progress: 0 },
-        { id: 'queue-video-3', title: '脚本解析 #2049', subtitle: '预计开始 4 分钟后', status: '排队中', tone: 'pending', time: '', progress: 0 },
-        { id: 'queue-video-4', title: '导出 #2046', subtitle: '10 分钟前', status: '已完成', tone: 'success', time: '', progress: 100 }
-      ];
+  return taskRows;
 });
 
 const recentRuns = computed(() => {
@@ -118,21 +114,17 @@ const recentRuns = computed(() => {
     title: `${task.routeKey === 'video_text_to_video' ? '视频生成' : task.routeKey} #${2045 - index}`,
     date: formatDate(task.createdAt)
   }));
-  return taskRows.length > 0
-    ? taskRows
-    : [
-        { id: 'run-video-1', title: '视频生成 #2045', date: '2025-05-12 14:25' },
-        { id: 'run-video-2', title: '镜头渲染 #2044', date: '2025-05-12 14:20' },
-        { id: 'run-video-3', title: '导出 #2043', date: '2025-05-12 14:18' },
-        { id: 'run-video-4', title: '视频生成 #2042', date: '2025-05-12 14:11' },
-        { id: 'run-video-5', title: '脚本解析 #2041', date: '2025-05-12 14:05' }
-      ];
+  return taskRows;
 });
 
 const totalDuration = computed(() => {
   const seconds = scenes.reduce((sum, scene) => sum + Number(scene.duration.slice(-2)), 0);
   return `00:${String(seconds).padStart(2, '0')}`;
 });
+const latestVideoResult = computed(() =>
+  workbench.value.tasks.find((task) => task.status === 'SUCCESS' && task.resultUrl) ?? null
+);
+const hasActiveTasks = computed(() => workbench.value.tasks.some(isActiveTask));
 
 watch(
   draft,
@@ -140,10 +132,32 @@ watch(
   { deep: true }
 );
 
-onMounted(loadWorkbench);
+onMounted(async () => {
+  await loadWorkbench();
+  startTaskPolling();
+});
 
-async function loadWorkbench() {
-  workbench.value = await fetchVideoWorkbench(SURFACE);
+onBeforeUnmount(stopTaskPolling);
+
+watch(hasActiveTasks, (active) => {
+  if (active) {
+    startTaskPolling();
+  } else {
+    stopTaskPolling();
+  }
+});
+
+async function loadWorkbench(silent = false) {
+  try {
+    workbench.value = await fetchVideoWorkbench(SURFACE);
+    if (!silent) {
+      createError.value = '';
+    }
+  } catch (error) {
+    if (!silent) {
+      createError.value = error instanceof Error ? error.message : '视频任务加载失败';
+    }
+  }
 }
 
 async function createFromPrompt() {
@@ -167,11 +181,36 @@ async function createFromPrompt() {
       refreshed.tasks = [created, ...refreshed.tasks];
     }
     workbench.value = refreshed;
+    startTaskPolling();
   } catch (error) {
     createError.value = error instanceof Error ? error.message : '视频任务创建失败';
   } finally {
     isCreating.value = false;
   }
+}
+
+function startTaskPolling() {
+  if (!hasActiveTasks.value || pollTimer.value !== null || typeof window === 'undefined') {
+    return;
+  }
+  pollTimer.value = window.setInterval(() => {
+    void loadWorkbench(true).then(() => {
+      if (!hasActiveTasks.value) {
+        stopTaskPolling();
+      }
+    });
+  }, 3000);
+}
+
+function stopTaskPolling() {
+  if (pollTimer.value !== null && typeof window !== 'undefined') {
+    window.clearInterval(pollTimer.value);
+  }
+  pollTimer.value = null;
+}
+
+function isActiveTask(task: VideoTask): boolean {
+  return task.status === 'PENDING' || task.status === 'PROCESSING';
 }
 
 function statusMeta(status: string) {
@@ -332,7 +371,8 @@ function compact(value: string, max = 18) {
                 </select>
               </header>
               <div class="video-preview-frame">
-                <div class="video-preview-scene walk"></div>
+                <video v-if="latestVideoResult" class="video-result-player" :src="latestVideoResult.resultUrl || ''" controls />
+                <div v-else class="video-preview-scene walk"></div>
               </div>
               <div class="video-player-controls">
                 <Video :size="22" />
@@ -398,6 +438,7 @@ function compact(value: string, max = 18) {
           <div>
             <strong>{{ task.title }}</strong>
             <small>{{ task.subtitle }}</small>
+            <small v-if="task.errorMessage" class="video-task-error">{{ task.errorMessage }}</small>
             <div v-if="task.progress > 0 && task.progress < 100" class="video-progress">
               <i :style="{ width: `${task.progress}%` }"></i>
             </div>
@@ -842,6 +883,13 @@ function compact(value: string, max = 18) {
   aspect-ratio: 16 / 9;
 }
 
+.video-result-player {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #111827;
+}
+
 .video-player-controls {
   display: grid;
   grid-template-columns: 24px auto minmax(0, 1fr) 22px 120px;
@@ -1018,6 +1066,10 @@ function compact(value: string, max = 18) {
 .video-run-row small,
 .video-task-row time {
   color: #8791a3;
+}
+
+.video-task-error {
+  color: #d92d20 !important;
 }
 
 .video-task-row em {
