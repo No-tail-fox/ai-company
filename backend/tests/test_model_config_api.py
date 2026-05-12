@@ -60,12 +60,21 @@ def test_admin_manages_channels_models_and_bindings_with_masked_api_keys(session
         headers=headers,
         json={
             "channel_key": "openai-image",
-            "display_name": "OpenAI 图片渠道",
+            "display_name": "OpenAI Official",
             "base_url": "https://api.openai.example/v1/images",
             "api_key": "sk-secret-1234",
             "channel_type": "IMAGE",
             "priority": 5,
             "enabled": True,
+            "metadata_json": {
+                "preset_key": "openai_official",
+                "remark": "company account",
+                "website": "https://openai.com",
+                "use_full_url": True,
+                "auth_json": '{"OPENAI_API_KEY": ""}',
+                "config_toml": 'model_provider = "custom"',
+                "write_common_config": True,
+            },
         },
     )
 
@@ -73,17 +82,19 @@ def test_admin_manages_channels_models_and_bindings_with_masked_api_keys(session
     channel_payload = channel_response.json()
     assert channel_payload["api_key_mask"] == "****1234"
     assert "sk-secret" not in str(channel_payload)
+    assert channel_payload["metadata_json"]["preset_key"] == "openai_official"
+    assert channel_payload["metadata_json"]["website"] == "https://openai.com"
 
     channel_id = channel_payload["id"]
     update_response = client.put(
         f"/api/v1/admin/provider-channels/{channel_id}",
         headers=headers,
-        json={"display_name": "OpenAI 主图渠道", "api_key": ""},
+        json={"display_name": "OpenAI Main Channel", "api_key": ""},
     )
 
     assert update_response.status_code == 200
     assert session.get(ApiChannel, channel_id).api_key == "sk-secret-1234"
-    assert update_response.json()["display_name"] == "OpenAI 主图渠道"
+    assert update_response.json()["display_name"] == "OpenAI Main Channel"
     assert update_response.json()["api_key_mask"] == "****1234"
 
     model_response = client.post(
@@ -97,15 +108,39 @@ def test_admin_manages_channels_models_and_bindings_with_masked_api_keys(session
             "provider_model": "gpt-image-2",
             "default_point_cost": 120,
             "enabled": True,
+            "metadata_json": {
+                "use_million_context_window": True,
+                "compression_threshold": 900000,
+                "test_config": '{"temperature": 0.2}',
+                "billing_config": '{"mode": "flat", "unit_cost": 120}',
+            },
         },
     )
 
     assert model_response.status_code == 201
     model_payload = model_response.json()
     assert model_payload["default_point_cost"] == 120
+    assert model_payload["metadata_json"]["use_million_context_window"] is True
+    assert model_payload["metadata_json"]["compression_threshold"] == 900000
     route = session.query(ChannelRoute).filter_by(tenant_id="tenant-a", route_key="image_text_to_image").one()
     assert route.backend_model == "gpt-image-2"
     assert route.unit_cost == 120
+
+    model_update_response = client.put(
+        f"/api/v1/admin/model-configs/{model_payload['id']}",
+        headers=headers,
+        json={
+            "display_name": "GPT Image 2 Pro",
+            "metadata_json": {
+                "use_million_context_window": False,
+                "compression_threshold": 800000,
+                "billing_config": '{"mode": "tiered", "unit_cost": 150}',
+            },
+        },
+    )
+
+    assert model_update_response.status_code == 200
+    assert model_update_response.json()["metadata_json"]["compression_threshold"] == 800000
 
     binding_response = client.post(
         "/api/v1/admin/tool-model-bindings",
@@ -129,7 +164,7 @@ def test_portal_payload_includes_bound_model_and_effective_cost(session):
         id="channel-image",
         tenant_id=tenant.id,
         channel_key="openai-image",
-        display_name="OpenAI 图片渠道",
+        display_name="OpenAI Official",
         base_url="https://api.openai.example/v1/images",
         api_key="secret",
         channel_type="IMAGE",
@@ -146,14 +181,14 @@ def test_portal_payload_includes_bound_model_and_effective_cost(session):
         default_point_cost=120,
         enabled=True,
     )
-    page = ContentPage(id="page-home", tenant_id=tenant.id, page_key="home", label="首页", title="首页", enabled=True)
-    section = ContentSection(id="section-tools", tenant_id=tenant.id, area="home", section_key="tools", title="工具", enabled=True)
+    page = ContentPage(id="page-home", tenant_id=tenant.id, page_key="home", label="Home", title="Home", enabled=True)
+    section = ContentSection(id="section-tools", tenant_id=tenant.id, area="home", section_key="tools", title="Tools", enabled=True)
     item = ContentItem(
         id="item-image",
         tenant_id=tenant.id,
         section_id=section.id,
         item_type="tool",
-        title="图片生成",
+        title="Image Generation",
         action_type="workspace",
         action_value="image_text_to_image",
         enabled=True,
@@ -188,7 +223,7 @@ def test_image_generation_uses_bound_model_cost_and_ignores_legacy_route_key(ses
         id="channel-image",
         tenant_id=tenant.id,
         channel_key="openai-image",
-        display_name="OpenAI 图片渠道",
+        display_name="OpenAI Official",
         base_url="https://api.openai.example/v1/images",
         api_key="secret",
         channel_type="IMAGE",
@@ -249,7 +284,7 @@ def test_image_generation_uses_bound_model_cost_and_ignores_legacy_route_key(ses
         "/api/v1/image/generations",
         headers={"X-Tenant-ID": tenant.id},
         json={
-            "prompt": "生成一张商品海报",
+            "prompt": "generate a product poster",
             "route_key": "expensive_route",
             "target_type": "builtin",
             "target_id": "image_text_to_image",

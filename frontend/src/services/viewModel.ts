@@ -30,6 +30,7 @@ export interface ModelConfigSummary {
   providerModel?: string;
   defaultPointCost?: number;
   enabled?: boolean;
+  metadataJson?: Record<string, any>;
 }
 
 export interface ProviderChannelSummary {
@@ -2419,7 +2420,8 @@ export function normalizeModelConfig(payload: any): ModelConfigSummary | null {
     channelName: payload.channel_name ?? payload.channelName,
     providerModel: payload.provider_model ?? payload.providerModel,
     defaultPointCost: Number(payload.default_point_cost ?? payload.defaultPointCost ?? 0),
-    enabled: Boolean(payload.enabled ?? true)
+    enabled: Boolean(payload.enabled ?? true),
+    metadataJson: normalizeMetadata(payload.metadata_json ?? payload.metadataJson ?? payload.metadata)
   };
 }
 

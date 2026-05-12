@@ -14,6 +14,15 @@ export interface EditableProviderChannel {
   priority: number;
   enabled: boolean;
   timeoutSeconds: number;
+  presetKey?: string;
+  remark?: string;
+  website?: string;
+  useFullUrl?: boolean;
+  authJsonText?: string;
+  configTomlText?: string;
+  writeCommonConfig?: boolean;
+  testConfigText?: string;
+  billingConfigText?: string;
   metadataJson?: Record<string, unknown>;
 }
 
@@ -25,6 +34,11 @@ export interface EditableModelConfig {
   providerModel: string;
   defaultPointCost: number;
   enabled: boolean;
+  useMillionContextWindow?: boolean;
+  compressionThreshold?: number;
+  testConfigText?: string;
+  billingConfigText?: string;
+  metadataJson?: Record<string, unknown>;
 }
 
 export interface EditableToolModelBinding {
@@ -141,6 +155,29 @@ export function buildHomeSlidePayload(slide: EditableHomeSlide) {
   };
 }
 
+function buildProviderChannelMetadata(channel: EditableProviderChannel) {
+  const metadata = { ...(channel.metadataJson ?? {}) };
+  setMetadataText(metadata, 'preset_key', channel.presetKey);
+  setMetadataText(metadata, 'remark', channel.remark);
+  setMetadataText(metadata, 'website', channel.website);
+  setMetadataBoolean(metadata, 'use_full_url', channel.useFullUrl);
+  setMetadataText(metadata, 'auth_json', channel.authJsonText);
+  setMetadataText(metadata, 'config_toml', channel.configTomlText);
+  setMetadataBoolean(metadata, 'write_common_config', channel.writeCommonConfig);
+  setMetadataText(metadata, 'test_config', channel.testConfigText);
+  setMetadataText(metadata, 'billing_config', channel.billingConfigText);
+  return Object.keys(metadata).length > 0 ? metadata : null;
+}
+
+function buildModelConfigMetadata(model: EditableModelConfig) {
+  const metadata = { ...(model.metadataJson ?? {}) };
+  setMetadataBoolean(metadata, 'use_million_context_window', model.useMillionContextWindow);
+  setMetadataNumber(metadata, 'compression_threshold', model.compressionThreshold);
+  setMetadataText(metadata, 'test_config', model.testConfigText);
+  setMetadataText(metadata, 'billing_config', model.billingConfigText);
+  return Object.keys(metadata).length > 0 ? metadata : null;
+}
+
 function buildDetailMetadata(item: EditableItem) {
   const existing = item.metadata && typeof item.metadata === 'object' ? item.metadata : {};
   const hasExistingMetadata = Object.keys(existing).length > 0;
@@ -181,6 +218,36 @@ function buildDetailMetadata(item: EditableItem) {
 
 function cleanText(value?: string) {
   return String(value ?? '').trim();
+}
+
+function setMetadataText(metadata: Record<string, unknown>, key: string, value?: string) {
+  const text = cleanText(value);
+  if (text) {
+    metadata[key] = text;
+  } else {
+    delete metadata[key];
+  }
+}
+
+function setMetadataBoolean(metadata: Record<string, unknown>, key: string, value: boolean | undefined) {
+  if (value === undefined) {
+    delete metadata[key];
+    return;
+  }
+  metadata[key] = Boolean(value);
+}
+
+function setMetadataNumber(metadata: Record<string, unknown>, key: string, value: number | string | null | undefined) {
+  if (value === undefined || value === null || value === '') {
+    delete metadata[key];
+    return;
+  }
+  const next = Number(value);
+  if (Number.isFinite(next)) {
+    metadata[key] = next;
+  } else {
+    delete metadata[key];
+  }
 }
 
 function splitLines(value?: string) {
@@ -231,6 +298,7 @@ function defaultPrimaryActionLabel(actionKey: string) {
 }
 
 export function buildProviderChannelPayload(channel: EditableProviderChannel) {
+  const metadata = buildProviderChannelMetadata(channel);
   return {
     channel_key: channel.channelKey,
     display_name: channel.displayName,
@@ -241,11 +309,12 @@ export function buildProviderChannelPayload(channel: EditableProviderChannel) {
     priority: channel.priority,
     enabled: channel.enabled,
     timeout_seconds: channel.timeoutSeconds,
-    ...(channel.metadataJson === undefined ? {} : { metadata_json: channel.metadataJson })
+    ...(metadata ? { metadata_json: metadata } : {})
   };
 }
 
 export function buildModelConfigPayload(model: EditableModelConfig) {
+  const metadata = buildModelConfigMetadata(model);
   return {
     model_key: model.modelKey,
     display_name: model.displayName,
@@ -253,7 +322,8 @@ export function buildModelConfigPayload(model: EditableModelConfig) {
     channel_id: model.channelId,
     provider_model: model.providerModel,
     default_point_cost: model.defaultPointCost,
-    enabled: model.enabled
+    enabled: model.enabled,
+    ...(metadata ? { metadata_json: metadata } : {})
   };
 }
 

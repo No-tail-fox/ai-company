@@ -256,6 +256,7 @@ class ModelConfigService:
             "provider_model": model.provider_model,
             "default_point_cost": model.default_point_cost,
             "enabled": model.enabled,
+            "metadata_json": model.metadata_json or {},
         }
 
     def binding_payload(self, binding: ToolModelBinding) -> dict:

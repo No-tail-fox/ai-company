@@ -38,6 +38,9 @@ def ensure_lightweight_schema_updates(target_engine: Engine) -> None:
         "api_channels": [
             ("adapter_type", "VARCHAR(32) DEFAULT 'custom_http'"),
         ],
+        "model_configs": [
+            ("metadata_json", "JSON"),
+        ],
         "ai_generations": [
             ("options_json", "JSON"),
         ],

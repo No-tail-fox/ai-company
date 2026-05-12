@@ -332,7 +332,16 @@ const providerChannelForm = reactive({
   priority: 100,
   enabled: true,
   timeoutSeconds: 60,
-  metadataJsonText: ''
+  presetKey: 'custom',
+  remark: '',
+  website: '',
+  useFullUrl: false,
+  authJsonText: '{\n  "OPENAI_API_KEY": ""\n}',
+  configTomlText: '',
+  writeCommonConfig: true,
+  testConfigText: '',
+  billingConfigText: '',
+  metadataJson: {} as Record<string, unknown>
 });
 
 const modelConfigFormId = ref('');
@@ -343,7 +352,12 @@ const modelConfigForm = reactive({
   channelId: '',
   providerModel: '',
   defaultPointCost: 0,
-  enabled: true
+  enabled: true,
+  useMillionContextWindow: false,
+  compressionThreshold: 900000,
+  testConfigText: '',
+  billingConfigText: '',
+  metadataJson: {} as Record<string, unknown>
 });
 
 const toolBindingFormId = ref('');
@@ -363,6 +377,129 @@ const workbenchCapabilityForm = reactive({
   pointCostOverride: null as number | string | null,
   enabled: true
 });
+
+type ProviderPresetOption = {
+  key: string;
+  label: string;
+  hint: string;
+  defaults: {
+    channelType: string;
+    adapterType: string;
+    baseUrl: string;
+    remark: string;
+    website: string;
+    useFullUrl: boolean;
+    authJsonText: string;
+    configTomlText: string;
+    writeCommonConfig: boolean;
+    testConfigText: string;
+    billingConfigText: string;
+  };
+};
+
+const defaultAuthJson = '{\n  "OPENAI_API_KEY": ""\n}';
+
+function createPreset(
+  key: string,
+  label: string,
+  hint: string,
+  defaults: Partial<ProviderPresetOption['defaults']> = {}
+): ProviderPresetOption {
+  return {
+    key,
+    label,
+    hint,
+    defaults: {
+      channelType: 'TEXT',
+      adapterType: 'openai_compatible',
+      baseUrl: 'https://api.example.com/v1',
+      remark: `${label} 预设`,
+      website: '',
+      useFullUrl: true,
+      authJsonText: defaultAuthJson,
+      configTomlText: 'model_provider = "openai_compatible"',
+      writeCommonConfig: true,
+      testConfigText: '{"temperature":0.2}',
+      billingConfigText: '{"mode":"point"}',
+      ...defaults
+    }
+  };
+}
+
+const providerPresetOptions: ProviderPresetOption[] = [
+  createPreset('custom', '自定义配置', '手动填写全部字段', {
+    channelType: 'TEXT',
+    adapterType: 'custom_http',
+    baseUrl: '',
+    remark: '',
+    website: '',
+    useFullUrl: false,
+    configTomlText: '',
+    testConfigText: '',
+    billingConfigText: ''
+  }),
+  createPreset('openai_official', 'OpenAI Official', 'OpenAI 官方兼容端点', {
+    baseUrl: 'https://api.openai.com/v1',
+    website: 'https://openai.com',
+    configTomlText: 'model_provider = "openai_compatible"'
+  }),
+  createPreset('anthropic', 'Anthropic', 'Claude 官方兼容端点'),
+  createPreset('aihubmix', 'AiHubMix', '统一聚合路由端点'),
+  createPreset('dmxapi', 'DMXAPI', '多供应商代理端点'),
+  createPreset('youyun', '优云智算', '通用云模型端点'),
+  createPreset('pipellm', 'PIPELLM', '管道式模型路由端点'),
+  createPreset('openrouter', 'OpenRouter', 'OpenRouter 聚合端点', {
+    baseUrl: 'https://openrouter.ai/api/v1',
+    website: 'https://openrouter.ai'
+  }),
+  createPreset('therouter', 'TheRouter', 'TheRouter 聚合端点', {
+    baseUrl: 'https://api.therouter.ai/v1'
+  }),
+  createPreset('azure_openai', 'Azure OpenAI', 'Azure OpenAI 资源端点', {
+    baseUrl: 'https://{resource}.openai.azure.com/openai/deployments',
+    website: 'https://azure.microsoft.com/products/ai-services/openai-service'
+  }),
+  createPreset('packycode', 'PackyCode', '编码模型服务端点'),
+  createPreset('cubence', 'Cubence', '向量与推理服务端点'),
+  createPreset('aigocode', 'AIGoCode', '代码生成服务端点'),
+  createPreset('rightcode', 'RightCode', '代码助手服务端点'),
+  createPreset('sssaicode', 'SSSAICode', '代码与对话服务端点'),
+  createPreset('micu', 'Micu', '多用途推理端点'),
+  createPreset('ctokai', 'CTok.ai', '模型路由与控制台'),
+  createPreset('lionccapi', 'LionCCAPI', '兼容型聚合端点'),
+  createPreset('ddshub', 'DDSHub', '数据与模型服务端点'),
+  createPreset('e-flowcode', 'E-FlowCode', '工作流模型服务端点'),
+  createPreset('lemondata', 'LemonData', '数据分析与模型端点'),
+  createPreset('aicodemirror', 'AICodeMirror', '代码镜像服务端点'),
+  createPreset('aicoding', 'AICoding', '通用编码端点'),
+  createPreset('crazyrouter', 'CrazyRouter', '高并发路由端点')
+];
+
+function providerPresetByKey(key: string) {
+  return providerPresetOptions.find((preset) => preset.key === key) ?? providerPresetOptions[0];
+}
+
+function metadataText(value: unknown) {
+  if (value === undefined || value === null || value === '') {
+    return '';
+  }
+  return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+}
+
+function metadataBoolean(value: unknown, fallback = false) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    return value.toLowerCase() === 'true';
+  }
+  return fallback;
+}
+
+function metadataNumber(value: unknown, fallback = 0) {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : fallback;
+}
 
 const itemTypeOptions = [
   { value: 'tool', label: '工具' },
@@ -803,23 +940,55 @@ function openItemPanel(item?: PortalItem, sectionId?: string) {
   activePanel.value = 'item';
 }
 
+function applyProviderPreset(presetKey: string) {
+  const preset = providerPresetByKey(presetKey);
+  Object.assign(providerChannelForm, {
+    displayName: preset.label,
+    channelType: preset.defaults.channelType,
+    adapterType: preset.defaults.adapterType,
+    baseUrl: preset.defaults.baseUrl,
+    remark: preset.defaults.remark,
+    website: preset.defaults.website,
+    useFullUrl: preset.defaults.useFullUrl,
+    authJsonText: preset.defaults.authJsonText,
+    configTomlText: preset.defaults.configTomlText,
+    writeCommonConfig: preset.defaults.writeCommonConfig,
+    testConfigText: preset.defaults.testConfigText,
+    billingConfigText: preset.defaults.billingConfigText,
+    presetKey: preset.key
+  });
+}
+
 function openProviderChannelPanel(channel?: ProviderChannelSummary) {
   providerChannelFormId.value = channel?.id ?? '';
+  const metadata = (channel?.metadataJson ?? {}) as Record<string, unknown>;
+  const preset = providerPresetByKey(String(metadata.preset_key ?? 'custom'));
+  applyProviderPreset(preset.key);
   providerChannelForm.channelKey = channel?.channelKey ?? '';
-  providerChannelForm.displayName = channel?.displayName ?? '';
-  providerChannelForm.baseUrl = channel?.baseUrl ?? '';
+  providerChannelForm.displayName = channel?.displayName ?? preset.label;
+  providerChannelForm.baseUrl = channel?.baseUrl ?? preset.defaults.baseUrl;
   providerChannelForm.apiKey = '';
-  providerChannelForm.channelType = channel?.channelType ?? 'TEXT';
-  providerChannelForm.adapterType = channel?.adapterType ?? 'custom_http';
+  providerChannelForm.channelType = channel?.channelType ?? preset.defaults.channelType;
+  providerChannelForm.adapterType = channel?.adapterType ?? preset.defaults.adapterType;
   providerChannelForm.priority = channel?.priority ?? 100;
   providerChannelForm.enabled = channel?.enabled ?? true;
   providerChannelForm.timeoutSeconds = channel?.timeoutSeconds ?? 60;
-  providerChannelForm.metadataJsonText = channel?.metadataJson ? JSON.stringify(channel.metadataJson, null, 2) : '';
+  providerChannelForm.presetKey = preset.key;
+  providerChannelForm.remark = String(metadata.remark ?? preset.defaults.remark ?? '');
+  providerChannelForm.website = String(metadata.website ?? preset.defaults.website ?? '');
+  providerChannelForm.useFullUrl = metadataBoolean(metadata.use_full_url, preset.defaults.useFullUrl);
+  providerChannelForm.authJsonText = metadataText(metadata.auth_json) || preset.defaults.authJsonText;
+  providerChannelForm.configTomlText = String(metadata.config_toml ?? preset.defaults.configTomlText ?? '');
+  providerChannelForm.writeCommonConfig = metadataBoolean(metadata.write_common_config, preset.defaults.writeCommonConfig);
+  providerChannelForm.testConfigText = String(metadata.test_config ?? preset.defaults.testConfigText ?? '');
+  providerChannelForm.billingConfigText = String(metadata.billing_config ?? preset.defaults.billingConfigText ?? '');
+  providerChannelForm.metadataJson = metadata;
   activePanel.value = 'provider-channel';
 }
 
 function openModelConfigPanel(model?: ModelConfigSummary) {
   modelConfigFormId.value = model?.id ?? '';
+  const metadata = model?.metadataJson ?? {};
   modelConfigForm.modelKey = model?.modelKey ?? '';
   modelConfigForm.displayName = model?.displayName ?? '';
   modelConfigForm.capability = model?.capability ?? 'TEXT';
@@ -827,6 +996,11 @@ function openModelConfigPanel(model?: ModelConfigSummary) {
   modelConfigForm.providerModel = model?.providerModel ?? '';
   modelConfigForm.defaultPointCost = model?.defaultPointCost ?? 0;
   modelConfigForm.enabled = model?.enabled ?? true;
+  modelConfigForm.useMillionContextWindow = metadataBoolean(metadata.use_million_context_window, false);
+  modelConfigForm.compressionThreshold = metadataNumber(metadata.compression_threshold, 900000);
+  modelConfigForm.testConfigText = String(metadata.test_config ?? '');
+  modelConfigForm.billingConfigText = String(metadata.billing_config ?? '');
+  modelConfigForm.metadataJson = metadata;
   activePanel.value = 'model-config';
 }
 
@@ -1129,10 +1303,7 @@ async function disableItem(item: PortalItem) {
 
 async function saveProviderChannel() {
   await run(async () => {
-    const payload = buildProviderChannelPayload({
-      ...providerChannelForm,
-      metadataJson: parseMetadataJson(providerChannelForm.metadataJsonText)
-    });
+    const payload = buildProviderChannelPayload(providerChannelForm);
     if (providerChannelFormId.value) {
       await adminUpdateProviderChannel(providerChannelFormId.value, payload);
       notice.value = '渠道已更新';
@@ -2673,7 +2844,13 @@ async function run(task: () => Promise<void>) {
       class="modal-backdrop modal-backdrop-center"
       @click.self="closePanel"
     >
-      <section :class="['modal-panel', 'admin-modal-shell', { 'admin-card-modal': activePanel === 'item' }]">
+      <section
+        :class="[
+          'modal-panel',
+          'admin-modal-shell',
+          { 'admin-card-modal': activePanel === 'item' || activePanel === 'provider-channel' || activePanel === 'model-config' }
+        ]"
+      >
         <header>
           <div>
             <span>管理操作</span>
@@ -2936,56 +3113,120 @@ async function run(task: () => Promise<void>) {
           </div>
         </form>
 
-        <form v-else-if="activePanel === 'provider-channel'" class="form-card" @submit.prevent="saveProviderChannel">
-          <label>渠道Key<input v-model="providerChannelForm.channelKey" /></label>
-          <label>展示名称<input v-model="providerChannelForm.displayName" /></label>
-          <label>Base URL<input v-model="providerChannelForm.baseUrl" /></label>
-          <label>API Key<input v-model="providerChannelForm.apiKey" type="password" placeholder="留空则保持原值" /></label>
-          <label>
-            渠道类型
-            <select v-model="providerChannelForm.channelType">
-              <option value="TEXT">TEXT</option>
-              <option value="IMAGE">IMAGE</option>
-              <option value="VIDEO">VIDEO</option>
-              <option value="AUDIO">AUDIO</option>
-            </select>
-          </label>
-          <label>
-            适配器
-            <select v-model="providerChannelForm.adapterType">
-              <option value="openai_compatible">openai_compatible</option>
-              <option value="custom_http">custom_http</option>
-            </select>
-          </label>
-          <label>优先级<input v-model.number="providerChannelForm.priority" type="number" /></label>
-          <label>超时秒数<input v-model.number="providerChannelForm.timeoutSeconds" type="number" /></label>
-          <label class="field-span-2">适配元数据<textarea v-model="providerChannelForm.metadataJsonText" rows="4" placeholder='{"imageEndpoint":"/images/generations"}' /></label>
-          <label class="check-label"><input v-model="providerChannelForm.enabled" type="checkbox" />启用</label>
-          <button class="primary-btn" type="submit">{{ providerChannelFormId ? '更新渠道' : '创建渠道' }}</button>
+        <form v-else-if="activePanel === 'provider-channel'" class="form-card card-editor-form" @submit.prevent="saveProviderChannel">
+          <section class="card-form-section">
+            <div class="card-form-section__head">
+              <strong>供应商预设</strong>
+              <span>选择预设只会填默认值，所有字段都还能继续改</span>
+            </div>
+            <div class="provider-preset-row field-span-2">
+              <button
+                v-for="preset in providerPresetOptions"
+                :key="preset.key"
+                :class="['provider-preset-chip', { active: providerChannelForm.presetKey === preset.key }]"
+                type="button"
+                @click="applyProviderPreset(preset.key)"
+              >
+                <strong>{{ preset.label }}</strong>
+                <small>{{ preset.hint }}</small>
+              </button>
+            </div>
+            <label>供应商名称<input v-model="providerChannelForm.displayName" /></label>
+            <label>备注<input v-model="providerChannelForm.remark" /></label>
+            <label>官网<input v-model="providerChannelForm.website" placeholder="https://example.com" /></label>
+            <label>渠道 Key<input v-model="providerChannelForm.channelKey" /></label>
+            <label>
+              渠道类型
+              <select v-model="providerChannelForm.channelType">
+                <option value="TEXT">TEXT</option>
+                <option value="IMAGE">IMAGE</option>
+                <option value="VIDEO">VIDEO</option>
+                <option value="AUDIO">AUDIO</option>
+              </select>
+            </label>
+            <label>
+              适配器
+              <select v-model="providerChannelForm.adapterType">
+                <option value="openai_compatible">openai_compatible</option>
+                <option value="custom_http">custom_http</option>
+              </select>
+            </label>
+            <label>API 请求地址<input v-model="providerChannelForm.baseUrl" placeholder="https://api.example.com/v1" /></label>
+            <label>API Key<input v-model="providerChannelForm.apiKey" type="password" placeholder="留空则保持原值" /></label>
+            <label>优先级<input v-model.number="providerChannelForm.priority" type="number" /></label>
+            <label>超时秒数<input v-model.number="providerChannelForm.timeoutSeconds" type="number" /></label>
+            <label class="check-label"><input v-model="providerChannelForm.useFullUrl" type="checkbox" />完整 URL</label>
+            <label class="check-label"><input v-model="providerChannelForm.enabled" type="checkbox" />启用</label>
+          </section>
+
+          <section class="card-form-section">
+            <div class="card-form-section__head">
+              <strong>auth.json / config.toml</strong>
+              <span>这里只保存模板文本，不会写回本地文件</span>
+            </div>
+            <label class="field-span-2">auth.json<textarea v-model="providerChannelForm.authJsonText" rows="4" placeholder='{"OPENAI_API_KEY": ""}' /></label>
+            <label class="field-span-2">config.toml<textarea v-model="providerChannelForm.configTomlText" rows="4" placeholder='model_provider = "openai_compatible"' /></label>
+            <label class="check-label"><input v-model="providerChannelForm.writeCommonConfig" type="checkbox" />写入公共配置</label>
+          </section>
+
+          <section class="card-form-section">
+            <div class="card-form-section__head">
+              <strong>测试配置 / 计费配置</strong>
+              <span>这些内容会进 metadata_json，后续可再接入运行时</span>
+            </div>
+            <label class="field-span-2">测试配置<textarea v-model="providerChannelForm.testConfigText" rows="3" placeholder='{"temperature":0.2}' /></label>
+            <label class="field-span-2">计费配置<textarea v-model="providerChannelForm.billingConfigText" rows="3" placeholder='{"mode":"point"}' /></label>
+          </section>
+
+          <div class="card-editor-footer">
+            <button class="ghost-btn" type="button" @click="closePanel">取消</button>
+            <button class="primary-btn" type="submit">{{ providerChannelFormId ? '更新渠道' : '创建渠道' }}</button>
+          </div>
         </form>
 
-        <form v-else-if="activePanel === 'model-config'" class="form-card" @submit.prevent="saveModelConfig">
-          <label>模型Key<input v-model="modelConfigForm.modelKey" /></label>
-          <label>展示名称<input v-model="modelConfigForm.displayName" /></label>
-          <label>
-            能力类型
-            <select v-model="modelConfigForm.capability">
-              <option value="TEXT">TEXT</option>
-              <option value="IMAGE">IMAGE</option>
-              <option value="VIDEO">VIDEO</option>
-              <option value="AUDIO">AUDIO</option>
-            </select>
-          </label>
-          <label>
-            绑定渠道
-            <select v-model="modelConfigForm.channelId">
-              <option v-for="channel in providerChannels" :key="channel.id" :value="channel.id">{{ channel.displayName }}</option>
-            </select>
-          </label>
-          <label>实际模型名<input v-model="modelConfigForm.providerModel" /></label>
-          <label>默认积分<input v-model.number="modelConfigForm.defaultPointCost" type="number" /></label>
-          <label class="check-label"><input v-model="modelConfigForm.enabled" type="checkbox" />启用</label>
-          <button class="primary-btn" type="submit">{{ modelConfigFormId ? '更新模型' : '创建模型' }}</button>
+        <form v-else-if="activePanel === 'model-config'" class="form-card card-editor-form" @submit.prevent="saveModelConfig">
+          <section class="card-form-section">
+            <div class="card-form-section__head">
+              <strong>基础信息</strong>
+              <span>模型仍沿用现有渠道和绑定主链路</span>
+            </div>
+            <label>模型 Key<input v-model="modelConfigForm.modelKey" /></label>
+            <label>模型名称<input v-model="modelConfigForm.displayName" /></label>
+            <label>
+              能力类型
+              <select v-model="modelConfigForm.capability">
+                <option value="TEXT">TEXT</option>
+                <option value="IMAGE">IMAGE</option>
+                <option value="VIDEO">VIDEO</option>
+                <option value="AUDIO">AUDIO</option>
+              </select>
+            </label>
+            <label>
+              绑定渠道
+              <select v-model="modelConfigForm.channelId">
+                <option v-for="channel in providerChannels" :key="channel.id" :value="channel.id">{{ channel.displayName }}</option>
+              </select>
+            </label>
+            <label>供应商模型<input v-model="modelConfigForm.providerModel" /></label>
+            <label>默认积分<input v-model.number="modelConfigForm.defaultPointCost" type="number" /></label>
+            <label class="check-label"><input v-model="modelConfigForm.enabled" type="checkbox" />启用</label>
+          </section>
+
+          <section class="card-form-section">
+            <div class="card-form-section__head">
+              <strong>运行配置</strong>
+              <span>1M 上下文和压缩阈值会写入 metadata_json</span>
+            </div>
+            <label class="check-label"><input v-model="modelConfigForm.useMillionContextWindow" type="checkbox" />1M 上下文窗口</label>
+            <label>压缩阈值<input v-model.number="modelConfigForm.compressionThreshold" min="0" type="number" /></label>
+            <label class="field-span-2">测试配置<textarea v-model="modelConfigForm.testConfigText" rows="3" placeholder='{"temperature":0.2}' /></label>
+            <label class="field-span-2">计费配置<textarea v-model="modelConfigForm.billingConfigText" rows="3" placeholder='{"mode":"tiered","unit_cost":120}' /></label>
+          </section>
+
+          <div class="card-editor-footer">
+            <button class="ghost-btn" type="button" @click="closePanel">取消</button>
+            <button class="primary-btn" type="submit">{{ modelConfigFormId ? '更新模型' : '创建模型' }}</button>
+          </div>
         </form>
 
         <form v-else-if="activePanel === 'tool-binding'" class="form-card" @submit.prevent="saveToolBinding">

@@ -431,6 +431,7 @@ class ModelConfigCreate(BaseModel):
     provider_model: str
     default_point_cost: int = 0
     enabled: bool = True
+    metadata_json: dict[str, Any] | None = None
 
 
 class ModelConfigUpdate(BaseModel):
@@ -441,6 +442,7 @@ class ModelConfigUpdate(BaseModel):
     provider_model: str | None = None
     default_point_cost: int | None = None
     enabled: bool | None = None
+    metadata_json: dict[str, Any] | None = None
 
 
 class ToolModelBindingCreate(BaseModel):

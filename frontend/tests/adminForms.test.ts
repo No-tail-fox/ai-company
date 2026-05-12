@@ -1,23 +1,30 @@
 import { expect, test } from 'vitest';
-import * as adminForms from '../src/services/adminForms';
-import { buildItemPayload, buildPagePayload, buildReorderPayload, buildSectionPayload } from '../src/services/adminForms';
+import {
+  buildItemPayload,
+  buildModelConfigPayload,
+  buildPagePayload,
+  buildProviderChannelPayload,
+  buildReorderPayload,
+  buildSectionPayload,
+  buildToolModelBindingPayload
+} from '../src/services/adminForms';
 
 test('builds page payload expected by admin page API', () => {
   expect(
     buildPagePayload({
       pageKey: 'marketing',
-      label: 'AI 营销',
-      title: '营销增长中心',
-      subtitle: '增长工具',
+      label: 'AI 钀ラ攢',
+      title: '钀ラ攢澧為暱涓績',
+      subtitle: '澧為暱宸ュ叿',
       icon: 'Megaphone',
       sortOrder: 30,
       enabled: true
     })
   ).toEqual({
     page_key: 'marketing',
-    label: 'AI 营销',
-    title: '营销增长中心',
-    subtitle: '增长工具',
+    label: 'AI 钀ラ攢',
+    title: '钀ラ攢澧為暱涓績',
+    subtitle: '澧為暱宸ュ叿',
     icon: 'Megaphone',
     sort_order: 30,
     enabled: true
@@ -29,8 +36,8 @@ test('builds section payload expected by admin section API', () => {
     buildSectionPayload({
       pageKey: 'video',
       sectionKey: 'tools',
-      title: '视频工具矩阵',
-      subtitle: '创作工具',
+      title: '瑙嗛宸ュ叿鐭╅樀',
+      subtitle: '鍒涗綔宸ュ叿',
       layout: 'tool-grid',
       sortOrder: 20,
       enabled: true
@@ -38,8 +45,8 @@ test('builds section payload expected by admin section API', () => {
   ).toEqual({
     page_key: 'video',
     section_key: 'tools',
-    title: '视频工具矩阵',
-    subtitle: '创作工具',
+    title: '瑙嗛宸ュ叿鐭╅樀',
+    subtitle: '鍒涗綔宸ュ叿',
     layout: 'tool-grid',
     sort_order: 20,
     enabled: true
@@ -51,13 +58,13 @@ test('builds item payload expected by admin item API', () => {
     buildItemPayload({
       sectionId: 'section-video-tools',
       itemType: 'tool',
-      title: '文案生成视频',
-      subtitle: '输入脚本生成分镜',
-      category: '工具',
+      title: '鏂囨鐢熸垚瑙嗛',
+      subtitle: '杈撳叆鑴氭湰鐢熸垚鍒嗛暅',
+      category: '宸ュ叿',
       icon: 'MonitorPlay',
       imageUrl: '/storage/uploads/demo/video.png',
-      badge: '新',
-      tags: ['视频', '模板'],
+      badge: '鏂�',
+      tags: ['瑙嗛', '妯℃澘'],
       sortOrder: 10,
       enabled: true,
       actionType: 'workspace',
@@ -68,13 +75,13 @@ test('builds item payload expected by admin item API', () => {
   ).toEqual({
     section_id: 'section-video-tools',
     item_type: 'tool',
-    title: '文案生成视频',
-    subtitle: '输入脚本生成分镜',
-    category: '工具',
+    title: '鏂囨鐢熸垚瑙嗛',
+    subtitle: '杈撳叆鑴氭湰鐢熸垚鍒嗛暅',
+    category: '宸ュ叿',
     icon: 'MonitorPlay',
     image_url: '/storage/uploads/demo/video.png',
-    badge: '新',
-    tags: ['视频', '模板'],
+    badge: '鏂�',
+    tags: ['瑙嗛', '妯℃澘'],
     sort_order: 10,
     enabled: true,
     action_type: 'workspace',
@@ -96,9 +103,9 @@ test('builds reorder payload from ordered records', () => {
 
 test('builds provider channel payload for model center forms', () => {
   expect(
-    (adminForms as any).buildProviderChannelPayload({
+    buildProviderChannelPayload({
       channelKey: 'openai-image',
-      displayName: 'OpenAI 图片渠道',
+      displayName: 'OpenAI Official',
       baseUrl: 'https://api.openai.example/v1/images',
       apiKey: 'sk-secret',
       channelType: 'IMAGE',
@@ -106,11 +113,19 @@ test('builds provider channel payload for model center forms', () => {
       priority: 5,
       enabled: true,
       timeoutSeconds: 90,
-      metadataJson: { imageEndpoint: '/images/generations' }
+      presetKey: 'openai_official',
+      remark: '公司专用账号',
+      website: 'https://openai.com',
+      useFullUrl: true,
+      authJsonText: '{"OPENAI_API_KEY":""}',
+      configTomlText: 'model_provider = "custom"',
+      writeCommonConfig: true,
+      testConfigText: '{"temperature":0.2}',
+      billingConfigText: '{"mode":"flat","unit_cost":120}'
     })
   ).toEqual({
     channel_key: 'openai-image',
-    display_name: 'OpenAI 图片渠道',
+    display_name: 'OpenAI Official',
     base_url: 'https://api.openai.example/v1/images',
     api_key: 'sk-secret',
     channel_type: 'IMAGE',
@@ -118,20 +133,34 @@ test('builds provider channel payload for model center forms', () => {
     priority: 5,
     enabled: true,
     timeout_seconds: 90,
-    metadata_json: { imageEndpoint: '/images/generations' }
+    metadata_json: {
+      preset_key: 'openai_official',
+      remark: '公司专用账号',
+      website: 'https://openai.com',
+      use_full_url: true,
+      auth_json: '{"OPENAI_API_KEY":""}',
+      config_toml: 'model_provider = "custom"',
+      write_common_config: true,
+      test_config: '{"temperature":0.2}',
+      billing_config: '{"mode":"flat","unit_cost":120}'
+    }
   });
 });
 
 test('builds model config and binding payloads for model center forms', () => {
   expect(
-    (adminForms as any).buildModelConfigPayload({
+    buildModelConfigPayload({
       modelKey: 'image_text_to_image',
       displayName: 'GPT Image 2',
       capability: 'IMAGE',
       channelId: 'channel-image',
       providerModel: 'gpt-image-2',
       defaultPointCost: 120,
-      enabled: true
+      enabled: true,
+      useMillionContextWindow: true,
+      compressionThreshold: 900000,
+      testConfigText: '{"temperature":0.2}',
+      billingConfigText: '{"mode":"tiered","unit_cost":120}'
     })
   ).toEqual({
     model_key: 'image_text_to_image',
@@ -140,11 +169,17 @@ test('builds model config and binding payloads for model center forms', () => {
     channel_id: 'channel-image',
     provider_model: 'gpt-image-2',
     default_point_cost: 120,
-    enabled: true
+    enabled: true,
+    metadata_json: {
+      use_million_context_window: true,
+      compression_threshold: 900000,
+      test_config: '{"temperature":0.2}',
+      billing_config: '{"mode":"tiered","unit_cost":120}'
+    }
   });
 
   expect(
-    (adminForms as any).buildToolModelBindingPayload({
+    buildToolModelBindingPayload({
       targetType: 'builtin',
       targetKey: 'image_text_to_image',
       modelConfigId: 'model-image',
