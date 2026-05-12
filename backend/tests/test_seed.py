@@ -184,6 +184,74 @@ def test_demo_seed_keeps_example_provider_channels_disabled(session):
     assert all(channel.enabled is False for channel in example_channels)
 
 
+def test_demo_seed_updates_existing_text_routes_by_route_key(session):
+    session.add(Tenant(id="demo", slug="demo", name="Demo"))
+    session.add(
+        ChannelRoute(
+            id="route-gpt-5.5",
+            tenant_id="demo",
+            route_key="general_text_default",
+            display_name="Saved chat model",
+            backend_model="gpt-5.5",
+            channel_type="TEXT",
+            unit_cost=0,
+            enabled=True,
+        )
+    )
+    session.commit()
+
+    ensure_demo_data(session, tenant_id="demo")
+
+    routes = session.query(ChannelRoute).filter_by(
+        tenant_id="demo",
+        route_key="general_text_default",
+    ).all()
+    assert len(routes) == 1
+    assert routes[0].id == "route-gpt-5.5"
+    assert routes[0].backend_model == "demo-general-text"
+
+
+def test_demo_seed_keeps_existing_default_text_model_created_by_admin(session):
+    session.add(Tenant(id="demo", slug="demo", name="Demo"))
+    channel = ApiChannel(
+        id="channel-openai-chat",
+        tenant_id="demo",
+        channel_key="openai-chat-compatible",
+        display_name="OpenAI Chat",
+        base_url="https://ai.input.im",
+        api_key="sk-secret-1234",
+        channel_type="TEXT",
+        adapter_type="openai_compatible",
+        priority=1,
+        enabled=True,
+    )
+    model = ModelConfig(
+        id="model-admin-chat",
+        tenant_id="demo",
+        model_key="general_text_default",
+        display_name="GPT-5.5",
+        capability="TEXT",
+        channel_id=channel.id,
+        provider_model="gpt-5.5",
+        default_point_cost=0,
+        enabled=True,
+    )
+    session.add_all([channel, model])
+    session.commit()
+
+    ensure_demo_data(session, tenant_id="demo")
+
+    models = session.query(ModelConfig).filter_by(
+        tenant_id="demo",
+        model_key="general_text_default",
+    ).all()
+    assert len(models) == 1
+    assert models[0].id == "model-admin-chat"
+    assert models[0].provider_model == "gpt-5.5"
+    route = session.query(ChannelRoute).filter_by(tenant_id="demo", route_key="general_text_default").one()
+    assert route.backend_model == "gpt-5.5"
+
+
 def test_demo_seed_disables_existing_placeholder_provider_channels(session):
     session.add(Tenant(id="demo", slug="demo", name="Demo"))
     session.add(

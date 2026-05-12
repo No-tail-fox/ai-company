@@ -47,6 +47,7 @@ import {
   adminDeleteUserMembership,
   adminDisableRedemptionCode,
   adminFetchPageContent,
+  adminGetChatModelProfile,
   adminGrantMembership,
   adminListAuditLogs,
   adminListHomeSlides,
@@ -76,6 +77,7 @@ import {
   adminUpdateToolModelBinding,
   adminUpdateUser,
   adminUpdateUserMembership,
+  adminUpdateChatModelProfile,
   adminUpdateWorkbenchCapability,
   adminUploadImage,
   clearAdminToken,
@@ -90,6 +92,9 @@ import { clampPreviewScale, moveRecord, reorderByDrop } from '../services/adminI
 import {
   buildHomeSlidePayload,
   buildItemPayload,
+  buildCodexAuthJsonPreview,
+  buildCodexConfigTomlPreview,
+  buildChatModelProfilePayload,
   buildModelConfigPayload,
   buildPagePayload,
   buildProviderChannelPayload,
@@ -111,6 +116,7 @@ import {
   type AdminUserMembershipSummary,
   type AdminUserSummary,
   type AdminWalletTransactionSummary,
+  type ChatModelProfilePayload,
   type HomeDashboardSlide,
   type ModelConfigSummary,
   type PageConfigSummary,
@@ -187,6 +193,7 @@ const providerChannels = ref<ProviderChannelSummary[]>([]);
 const modelConfigs = ref<ModelConfigSummary[]>([]);
 const toolModelBindings = ref<ToolModelBindingSummary[]>([]);
 const workbenchCapabilities = ref<WorkbenchCapability[]>([]);
+const chatModelProfile = ref<ChatModelProfilePayload | null>(null);
 const pageConfig = ref<PortalPageConfig | null>(null);
 const selectedPageKey = ref(readStoredPageKey());
 const selectedUserId = ref(readStoredUserId());
@@ -342,6 +349,28 @@ const providerChannelForm = reactive({
   testConfigText: '',
   billingConfigText: '',
   metadataJson: {} as Record<string, unknown>
+});
+
+const chatModelProfileForm = reactive({
+  channelKey: 'openai-chat-compatible',
+  providerName: '中转',
+  note: '',
+  officialUrl: 'https://ai.input.im',
+  baseUrl: 'https://ai.input.im',
+  apiKey: '',
+  savedApiKeyMask: '',
+  modelName: 'gpt-5.5',
+  modelKey: 'general_text_default',
+  displayName: 'GPT-5.5',
+  modelReasoningEffort: 'high',
+  providerReasoningEffort: 'medium',
+  serviceTier: 'fast',
+  contextWindow: 1000000,
+  autoCompactTokenLimit: 900000,
+  disableResponseStorage: true,
+  defaultPointCost: 0,
+  timeoutSeconds: 60,
+  enabled: true
 });
 
 const modelConfigFormId = ref('');
@@ -577,6 +606,23 @@ const previewStageStyle = computed(() => ({
   width: '1120px',
   transform: `scale(${previewScale.value})`
 }));
+const chatAuthPreview = computed(() =>
+  chatModelProfileForm.apiKey
+    ? buildCodexAuthJsonPreview(chatModelProfileForm.apiKey)
+    : chatModelProfile.value?.authJson ?? buildCodexAuthJsonPreview('')
+);
+const chatConfigPreview = computed(() => buildCodexConfigTomlPreview(chatModelProfileForm));
+const chatRuntimeState = computed(() => {
+  const provider = chatModelProfile.value?.provider;
+  const model = chatModelProfile.value?.modelConfig;
+  if (!provider || !model) {
+    return '未写入';
+  }
+  if (!provider.enabled || !model.enabled || !chatModelProfileForm.enabled) {
+    return '已停用';
+  }
+  return '可调用';
+});
 const itemActionValuePlaceholder = computed(() => {
   if (itemForm.actionType === 'workspace') {
     return '/workbench 或 /workbench/image';
@@ -746,6 +792,7 @@ async function refreshAdmin() {
     codes,
     rawSlides,
     rawPages,
+    chatProfile,
     channels,
     models,
     bindings,
@@ -761,6 +808,7 @@ async function refreshAdmin() {
     adminListRedemptionCodes(),
     adminListHomeSlides(),
     adminListPages(),
+    adminGetChatModelProfile(),
     adminListProviderChannels(),
     adminListModelConfigs(),
     adminListToolModelBindings(),
@@ -776,6 +824,8 @@ async function refreshAdmin() {
   redemptionCodes.value = codes;
   homeSlides.value = rawSlides;
   pages.value = rawPages.map(normalizePageSummary);
+  chatModelProfile.value = chatProfile;
+  applyChatModelProfile(chatProfile);
   providerChannels.value = channels;
   modelConfigs.value = models;
   toolModelBindings.value = bindings;
@@ -984,6 +1034,29 @@ function openProviderChannelPanel(channel?: ProviderChannelSummary) {
   providerChannelForm.billingConfigText = String(metadata.billing_config ?? preset.defaults.billingConfigText ?? '');
   providerChannelForm.metadataJson = metadata;
   activePanel.value = 'provider-channel';
+}
+
+function applyChatModelProfile(payload: ChatModelProfilePayload) {
+  const profile = payload.profile;
+  chatModelProfileForm.channelKey = profile.channelKey;
+  chatModelProfileForm.providerName = profile.providerName || '中转';
+  chatModelProfileForm.note = profile.note;
+  chatModelProfileForm.officialUrl = profile.officialUrl;
+  chatModelProfileForm.baseUrl = profile.baseUrl;
+  chatModelProfileForm.apiKey = '';
+  chatModelProfileForm.savedApiKeyMask = payload.provider?.apiKeyMask ?? '';
+  chatModelProfileForm.modelName = profile.modelName;
+  chatModelProfileForm.modelKey = profile.modelKey;
+  chatModelProfileForm.displayName = profile.displayName || profile.modelName;
+  chatModelProfileForm.modelReasoningEffort = profile.modelReasoningEffort;
+  chatModelProfileForm.providerReasoningEffort = profile.providerReasoningEffort;
+  chatModelProfileForm.serviceTier = profile.serviceTier;
+  chatModelProfileForm.contextWindow = profile.contextWindow;
+  chatModelProfileForm.autoCompactTokenLimit = profile.autoCompactTokenLimit;
+  chatModelProfileForm.disableResponseStorage = profile.disableResponseStorage;
+  chatModelProfileForm.defaultPointCost = profile.defaultPointCost;
+  chatModelProfileForm.timeoutSeconds = profile.timeoutSeconds;
+  chatModelProfileForm.enabled = profile.enabled;
 }
 
 function openModelConfigPanel(model?: ModelConfigSummary) {
@@ -1312,6 +1385,55 @@ async function saveProviderChannel() {
       notice.value = '渠道已创建';
     }
     closePanel();
+    await refreshAdmin();
+  });
+}
+
+async function saveChatModelProfile() {
+  await run(async () => {
+    const payload = buildChatModelProfilePayload({
+      channelKey: chatModelProfileForm.channelKey.trim(),
+      providerName: chatModelProfileForm.providerName.trim(),
+      note: chatModelProfileForm.note.trim(),
+      officialUrl: chatModelProfileForm.officialUrl.trim(),
+      baseUrl: chatModelProfileForm.baseUrl.trim(),
+      apiKey: chatModelProfileForm.apiKey.trim(),
+      modelName: chatModelProfileForm.modelName.trim(),
+      modelKey: chatModelProfileForm.modelKey.trim(),
+      displayName: chatModelProfileForm.displayName.trim(),
+      modelReasoningEffort: chatModelProfileForm.modelReasoningEffort,
+      providerReasoningEffort: chatModelProfileForm.providerReasoningEffort,
+      serviceTier: chatModelProfileForm.serviceTier,
+      contextWindow: Number(chatModelProfileForm.contextWindow),
+      autoCompactTokenLimit: Number(chatModelProfileForm.autoCompactTokenLimit),
+      disableResponseStorage: chatModelProfileForm.disableResponseStorage,
+      defaultPointCost: Number(chatModelProfileForm.defaultPointCost),
+      timeoutSeconds: Number(chatModelProfileForm.timeoutSeconds),
+      enabled: chatModelProfileForm.enabled
+    });
+    const saved = await adminUpdateChatModelProfile({
+      channelKey: String(payload.channel_key),
+      providerName: String(payload.provider_name),
+      note: String(payload.note),
+      officialUrl: String(payload.official_url),
+      baseUrl: String(payload.base_url),
+      apiKey: String(payload.api_key),
+      modelName: String(payload.model_name),
+      modelKey: String(payload.model_key),
+      displayName: String(payload.display_name),
+      modelReasoningEffort: String(payload.model_reasoning_effort),
+      providerReasoningEffort: String(payload.provider_reasoning_effort),
+      serviceTier: String(payload.service_tier),
+      contextWindow: Number(payload.context_window),
+      autoCompactTokenLimit: Number(payload.auto_compact_token_limit),
+      disableResponseStorage: Boolean(payload.disable_response_storage),
+      defaultPointCost: Number(payload.default_point_cost),
+      timeoutSeconds: Number(payload.timeout_seconds),
+      enabled: Boolean(payload.enabled)
+    });
+    chatModelProfile.value = saved;
+    applyChatModelProfile(saved);
+    notice.value = 'AI 对话模型配置已保存，工作台模型已同步';
     await refreshAdmin();
   });
 }
@@ -2611,9 +2733,84 @@ async function run(task: () => Promise<void>) {
           <header class="panel-header">
             <div>
               <strong>模型中心</strong>
-              <span>渠道、模型与绑定统一管理</span>
+              <span>AI 对话模型优先配置，渠道、模型与绑定作为高级维护项</span>
             </div>
           </header>
+
+          <section class="admin-table-panel chat-profile-panel">
+            <header class="panel-header compact">
+              <div>
+                <strong>AI 对话模型配置</strong>
+                <span>保存后会同步 TEXT 渠道、默认对话模型和工作台可调用路由</span>
+              </div>
+              <span :class="['status-pill', chatRuntimeState === '可调用' ? 'active' : 'inactive']">{{ chatRuntimeState }}</span>
+            </header>
+            <div class="chat-profile-grid">
+              <form class="form-card chat-profile-form" @submit.prevent="saveChatModelProfile">
+                <label>渠道Key<input v-model="chatModelProfileForm.channelKey" /></label>
+                <label>服务商名称<input v-model="chatModelProfileForm.providerName" placeholder="中转" /></label>
+                <label>官网地址<input v-model="chatModelProfileForm.officialUrl" placeholder="https://ai.input.im" /></label>
+                <label>API 请求地址<input v-model="chatModelProfileForm.baseUrl" placeholder="https://ai.input.im" /></label>
+                <label>API Key<input v-model="chatModelProfileForm.apiKey" type="password" :placeholder="chatModelProfileForm.savedApiKeyMask ? `已保存 ${chatModelProfileForm.savedApiKeyMask}，留空保持不变` : '首次配置必须填写'" /></label>
+                <label>模型名称<input v-model="chatModelProfileForm.modelName" placeholder="gpt-5.5" /></label>
+                <label>工作台模型Key<input v-model="chatModelProfileForm.modelKey" disabled /></label>
+                <label>展示名称<input v-model="chatModelProfileForm.displayName" placeholder="GPT-5.5" /></label>
+                <label>
+                  模型推理强度
+                  <select v-model="chatModelProfileForm.modelReasoningEffort">
+                    <option value="minimal">minimal</option>
+                    <option value="low">low</option>
+                    <option value="medium">medium</option>
+                    <option value="high">high</option>
+                    <option value="xhigh">xhigh</option>
+                  </select>
+                </label>
+                <label>
+                  服务商推理强度
+                  <select v-model="chatModelProfileForm.providerReasoningEffort">
+                    <option value="minimal">minimal</option>
+                    <option value="low">low</option>
+                    <option value="medium">medium</option>
+                    <option value="high">high</option>
+                    <option value="xhigh">xhigh</option>
+                  </select>
+                </label>
+                <label>
+                  service_tier
+                  <select v-model="chatModelProfileForm.serviceTier">
+                    <option value="auto">auto</option>
+                    <option value="default">default</option>
+                    <option value="fast">fast</option>
+                  </select>
+                </label>
+                <label>超时秒数<input v-model.number="chatModelProfileForm.timeoutSeconds" min="1" type="number" /></label>
+                <label>上下文窗口<input v-model.number="chatModelProfileForm.contextWindow" min="1" type="number" /></label>
+                <label>自动压缩阈值<input v-model.number="chatModelProfileForm.autoCompactTokenLimit" min="1" type="number" /></label>
+                <label>默认积分<input v-model.number="chatModelProfileForm.defaultPointCost" min="0" type="number" /></label>
+                <label class="field-span-2">备注<textarea v-model="chatModelProfileForm.note" rows="2" placeholder="账号来源、适用范围或运维说明" /></label>
+                <label class="check-label"><input v-model="chatModelProfileForm.disableResponseStorage" type="checkbox" />disable_response_storage</label>
+                <label class="check-label"><input v-model="chatModelProfileForm.enabled" type="checkbox" />启用对话模型</label>
+                <button class="primary-btn" type="submit">保存并同步到工作台</button>
+              </form>
+
+              <aside class="chat-profile-preview">
+                <section>
+                  <header>
+                    <strong>auth.json</strong>
+                    <span>{{ chatModelProfileForm.apiKey ? '当前输入预览' : '已保存配置预览' }}</span>
+                  </header>
+                  <pre>{{ chatAuthPreview }}</pre>
+                </section>
+                <section>
+                  <header>
+                    <strong>config.toml</strong>
+                    <span>OpenAI Responses</span>
+                  </header>
+                  <pre>{{ chatConfigPreview }}</pre>
+                </section>
+              </aside>
+            </div>
+          </section>
 
           <section class="admin-table-panel">
             <header class="panel-header compact">

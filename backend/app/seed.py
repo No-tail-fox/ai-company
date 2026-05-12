@@ -659,34 +659,30 @@ def _add_memberships(session: Session, tenant_id: str) -> None:
 
 
 def _add_audio_routes(session: Session, tenant_id: str) -> None:
-    if session.get(ChannelRoute, "route-video_text_to_video") is None:
-        session.add(
-            ChannelRoute(
-                id="route-video_text_to_video",
-                tenant_id=tenant_id,
-                route_key="video_text_to_video",
-                display_name="文案生成视频",
-                backend_model="demo-video-renderer",
-                channel_type="VIDEO",
-                unit_cost=200,
-                priority=10,
-                enabled=True,
-            )
-        )
-    if session.get(ChannelRoute, "route-image_text_to_image") is None:
-        session.add(
-            ChannelRoute(
-                id="route-image_text_to_image",
-                tenant_id=tenant_id,
-                route_key="image_text_to_image",
-                display_name="一句话生成图片",
-                backend_model="demo-image-renderer",
-                channel_type="IMAGE",
-                unit_cost=80,
-                priority=10,
-                enabled=True,
-            )
-        )
+    _upsert_channel_route(
+        session,
+        tenant_id=tenant_id,
+        route_id="route-video_text_to_video",
+        route_key="video_text_to_video",
+        display_name="文案生成视频",
+        backend_model="demo-video-renderer",
+        channel_type="VIDEO",
+        unit_cost=200,
+        priority=10,
+        enabled=True,
+    )
+    _upsert_channel_route(
+        session,
+        tenant_id=tenant_id,
+        route_id="route-image_text_to_image",
+        route_key="image_text_to_image",
+        display_name="一句话生成图片",
+        backend_model="demo-image-renderer",
+        channel_type="IMAGE",
+        unit_cost=80,
+        priority=10,
+        enabled=True,
+    )
     routes = [
         ("audio_tts", "文本转语音", "generic-tts", 120),
         ("audio_voice_clone", "声音克隆", "generic-voice-clone", 180),
@@ -698,21 +694,18 @@ def _add_audio_routes(session: Session, tenant_id: str) -> None:
         ("audio_editor", "音频剪辑", "generic-editor", 70),
     ]
     for order, (route_key, display_name, backend_model, unit_cost) in enumerate(routes, start=1):
-        id_ = f"route-{route_key}"
-        if session.get(ChannelRoute, id_) is None:
-            session.add(
-                ChannelRoute(
-                    id=id_,
-                    tenant_id=tenant_id,
-                    route_key=route_key,
-                    display_name=display_name,
-                    backend_model=backend_model,
-                    channel_type="AUDIO",
-                    unit_cost=unit_cost,
-                    priority=order * 10,
-                    enabled=True,
-                )
-            )
+        _upsert_channel_route(
+            session,
+            tenant_id=tenant_id,
+            route_id=f"route-{route_key}",
+            route_key=route_key,
+            display_name=display_name,
+            backend_model=backend_model,
+            channel_type="AUDIO",
+            unit_cost=unit_cost,
+            priority=order * 10,
+            enabled=True,
+        )
 
     if session.get(ApiChannel, "channel-demo-audio") is None:
         session.add(
@@ -755,7 +748,15 @@ def _add_model_configurations(session: Session, tenant_id: str) -> None:
         ("model-audio-editor", "audio_editor", "音频剪辑", "AUDIO", "channel-demo-audio", "generic-editor", 70, True),
     ]
     for id_, model_key, display_name, capability, channel_id, provider_model, default_cost, enabled in model_specs:
-        if session.get(ModelConfig, id_) is None:
+        existing = session.scalar(
+            select(ModelConfig).where(
+                ModelConfig.tenant_id == tenant_id,
+                ModelConfig.model_key == model_key,
+            )
+        )
+        if existing is None:
+            existing = session.get(ModelConfig, id_)
+        if existing is None:
             session.add(
                 ModelConfig(
                     id=id_,
@@ -781,21 +782,51 @@ def _add_text_routes(session: Session, tenant_id: str) -> None:
             ModelConfig.capability == "TEXT",
         )
     ):
-        route_id = f"route-{model.model_key}"
-        if session.get(ChannelRoute, route_id) is None:
-            session.add(
-                ChannelRoute(
-                    id=route_id,
-                    tenant_id=tenant_id,
-                    route_key=model.model_key,
-                    display_name=model.display_name,
-                    backend_model=model.provider_model,
-                    channel_type="TEXT",
-                    unit_cost=model.default_point_cost,
-                    priority=5,
-                    enabled=model.enabled,
-                )
-            )
+        _upsert_channel_route(
+            session,
+            tenant_id=tenant_id,
+            route_id=f"route-{model.model_key}",
+            route_key=model.model_key,
+            display_name=model.display_name,
+            backend_model=model.provider_model,
+            channel_type="TEXT",
+            unit_cost=model.default_point_cost,
+            priority=5,
+            enabled=model.enabled,
+        )
+
+
+def _upsert_channel_route(
+    session: Session,
+    *,
+    tenant_id: str,
+    route_id: str,
+    route_key: str,
+    display_name: str,
+    backend_model: str,
+    channel_type: str,
+    unit_cost: int,
+    priority: int,
+    enabled: bool,
+) -> ChannelRoute:
+    route = session.scalar(
+        select(ChannelRoute).where(
+            ChannelRoute.tenant_id == tenant_id,
+            ChannelRoute.route_key == route_key,
+        )
+    )
+    if route is None:
+        route = session.get(ChannelRoute, route_id)
+    if route is None:
+        route = ChannelRoute(id=route_id, tenant_id=tenant_id, route_key=route_key)
+        session.add(route)
+    route.display_name = display_name
+    route.backend_model = backend_model
+    route.channel_type = channel_type
+    route.unit_cost = unit_cost
+    route.priority = priority
+    route.enabled = enabled
+    return route
 
 
 def _add_chat_runtime(session: Session, tenant_id: str) -> None:

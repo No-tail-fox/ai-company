@@ -57,14 +57,23 @@ class ChannelRouter:
             raise RouteNotFoundError(f"route {route_key} was not found or is disabled")
 
         now = utcnow()
+        channel_filters = [
+            ApiChannel.tenant_id == tenant_id,
+            ApiChannel.channel_type == route.channel_type,
+            ApiChannel.enabled.is_(True),
+        ]
+        route_metadata = route.metadata_json if isinstance(route.metadata_json, dict) else {}
+        target_channel_id = str(route_metadata.get("channel_id") or "").strip()
+        target_channel_key = str(route_metadata.get("channel_key") or "").strip()
+        if target_channel_id:
+            channel_filters.append(ApiChannel.id == target_channel_id)
+        elif target_channel_key:
+            channel_filters.append(ApiChannel.channel_key == target_channel_key)
+
         channels = list(
             self.session.scalars(
                 select(ApiChannel)
-                .where(
-                    ApiChannel.tenant_id == tenant_id,
-                    ApiChannel.channel_type == route.channel_type,
-                    ApiChannel.enabled.is_(True),
-                )
+                .where(*channel_filters)
                 .order_by(ApiChannel.priority.asc(), ApiChannel.created_at.asc())
             )
         )

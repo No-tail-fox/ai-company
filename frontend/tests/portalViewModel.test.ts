@@ -18,6 +18,7 @@ import {
   normalizePortalActionResult,
   normalizePortalDetail,
   normalizePortalUserActions,
+  normalizeChatModelProfile,
   normalizeChatWorkbench,
   normalizeImageWorkbench,
   normalizeVideoWorkbench,
@@ -649,6 +650,27 @@ test('normalizes chat workbench payloads and groups sessions by recency', () => 
 
   expect(groups.map((group) => group.key)).toEqual(['today', 'yesterday', 'thisWeek', 'older']);
   expect(groups[0].sessions[0].id).toBe('chat-today');
+});
+
+test('normalizes empty chat model profile payloads from admin API', () => {
+  const profile = normalizeChatModelProfile({
+    profile: {
+      channel_key: 'openai-chat-compatible',
+      provider_name: '中转',
+      base_url: '',
+      model_name: '',
+      model_key: 'general_text_default'
+    },
+    provider: null,
+    model_config: null,
+    auth_json: '{\n  "OPENAI_API_KEY": ""\n}',
+    config_toml: 'wire_api = "responses"'
+  });
+
+  expect(profile.provider).toBeNull();
+  expect(profile.modelConfig).toBeNull();
+  expect(profile.profile.channelKey).toBe('openai-chat-compatible');
+  expect(profile.authJson).toContain('OPENAI_API_KEY');
 });
 
 test('fallback chat workbench has sessions, models and active messages for offline rendering', () => {

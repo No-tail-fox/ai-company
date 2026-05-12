@@ -27,6 +27,7 @@ import {
   normalizeAudioTask,
   normalizeChatActiveSession,
   normalizeChatExportResult,
+  normalizeChatModelProfile,
   normalizeChatSendResult,
   normalizeChatWorkbench,
   normalizeImageWorkbench,
@@ -53,6 +54,7 @@ import {
   type AudioTaskPayload,
   type ChatActiveSession,
   type ChatExportResult,
+  type ChatModelProfilePayload,
   type ChatSendResult,
   type ChatWorkbench,
   type GenerationSurface,
@@ -106,6 +108,27 @@ export interface WorkbenchCapabilityRequest {
   targetKey: string;
   modelConfigId?: string;
   pointCostOverride?: number | string | null;
+  enabled?: boolean;
+}
+
+export interface ChatModelProfileRequest {
+  channelKey?: string;
+  providerName: string;
+  note?: string;
+  officialUrl?: string;
+  baseUrl: string;
+  apiKey?: string;
+  modelName: string;
+  modelKey?: string;
+  displayName?: string;
+  modelReasoningEffort?: string;
+  providerReasoningEffort?: string;
+  serviceTier?: string;
+  contextWindow?: number;
+  autoCompactTokenLimit?: number;
+  disableResponseStorage?: boolean;
+  defaultPointCost?: number;
+  timeoutSeconds?: number;
   enabled?: boolean;
 }
 
@@ -894,6 +917,39 @@ export async function adminDisableRedemptionCode(codeId: string): Promise<AdminR
 export async function adminListProviderChannels(): Promise<ProviderChannelSummary[]> {
   const payload = await request('/api/v1/admin/provider-channels', { auth: true });
   return (payload.channels ?? payload ?? []).map(normalizeProviderChannel);
+}
+
+export async function adminGetChatModelProfile(): Promise<ChatModelProfilePayload> {
+  return normalizeChatModelProfile(await request('/api/v1/admin/chat-model-profile', { auth: true }));
+}
+
+export async function adminUpdateChatModelProfile(payload: ChatModelProfileRequest): Promise<ChatModelProfilePayload> {
+  return normalizeChatModelProfile(
+    await request('/api/v1/admin/chat-model-profile', {
+      method: 'PUT',
+      body: JSON.stringify({
+        channel_key: payload.channelKey,
+        provider_name: payload.providerName,
+        note: payload.note ?? '',
+        official_url: payload.officialUrl ?? '',
+        base_url: payload.baseUrl,
+        api_key: payload.apiKey ?? '',
+        model_name: payload.modelName,
+        model_key: 'general_text_default',
+        display_name: payload.displayName ?? '',
+        model_reasoning_effort: payload.modelReasoningEffort ?? 'high',
+        provider_reasoning_effort: payload.providerReasoningEffort ?? 'medium',
+        service_tier: payload.serviceTier ?? 'fast',
+        context_window: payload.contextWindow ?? 1000000,
+        auto_compact_token_limit: payload.autoCompactTokenLimit ?? 900000,
+        disable_response_storage: payload.disableResponseStorage ?? true,
+        default_point_cost: payload.defaultPointCost ?? 0,
+        timeout_seconds: payload.timeoutSeconds ?? 60,
+        enabled: payload.enabled ?? true
+      }),
+      auth: true
+    })
+  );
 }
 
 export async function adminCreateProviderChannel(payload: Record<string, unknown>): Promise<ProviderChannelSummary> {

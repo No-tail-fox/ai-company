@@ -49,6 +49,27 @@ export interface EditableToolModelBinding {
   enabled: boolean;
 }
 
+export interface EditableChatModelProfile {
+  channelKey?: string;
+  providerName: string;
+  note?: string;
+  officialUrl?: string;
+  baseUrl: string;
+  apiKey: string;
+  modelName: string;
+  modelKey?: string;
+  displayName?: string;
+  modelReasoningEffort?: string;
+  providerReasoningEffort?: string;
+  serviceTier?: string;
+  contextWindow?: number;
+  autoCompactTokenLimit?: number;
+  disableResponseStorage?: boolean;
+  defaultPointCost?: number;
+  timeoutSeconds?: number;
+  enabled?: boolean;
+}
+
 export interface EditablePage extends Partial<PageConfigSummary> {
   pageKey: string;
   label: string;
@@ -341,6 +362,72 @@ export function buildToolModelBindingPayload(binding: EditableToolModelBinding) 
     point_cost_override: pointCostOverride,
     enabled: binding.enabled
   };
+}
+
+export function buildChatModelProfilePayload(profile: EditableChatModelProfile) {
+  return {
+    channel_key: profile.channelKey ?? 'openai-chat-compatible',
+    provider_name: profile.providerName,
+    note: profile.note ?? '',
+    official_url: profile.officialUrl ?? '',
+    base_url: profile.baseUrl,
+    api_key: profile.apiKey,
+    model_name: profile.modelName,
+    model_key: 'general_text_default',
+    display_name: profile.displayName ?? '',
+    model_reasoning_effort: profile.modelReasoningEffort ?? 'high',
+    provider_reasoning_effort: profile.providerReasoningEffort ?? 'medium',
+    service_tier: profile.serviceTier ?? 'fast',
+    context_window: profile.contextWindow ?? 1000000,
+    auto_compact_token_limit: profile.autoCompactTokenLimit ?? 900000,
+    disable_response_storage: profile.disableResponseStorage ?? true,
+    default_point_cost: profile.defaultPointCost ?? 0,
+    timeout_seconds: profile.timeoutSeconds ?? 60,
+    enabled: profile.enabled ?? true
+  };
+}
+
+export function buildCodexAuthJsonPreview(apiKey: string) {
+  return `{
+  "OPENAI_API_KEY": "${escapeJsonString(apiKey)}"
+}`;
+}
+
+export function buildCodexConfigTomlPreview(profile: EditableChatModelProfile) {
+  const modelName = profile.modelName ?? '';
+  const reasoningEffort = profile.modelReasoningEffort ?? 'high';
+  const providerReasoningEffort = profile.providerReasoningEffort ?? 'medium';
+  const serviceTier = profile.serviceTier ?? 'fast';
+  const baseUrl = profile.baseUrl ?? '';
+  const disableResponseStorage = profile.disableResponseStorage ?? true;
+  const contextWindow = profile.contextWindow ?? 1000000;
+  const autoCompactTokenLimit = profile.autoCompactTokenLimit ?? 900000;
+  return [
+    'model_provider = "custom"',
+    `model = "${escapeTomlString(modelName)}"`,
+    `model_reasoning_effort = "${escapeTomlString(reasoningEffort)}"`,
+    `disable_response_storage = ${String(Boolean(disableResponseStorage)).toLowerCase()}`,
+    `service_tier = "${escapeTomlString(serviceTier)}"`,
+    '',
+    `model_context_window = ${contextWindow}`,
+    `model_auto_compact_token_limit = ${autoCompactTokenLimit}`,
+    '',
+    '[model_providers.custom]',
+    'name = "custom"',
+    'wire_api = "responses"',
+    'requires_openai_auth = true',
+    '',
+    `model_reasoning_effort = "${escapeTomlString(providerReasoningEffort)}"`,
+    `base_url = "${escapeTomlString(baseUrl)}"`
+  ].join('\n');
+}
+
+function escapeJsonString(value: string) {
+  return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function escapeTomlString(value: string) {
+  return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
 export function buildReorderPayload(records: Array<{ id: string }>, sectionId?: string) {

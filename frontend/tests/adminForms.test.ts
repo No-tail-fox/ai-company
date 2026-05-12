@@ -1,5 +1,8 @@
 import { expect, test } from 'vitest';
 import {
+  buildChatModelProfilePayload,
+  buildCodexAuthJsonPreview,
+  buildCodexConfigTomlPreview,
   buildItemPayload,
   buildModelConfigPayload,
   buildPagePayload,
@@ -193,4 +196,60 @@ test('builds model config and binding payloads for model center forms', () => {
     point_cost_override: 45,
     enabled: true
   });
+});
+
+test('builds chat model profile payload and generated Codex previews', () => {
+  const profile = {
+    providerName: '中转',
+    note: '公司专用账号',
+    officialUrl: 'https://ai.input.im',
+    baseUrl: 'https://ai.input.im',
+    apiKey: 'sk-secret-1234',
+    modelName: 'gpt-5.5',
+    modelKey: 'general_text_default',
+    displayName: 'GPT-5.5',
+    modelReasoningEffort: 'high',
+    providerReasoningEffort: 'medium',
+    serviceTier: 'fast',
+    contextWindow: 1000000,
+    autoCompactTokenLimit: 900000,
+    disableResponseStorage: true,
+    defaultPointCost: 0,
+    timeoutSeconds: 60,
+    enabled: true
+  };
+
+  expect(buildChatModelProfilePayload(profile)).toEqual({
+    channel_key: 'openai-chat-compatible',
+    provider_name: '中转',
+    note: '公司专用账号',
+    official_url: 'https://ai.input.im',
+    base_url: 'https://ai.input.im',
+    api_key: 'sk-secret-1234',
+    model_name: 'gpt-5.5',
+    model_key: 'general_text_default',
+    display_name: 'GPT-5.5',
+    model_reasoning_effort: 'high',
+    provider_reasoning_effort: 'medium',
+    service_tier: 'fast',
+    context_window: 1000000,
+    auto_compact_token_limit: 900000,
+    disable_response_storage: true,
+    default_point_cost: 0,
+    timeout_seconds: 60,
+    enabled: true
+  });
+  expect(
+    buildChatModelProfilePayload({
+      ...profile,
+      modelKey: 'custom_chat_key'
+    }).model_key
+  ).toBe('general_text_default');
+
+  expect(buildCodexAuthJsonPreview(profile.apiKey)).toContain('"OPENAI_API_KEY": "sk-secret-1234"');
+  const toml = buildCodexConfigTomlPreview(profile);
+  expect(toml).toContain('model_provider = "custom"');
+  expect(toml).toContain('model = "gpt-5.5"');
+  expect(toml).toContain('wire_api = "responses"');
+  expect(toml).toContain('base_url = "https://ai.input.im"');
 });

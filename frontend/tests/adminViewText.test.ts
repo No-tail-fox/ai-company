@@ -13,6 +13,11 @@ test('admin view exposes a standard SaaS management shell', () => {
 test('admin model center exposes the new supplier configuration surface', () => {
   expect(adminView).toContain('adminListWorkbenchCapabilities');
   expect(adminView).toContain('adminUpdateWorkbenchCapability');
+  expect(adminView).toContain('adminGetChatModelProfile');
+  expect(adminView).toContain('adminUpdateChatModelProfile');
+  expect(adminView).toContain('AI 对话模型配置');
+  expect(adminView).toContain('auth.json');
+  expect(adminView).toContain('config.toml');
   expect(adminView).toContain('工作台能力筛选');
   expect(adminView).toContain('workbench-capability');
   expect(adminView).toContain('provider-preset-row');

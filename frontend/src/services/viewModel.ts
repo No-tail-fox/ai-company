@@ -33,6 +33,35 @@ export interface ModelConfigSummary {
   metadataJson?: Record<string, any>;
 }
 
+export interface ChatModelProfileSummary {
+  channelKey: string;
+  providerName: string;
+  note: string;
+  officialUrl: string;
+  baseUrl: string;
+  apiKey: string;
+  modelName: string;
+  modelKey: string;
+  displayName: string;
+  modelReasoningEffort: string;
+  providerReasoningEffort: string;
+  serviceTier: string;
+  contextWindow: number;
+  autoCompactTokenLimit: number;
+  disableResponseStorage: boolean;
+  defaultPointCost: number;
+  timeoutSeconds: number;
+  enabled: boolean;
+}
+
+export interface ChatModelProfilePayload {
+  profile: ChatModelProfileSummary;
+  provider: ProviderChannelSummary | null;
+  modelConfig: ModelConfigSummary | null;
+  authJson: string;
+  configToml: string;
+}
+
 export interface ProviderChannelSummary {
   id: string;
   tenantId?: string;
@@ -2422,6 +2451,38 @@ export function normalizeModelConfig(payload: any): ModelConfigSummary | null {
     defaultPointCost: Number(payload.default_point_cost ?? payload.defaultPointCost ?? 0),
     enabled: Boolean(payload.enabled ?? true),
     metadataJson: normalizeMetadata(payload.metadata_json ?? payload.metadataJson ?? payload.metadata)
+  };
+}
+
+export function normalizeChatModelProfile(payload: any): ChatModelProfilePayload {
+  const profilePayload = payload.profile ?? payload;
+  const providerPayload = payload.provider ?? payload.provider_channel ?? payload.providerChannel ?? null;
+  const profile: ChatModelProfileSummary = {
+    channelKey: profilePayload.channel_key ?? profilePayload.channelKey ?? 'openai-chat-compatible',
+    providerName: profilePayload.provider_name ?? profilePayload.providerName ?? '中转',
+    note: profilePayload.note ?? '',
+    officialUrl: profilePayload.official_url ?? profilePayload.officialUrl ?? '',
+    baseUrl: profilePayload.base_url ?? profilePayload.baseUrl ?? '',
+    apiKey: profilePayload.api_key ?? profilePayload.apiKey ?? '',
+    modelName: profilePayload.model_name ?? profilePayload.modelName ?? '',
+    modelKey: profilePayload.model_key ?? profilePayload.modelKey ?? 'general_text_default',
+    displayName: profilePayload.display_name ?? profilePayload.displayName ?? '',
+    modelReasoningEffort: profilePayload.model_reasoning_effort ?? profilePayload.modelReasoningEffort ?? 'high',
+    providerReasoningEffort: profilePayload.provider_reasoning_effort ?? profilePayload.providerReasoningEffort ?? 'medium',
+    serviceTier: profilePayload.service_tier ?? profilePayload.serviceTier ?? 'fast',
+    contextWindow: Number(profilePayload.context_window ?? profilePayload.contextWindow ?? 1000000),
+    autoCompactTokenLimit: Number(profilePayload.auto_compact_token_limit ?? profilePayload.autoCompactTokenLimit ?? 900000),
+    disableResponseStorage: Boolean(profilePayload.disable_response_storage ?? profilePayload.disableResponseStorage ?? true),
+    defaultPointCost: Number(profilePayload.default_point_cost ?? profilePayload.defaultPointCost ?? 0),
+    timeoutSeconds: Number(profilePayload.timeout_seconds ?? profilePayload.timeoutSeconds ?? 60),
+    enabled: Boolean(profilePayload.enabled ?? true)
+  };
+  return {
+    profile,
+    provider: providerPayload ? normalizeProviderChannel(providerPayload) : null,
+    modelConfig: normalizeModelConfig(payload.model_config ?? payload.modelConfig),
+    authJson: payload.auth_json ?? payload.authJson ?? '',
+    configToml: payload.config_toml ?? payload.configToml ?? ''
   };
 }
 

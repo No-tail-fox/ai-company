@@ -397,6 +397,27 @@ class AssistantCreate(BaseModel):
     point_cost: int = 0
 
 
+class ChatModelProfileUpdate(BaseModel):
+    channel_key: str | None = None
+    provider_name: str = "中转"
+    note: str = ""
+    official_url: str = ""
+    base_url: str
+    api_key: str = ""
+    model_name: str
+    model_key: str = "general_text_default"
+    display_name: str | None = None
+    model_reasoning_effort: str = "high"
+    provider_reasoning_effort: str = "medium"
+    service_tier: str = "fast"
+    context_window: int = 1000000
+    auto_compact_token_limit: int = 900000
+    disable_response_storage: bool = True
+    default_point_cost: int = 0
+    timeout_seconds: int = 60
+    enabled: bool = True
+
+
 class ProviderChannelCreate(BaseModel):
     channel_key: str
     display_name: str

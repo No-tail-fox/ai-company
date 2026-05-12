@@ -16,6 +16,7 @@ from app.schemas import (
     AccountProfileUpdate,
     AudioTaskCreate,
     AssistantCreate,
+    ChatModelProfileUpdate,
     ChatExportCreate,
     ChatMessageCreate,
     ChatSessionCreate,
@@ -899,6 +900,28 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"status": "UPDATED", "user": user_payload(updated)}
+
+    @app.get(f"{settings.api_prefix}/admin/chat-model-profile")
+    def get_chat_model_profile(
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        return ModelConfigService(db).get_chat_model_profile(tenant_id=tenant_id)
+
+    @app.put(f"{settings.api_prefix}/admin/chat-model-profile")
+    def update_chat_model_profile(
+        payload: ChatModelProfileUpdate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "OPERATOR")
+        try:
+            return ModelConfigService(db).upsert_chat_model_profile(tenant_id=tenant_id, payload=payload)
+        except ModelConfigError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get(f"{settings.api_prefix}/admin/provider-channels")
     def list_provider_channels(

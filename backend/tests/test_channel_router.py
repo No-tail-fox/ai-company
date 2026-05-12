@@ -13,6 +13,15 @@ class FakeTransport:
         return {"provider_task_id": "abc-123", "result_url": "https://cdn.example.com/item.mp3"}
 
 
+class RecordingTransport:
+    def __init__(self):
+        self.calls = []
+
+    def send(self, channel, route, payload):
+        self.calls.append((channel.channel_key, route.route_key, payload))
+        return {"provider_task_id": "target-1", "result_url": "https://cdn.example.com/target.mp3"}
+
+
 def test_router_falls_back_to_secondary_channel(session):
     tenant = Tenant(id="tenant-acme", slug="acme", name="Acme")
     route = ChannelRoute(
@@ -60,3 +69,52 @@ def test_router_falls_back_to_secondary_channel(session):
     assert result.channel_key == "secondary"
     assert result.provider_task_id == "abc-123"
     assert result.result_url == "https://cdn.example.com/item.mp3"
+
+
+def test_router_prefers_route_target_channel_when_configured(session):
+    tenant = Tenant(id="tenant-acme", slug="acme", name="Acme")
+    route = ChannelRoute(
+        id="route-chat",
+        tenant_id=tenant.id,
+        route_key="general_text_default",
+        display_name="Chat",
+        backend_model="gpt-5.5",
+        channel_type="TEXT",
+        unit_cost=0,
+        enabled=True,
+        metadata_json={"channel_id": "channel-target", "channel_key": "target"},
+    )
+    stale = ApiChannel(
+        id="channel-stale",
+        tenant_id=tenant.id,
+        channel_key="stale",
+        display_name="Stale",
+        base_url="https://stale.example.com",
+        api_key="secret-a",
+        channel_type="TEXT",
+        priority=1,
+        enabled=True,
+    )
+    target = ApiChannel(
+        id="channel-target",
+        tenant_id=tenant.id,
+        channel_key="target",
+        display_name="Target",
+        base_url="https://target.example.com",
+        api_key="secret-b",
+        channel_type="TEXT",
+        priority=50,
+        enabled=True,
+    )
+    session.add_all([tenant, route, stale, target])
+    session.commit()
+
+    transport = RecordingTransport()
+    result = ChannelRouter(session, transport).dispatch(
+        tenant_id=tenant.id,
+        route_key="general_text_default",
+        payload={"messages": [{"role": "user", "content": "hi"}]},
+    )
+
+    assert result.channel_key == "target"
+    assert transport.calls == [("target", "general_text_default", {"messages": [{"role": "user", "content": "hi"}]})]
