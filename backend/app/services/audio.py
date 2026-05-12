@@ -10,7 +10,7 @@ from app.services.generation import GenerationService
 from app.services.generation_surface import namespace_request_key, normalize_generation_surface, surface_clause, surface_from_request_key
 from app.services.model_configs import ModelConfigService
 from app.services.wallet import InsufficientBalanceError, WalletNotFoundError
-from app.tasks.generation import enqueue_generation_task
+from app.tasks.generation import enqueue_generation_task, process_generation_task_once
 
 
 DEMO_AUDIO_USER_ID = "demo-user"
@@ -40,6 +40,11 @@ class AudioService:
         route = self._audio_route(tenant_id=tenant_id, route_key=resolved.route_key)
         request_key = namespace_request_key(payload.surface, payload.request_key or f"audio:{new_id()}")
         generation = GenerationService(self.session)
+        options = {
+            **(payload.options or {}),
+            **({"source_url": payload.source_url} if payload.source_url else {}),
+            **({"voice": payload.voice_key} if payload.voice_key else {}),
+        }
         task = generation.create_task(
             tenant_id=tenant_id,
             user_id=user_id,
@@ -48,9 +53,15 @@ class AudioService:
             route_key=route.route_key,
             estimated_cost=resolved.effective_point_cost,
             request_key=request_key,
+            options=options,
         )
         if task.status == "PENDING":
-            enqueue_generation_task(tenant_id=tenant_id, task_id=task.id)
+            queued = enqueue_generation_task(tenant_id=tenant_id, task_id=task.id)
+            if queued is False:
+                try:
+                    process_generation_task_once(session=self.session, tenant_id=tenant_id, task_id=task.id)
+                except Exception:
+                    pass
         return self._task_payload(task)
 
     def list_tasks(self, *, tenant_id: str, user_id: str = DEMO_AUDIO_USER_ID, surface: str = "portal", limit: int = 20) -> dict:

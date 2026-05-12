@@ -394,6 +394,7 @@ def test_demo_seed_creates_portal_pages_and_admin_user(session):
         "home",
         "assistant",
         "workbench",
+        "communication",
         "marketing",
         "image",
         "video",

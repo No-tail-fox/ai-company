@@ -1,4 +1,4 @@
-from app.models import AiAssistant, ChannelRoute, ChatMessage, ChatSession, ContentItem, ContentPage, ContentSection, ModelConfig, PromptTemplate, Tenant, User
+from app.models import ApiChannel, AiAssistant, ChannelRoute, ChatMessage, ChatSession, ContentItem, ContentPage, ContentSection, ModelConfig, PortalDetailDocument, PromptTemplate, Tenant, User
 from app.seed import ensure_demo_data
 from app.services.auth import verify_password
 
@@ -60,6 +60,26 @@ def test_demo_seed_creates_portal_content_idempotently(session):
     assert {"办公助理", "营销助理", "学习助理", "法务助理", "客服助理", "设计助理", "开发助理"}.issubset(
         assistant_categories
     )
+    page_keys = [
+        row.page_key
+        for row in session.query(ContentPage)
+        .filter_by(tenant_id="demo")
+        .order_by(ContentPage.sort_order.asc())
+        .all()
+    ]
+    assert page_keys[page_keys.index("workbench") : page_keys.index("marketing") + 1] == [
+        "workbench",
+        "communication",
+        "marketing",
+    ]
+    assert session.query(ContentItem).filter_by(
+        tenant_id="demo",
+        item_type="communication_post",
+    ).count() >= 9
+    assert session.query(PortalDetailDocument).filter_by(
+        tenant_id="demo",
+        detail_path="/communication/detail/tool-benefits-v14",
+    ).count() == 1
 
 
 def test_demo_seed_sets_default_user_password(session):
@@ -150,3 +170,43 @@ def test_demo_seed_includes_workbench_and_chat_runtime(session):
     chat = session.query(ChatSession).filter_by(tenant_id="demo", user_id="demo-user").one()
     assert chat.title
     assert session.query(ChatMessage).filter_by(session_id=chat.id).count() >= 2
+
+
+def test_demo_seed_keeps_example_provider_channels_disabled(session):
+    ensure_demo_data(session, tenant_id="demo")
+
+    example_channels = session.query(ApiChannel).filter(
+        ApiChannel.tenant_id == "demo",
+        ApiChannel.base_url.contains("example.com"),
+    ).all()
+
+    assert example_channels
+    assert all(channel.enabled is False for channel in example_channels)
+
+
+def test_demo_seed_disables_existing_placeholder_provider_channels(session):
+    session.add(Tenant(id="demo", slug="demo", name="Demo"))
+    session.add(
+        ApiChannel(
+            id="legacy-image-placeholder",
+            tenant_id="demo",
+            channel_key="demo-image-http",
+            display_name="Legacy image placeholder",
+            base_url="https://image-provider.example.com/generate",
+            api_key="replace-with-provider-key",
+            channel_type="IMAGE",
+            enabled=True,
+            health_status="HEALTHY",
+        )
+    )
+    session.commit()
+
+    ensure_demo_data(session, tenant_id="demo")
+
+    channel = session.query(ApiChannel).filter_by(
+        tenant_id="demo",
+        channel_key="demo-image-http",
+    ).one()
+    assert channel.enabled is False
+    assert channel.health_status == "DEGRADED"
+    assert "note" in (channel.metadata_json or {})

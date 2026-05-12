@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -231,6 +231,7 @@ class AudioTaskCreate(BaseModel):
     target_id: str | None = None
     request_key: str | None = None
     surface: GenerationSurface = "portal"
+    options: dict[str, Any] = Field(default_factory=dict)
 
 
 class VideoGenerationCreate(BaseModel):
@@ -241,6 +242,7 @@ class VideoGenerationCreate(BaseModel):
     target_type: str | None = None
     target_id: str | None = None
     surface: GenerationSurface = "portal"
+    options: dict[str, Any] = Field(default_factory=dict)
 
 
 class VideoWalletPayload(BaseModel):
@@ -288,6 +290,7 @@ class ImageGenerationCreate(BaseModel):
     target_type: str | None = None
     target_id: str | None = None
     surface: GenerationSurface = "portal"
+    options: dict[str, Any] = Field(default_factory=dict)
 
 
 class ImageWalletPayload(BaseModel):
@@ -357,6 +360,28 @@ class PortalActionCreate(BaseModel):
     action_key: str
 
 
+class PortalDetailUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=255)
+    summary: str | None = None
+    body_markdown: str | None = None
+    tags: list[str] | None = None
+    visibility: str | None = Field(default=None, max_length=32)
+
+
+class PortalDetailPublishCreate(BaseModel):
+    release_note: str = Field(default="", max_length=255)
+
+
+class PortalDetailCommentCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=2000)
+
+
+class CommunicationPostCreate(BaseModel):
+    category_key: str = Field(min_length=1, max_length=64)
+    title: str = Field(min_length=1, max_length=120)
+    body_markdown: str = Field(min_length=1, max_length=10000)
+
+
 class AssistantCreate(BaseModel):
     assistant_key: str
     name: str
@@ -378,9 +403,11 @@ class ProviderChannelCreate(BaseModel):
     base_url: str
     api_key: str = ""
     channel_type: str
+    adapter_type: str = "custom_http"
     priority: int = 100
     enabled: bool = True
     timeout_seconds: int = 60
+    metadata_json: dict[str, Any] | None = None
 
 
 class ProviderChannelUpdate(BaseModel):
@@ -389,9 +416,11 @@ class ProviderChannelUpdate(BaseModel):
     base_url: str | None = None
     api_key: str | None = None
     channel_type: str | None = None
+    adapter_type: str | None = None
     priority: int | None = None
     enabled: bool | None = None
     timeout_seconds: int | None = None
+    metadata_json: dict[str, Any] | None = None
 
 
 class ModelConfigCreate(BaseModel):
@@ -425,6 +454,14 @@ class ToolModelBindingCreate(BaseModel):
 class ToolModelBindingUpdate(BaseModel):
     target_type: str | None = None
     target_key: str | None = None
+    model_config_id: str | None = None
+    point_cost_override: int | None = None
+    enabled: bool | None = None
+
+
+class WorkbenchCapabilityUpdate(BaseModel):
+    target_type: str
+    target_key: str
     model_config_id: str | None = None
     point_cost_override: int | None = None
     enabled: bool | None = None

@@ -106,6 +106,7 @@ class ApiChannel(Base):
     base_url: Mapped[str] = mapped_column(String(500))
     api_key: Mapped[str] = mapped_column(String(500))
     channel_type: Mapped[str] = mapped_column(String(32), index=True)
+    adapter_type: Mapped[str] = mapped_column(String(32), default="custom_http", index=True)
     priority: Mapped[int] = mapped_column(Integer, default=100)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     health_status: Mapped[str] = mapped_column(String(32), default="HEALTHY")
@@ -187,6 +188,7 @@ class GenerationTask(Base):
     provider_task_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     result_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    options_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -317,6 +319,60 @@ class ContentItem(Base):
     required_membership: Mapped[bool] = mapped_column(Boolean, default=False)
     point_cost: Mapped[int] = mapped_column(Integer, default=0)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class PortalDetailDocument(Base):
+    __tablename__ = "portal_detail_documents"
+    __table_args__ = (UniqueConstraint("tenant_id", "detail_path", name="uq_portal_detail_documents_path"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(32), ForeignKey("tenants.id"), index=True)
+    detail_path: Mapped[str] = mapped_column(String(500), index=True)
+    title: Mapped[str] = mapped_column(String(255), default="")
+    summary: Mapped[str] = mapped_column(Text, default="")
+    body_markdown: Mapped[str] = mapped_column(Text, default="")
+    tags: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    visibility: Mapped[str] = mapped_column(String(32), default="community", index=True)
+    author_user_id: Mapped[str] = mapped_column(String(32), ForeignKey("users.id"), default="", index=True)
+    current_version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(32), default="PUBLISHED", index=True)
+    release_note: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class PortalDetailVersion(Base):
+    __tablename__ = "portal_detail_versions"
+    __table_args__ = (UniqueConstraint("tenant_id", "document_id", "version", name="uq_portal_detail_versions_number"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(32), ForeignKey("tenants.id"), index=True)
+    document_id: Mapped[str] = mapped_column(String(32), ForeignKey("portal_detail_documents.id"), index=True)
+    detail_path: Mapped[str] = mapped_column(String(500), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(String(255), default="")
+    summary: Mapped[str] = mapped_column(Text, default="")
+    body_markdown: Mapped[str] = mapped_column(Text, default="")
+    tags: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    visibility: Mapped[str] = mapped_column(String(32), default="community", index=True)
+    release_note: Mapped[str] = mapped_column(String(255), default="")
+    author_user_id: Mapped[str] = mapped_column(String(32), ForeignKey("users.id"), default="", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class PortalDetailComment(Base):
+    __tablename__ = "portal_detail_comments"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(32), ForeignKey("tenants.id"), index=True)
+    detail_path: Mapped[str] = mapped_column(String(500), index=True)
+    user_id: Mapped[str] = mapped_column(String(32), ForeignKey("users.id"), index=True)
+    author_name: Mapped[str] = mapped_column(String(255), default="")
+    content: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(32), default="VISIBLE", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 

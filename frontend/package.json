@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node ./node_modules/vite/bin/vite.js --host 127.0.0.1",
     "build": "node ./node_modules/vue-tsc/bin/vue-tsc.js --noEmit; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; node ./node_modules/vite/bin/vite.js build",
-    "test": "node ./node_modules/vitest/vitest.mjs run"
+    "test": "node ./node_modules/vitest/vitest.mjs run --poolOptions.threads.singleThread"
   },
   "dependencies": {
     "@vitejs/plugin-vue": "5.2.1",

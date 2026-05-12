@@ -37,6 +37,13 @@ test('portal details and homepage routes use real routed actions', () => {
   expect(portalDetailPage).toContain('fetchPortalDetail');
   expect(portalDetailPage).toContain('runPortalAction');
   expect(portalDetailPage).toContain('completedActions');
+  expect(portalDetailPage).toContain('renderMarkdown');
+  expect(portalDetailPage).toContain('activeDetailTab');
+  expect(portalDetailPage).toContain('updatePortalDetail');
+  expect(portalDetailPage).toContain('publishPortalDetail');
+  expect(portalDetailPage).toContain('createPortalDetailComment');
+  expect(portalDetailPage).toContain('detail.permissions.canEdit');
+  expect(portalDetailPage).toContain("router.push('/communication')");
   expect(dynamicPage).toContain('router.push(item.actionValue)');
   expect(dynamicPage).toContain('openSidePromo');
 });
@@ -54,6 +61,13 @@ test('workbench page uses the shared shell and real chat behaviors', () => {
   expect(workbenchPage).toContain('exportChatSession');
   expect(workbenchPage).toContain('groupChatSessionsByRecency');
   expect(workbenchPage).toContain('workbench-file-card');
+});
+
+test('chat workbench does not render local demo fallback controls', () => {
+  expect(workbenchPage).not.toContain('createFallbackChatWorkbench');
+  expect(workbenchPage).not.toContain('fallbackWorkbench');
+  expect(workbenchPage).not.toContain("id: 'image-link'");
+  expect(workbenchPage).not.toContain('openFilePicker');
 });
 
 test('shared workbench shell supports a collapsed rail and single content scroll', () => {
@@ -77,10 +91,18 @@ test('creative workbench child pages use workbench surface and local drafts', ()
     expect(source).toContain('saveWorkbenchDraft');
   }
   expect(imagePage).toContain('fetchImageWorkbench(SURFACE)');
+  expect(imagePage).toContain('fetchWorkbenchCapabilities(SURFACE)');
+  expect(imagePage).toContain('selectedCapability');
+  expect(imagePage).toContain('options: imageGenerationOptions()');
   expect(imagePage).toContain('surface: SURFACE');
   expect(videoPage).toContain('fetchVideoWorkbench(SURFACE)');
+  expect(videoPage).toContain('fetchWorkbenchCapabilities(SURFACE)');
+  expect(videoPage).toContain('selectedCapability');
+  expect(videoPage).toContain('options: videoGenerationOptions()');
   expect(videoPage).toContain('surface: SURFACE');
   expect(audioPage).toContain('fetchAudioTasks(SURFACE)');
+  expect(audioPage).toContain('fetchWorkbenchCapabilities(SURFACE)');
+  expect(audioPage).toContain('managedAudioTools');
   expect(audioPage).toContain('buildAudioTaskPayload');
 });
 
@@ -91,8 +113,21 @@ test('creative workbench pages poll real generation tasks and render provider me
     expect(source).toContain('onBeforeUnmount');
     expect(source).not.toContain('queueRows.length > 0\n    ? queueRows\n    : [');
   }
-  expect(imagePage).toContain('<img v-if="card.url"');
-  expect(videoPage).toContain('<video v-if="latestVideoResult"');
+  expect(imagePage).toContain("<img :src=\"card.url || ''\"");
+  expect(videoPage).toContain('class="video-result-player"');
   expect(audioPage).toContain('<audio v-if="latestAudioResult"');
   expect(audioPage).toContain('task.errorMessage');
+});
+
+test('creative workbench pages do not expose local fallback demos or fake editors', () => {
+  expect(imagePage).not.toContain('createFallbackImageWorkbench');
+  expect(videoPage).not.toContain('createFallbackVideoWorkbench');
+  expect(imagePage).not.toContain('image-demo-');
+  expect(videoPage).not.toContain('video-demo-');
+  expect(imagePage).not.toContain('wb-reference-panel');
+  expect(videoPage).not.toContain('const scenes: SceneItem[]');
+  expect(videoPage).not.toContain('video-preview-scene walk');
+  expect(videoPage).not.toContain('video-timeline-panel');
+  expect(audioPage).not.toContain('const transcriptRows');
+  expect(audioPage).not.toContain('audio-wave-editor');
 });

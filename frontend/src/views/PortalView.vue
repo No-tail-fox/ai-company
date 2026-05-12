@@ -9,6 +9,7 @@ import {
   Sparkles
 } from 'lucide-vue-next';
 import AssistantPage from '../components/AssistantPage.vue';
+import CommunicationHallPage from '../components/CommunicationHallPage.vue';
 import HomeDashboardPage from '../components/HomeDashboardPage.vue';
 import DynamicPage from '../components/DynamicPage.vue';
 import MarketingPage from '../components/MarketingPage.vue';
@@ -66,11 +67,12 @@ const activePageKey = computed(() => String(route.params.pageKey || 'home'));
 const showHomeSidebar = computed(() => shouldShowHomeSidebar(activePageKey.value));
 const showHomeDashboard = computed(() => shouldUseHomeDashboardPage(activePageKey.value, activeHomeMenuKey.value));
 const isAssistantPage = computed(() => shouldUseAssistantPage(activePageKey.value));
+const isCommunicationPage = computed(() => activePageKey.value === 'communication');
 const isMarketingPage = computed(() => shouldUseMarketingPage(activePageKey.value));
 const isCodingPage = computed(() => shouldUseCodingPage(activePageKey.value));
 const isWritingPage = computed(() => shouldUseWritingPage(activePageKey.value));
-const hideWorkspaceDock = computed(() => isMarketingPage.value || shouldHideWorkspaceDock(activePageKey.value));
-const hideFloatTools = computed(() => isMarketingPage.value || isCodingPage.value || isWritingPage.value);
+const hideWorkspaceDock = computed(() => isCommunicationPage.value || isMarketingPage.value || shouldHideWorkspaceDock(activePageKey.value));
+const hideFloatTools = computed(() => isCommunicationPage.value || isMarketingPage.value || isCodingPage.value || isWritingPage.value);
 const workbenchRoute = computed(() => {
   const routes: Record<string, string> = {
     image: '/workbench/image',
@@ -257,6 +259,7 @@ function scrollToTop() {
           'content',
           {
             'marketing-content': isMarketingPage,
+            'communication-content': isCommunicationPage,
             'craft-content': isCodingPage || isWritingPage
           }
         ]"
@@ -267,6 +270,7 @@ function scrollToTop() {
           @open-assistant="openAssistant"
           @open-template="openTemplate"
         />
+        <CommunicationHallPage v-else-if="isCommunicationPage" />
         <HomeDashboardPage v-else-if="showHomeDashboard" :model="homeDashboardModel" @open-item="openItem" />
         <MarketingPage v-else-if="isMarketingPage" :page-config="displayPageConfig" @open-item="openItem" />
         <TextWorkbenchPage v-else-if="isCodingPage || isWritingPage" :page-config="displayPageConfig" />

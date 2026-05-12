@@ -119,14 +119,22 @@ def _route_for_task(*, session: Session, tenant_id: str, task: GenerationTask) -
 
 
 def _provider_payload(*, task: GenerationTask, route: ChannelRoute) -> dict[str, Any]:
+    options = task.options_json or {}
     payload: dict[str, Any] = {
         "action": "status" if task.provider_task_id else "create",
+        "tenant_id": task.tenant_id,
         "task_id": task.id,
         "task_type": task.task_type,
         "prompt": task.prompt,
         "model": route.backend_model,
         "route_key": route.route_key,
+        "options": options,
     }
+    if isinstance(options, dict):
+        if options.get("source_url"):
+            payload["source_url"] = options["source_url"]
+        if options.get("voice"):
+            payload["voice_key"] = options["voice"]
     if task.provider_task_id:
         payload["provider_task_id"] = task.provider_task_id
     return payload

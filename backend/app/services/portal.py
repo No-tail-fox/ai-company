@@ -1,12 +1,25 @@
 from __future__ import annotations
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import AiAssistant, ContentItem, ContentPage, ContentSection, PromptTemplate, UserPortalAction
-from app.schemas import PortalActionCreate
+from app.models import (
+    AiAssistant,
+    ContentItem,
+    ContentPage,
+    ContentSection,
+    PortalDetailComment,
+    PortalDetailDocument,
+    PortalDetailVersion,
+    PromptTemplate,
+    User,
+    UserPortalAction,
+    utcnow,
+)
+from app.schemas import PortalActionCreate, PortalDetailCommentCreate, PortalDetailPublishCreate, PortalDetailUpdate
 from app.services.memberships import MembershipService
 from app.services.model_configs import ModelConfigService
+from app.services.rbac import has_min_role
 
 
 class PortalService:
@@ -58,7 +71,14 @@ class PortalService:
             ],
         }
 
-    def get_detail(self, *, tenant_id: str, detail_path: str, user_id: str = "demo-user") -> dict | None:
+    def get_detail(
+        self,
+        *,
+        tenant_id: str,
+        detail_path: str,
+        user_id: str = "demo-user",
+        actor: User | None = None,
+    ) -> dict | None:
         path = _normalize_detail_path(detail_path)
         rows = self._items_for_path(tenant_id=tenant_id, detail_path=path)
         if not rows:
@@ -69,9 +89,23 @@ class PortalService:
         primary_item = items[0]
         primary_section = sections[0]
         detail = _detail_metadata(primary_item, path=path)
-        membership_active = MembershipService(self.session).get_status(tenant_id=tenant_id, user_id=user_id)["active"]
+        active_user_id = actor.id if actor is not None else user_id
+        membership_active = MembershipService(self.session).get_status(tenant_id=tenant_id, user_id=active_user_id)["active"]
         required_membership = any(item.required_membership for item in items)
-        completed_actions = self._completed_action_keys(tenant_id=tenant_id, user_id=user_id, detail_path=path)
+        completed_actions = self._completed_action_keys(tenant_id=tenant_id, user_id=active_user_id, detail_path=path)
+        document = self._detail_document(tenant_id=tenant_id, path=path)
+        document_payload = self._document_payload(
+            document=document,
+            tenant_id=tenant_id,
+            path=path,
+            item=primary_item,
+            base_detail=detail,
+        )
+        detail = {
+            **detail,
+            **document_payload,
+            "comments": self._comments_payload(tenant_id=tenant_id, path=path, author_user_id=document_payload["author_user_id"]),
+        }
         return {
             "path": path,
             "kind": "directory" if len(items) > 1 else primary_item.item_type,
@@ -90,7 +124,113 @@ class PortalService:
                 "locked": required_membership and not membership_active,
                 "completedActions": completed_actions,
             },
+            "permissions": {
+                "can_edit": self._can_edit_document(document_author_id=detail["author_user_id"], actor=actor),
+                "can_comment": actor is not None,
+            },
         }
+
+    def update_detail(
+        self,
+        *,
+        tenant_id: str,
+        detail_path: str,
+        payload: PortalDetailUpdate,
+        actor: User,
+    ) -> dict:
+        path, item, base_detail = self._detail_context(tenant_id=tenant_id, detail_path=detail_path)
+        document = self._ensure_document(tenant_id=tenant_id, path=path, item=item, base_detail=base_detail)
+        self._require_detail_editor(document=document, actor=actor)
+        updates = payload.model_dump(exclude_unset=True)
+        if "title" in updates and updates["title"] is not None:
+            document.title = updates["title"].strip()
+        if "summary" in updates and updates["summary"] is not None:
+            document.summary = updates["summary"].strip()
+        if "body_markdown" in updates and updates["body_markdown"] is not None:
+            document.body_markdown = updates["body_markdown"]
+        if "tags" in updates and updates["tags"] is not None:
+            document.tags = _clean_tags(updates["tags"])
+        if "visibility" in updates and updates["visibility"] is not None:
+            document.visibility = updates["visibility"].strip() or "community"
+        self.session.commit()
+        return self.get_detail(tenant_id=tenant_id, detail_path=path, user_id=actor.id, actor=actor) or {}
+
+    def publish_detail_version(
+        self,
+        *,
+        tenant_id: str,
+        detail_path: str,
+        payload: PortalDetailPublishCreate,
+        actor: User,
+    ) -> dict:
+        path, item, base_detail = self._detail_context(tenant_id=tenant_id, detail_path=detail_path)
+        document = self._ensure_document(tenant_id=tenant_id, path=path, item=item, base_detail=base_detail)
+        self._require_detail_editor(document=document, actor=actor)
+        self._snapshot_document(document=document, version=document.current_version + 1, release_note=payload.release_note, actor=actor)
+        document.current_version += 1
+        document.release_note = payload.release_note.strip()
+        document.status = "PUBLISHED"
+        document.published_at = utcnow()
+        self.session.commit()
+        return self.get_detail(tenant_id=tenant_id, detail_path=path, user_id=actor.id, actor=actor) or {}
+
+    def rollback_detail_version(
+        self,
+        *,
+        tenant_id: str,
+        detail_path: str,
+        version_id: str,
+        payload: PortalDetailPublishCreate,
+        actor: User,
+    ) -> dict:
+        path, item, base_detail = self._detail_context(tenant_id=tenant_id, detail_path=detail_path)
+        document = self._ensure_document(tenant_id=tenant_id, path=path, item=item, base_detail=base_detail)
+        self._require_detail_editor(document=document, actor=actor)
+        version = self.session.scalar(
+            select(PortalDetailVersion).where(
+                PortalDetailVersion.tenant_id == tenant_id,
+                PortalDetailVersion.document_id == document.id,
+                PortalDetailVersion.id == version_id,
+            )
+        )
+        if version is None:
+            raise ValueError("version not found")
+        document.title = version.title
+        document.summary = version.summary
+        document.body_markdown = version.body_markdown
+        document.tags = version.tags or []
+        document.visibility = version.visibility
+        self._snapshot_document(document=document, version=document.current_version + 1, release_note=payload.release_note, actor=actor)
+        document.current_version += 1
+        document.release_note = payload.release_note.strip() or f"回滚到 v{version.version}"
+        document.status = "PUBLISHED"
+        document.published_at = utcnow()
+        self.session.commit()
+        return self.get_detail(tenant_id=tenant_id, detail_path=path, user_id=actor.id, actor=actor) or {}
+
+    def create_detail_comment(
+        self,
+        *,
+        tenant_id: str,
+        detail_path: str,
+        payload: PortalDetailCommentCreate,
+        actor: User,
+    ) -> dict:
+        path, _, _ = self._detail_context(tenant_id=tenant_id, detail_path=detail_path)
+        comment = PortalDetailComment(
+            tenant_id=tenant_id,
+            detail_path=path,
+            user_id=actor.id,
+            author_name=actor.display_name or actor.phone or "用户",
+            content=payload.content.strip(),
+            status="VISIBLE",
+        )
+        self.session.add(comment)
+        self.session.commit()
+        self.session.refresh(comment)
+        detail = self.get_detail(tenant_id=tenant_id, detail_path=path, user_id=actor.id, actor=actor) or {}
+        detail_content = detail.get("detail", {})
+        return {"comment": self._comment_payload(comment, author_user_id=detail_content.get("author_user_id", "")), "detail": detail_content}
 
     def search(self, *, tenant_id: str, query: str, page_key: str | None = None, limit: int = 8) -> dict:
         keyword = query.strip()
@@ -256,13 +396,17 @@ class PortalService:
                 result_json=result,
             )
             self.session.add(existing)
+        elif payload.action_key in {"favorite", "follow"} and existing.status == "COMPLETED":
+            existing.status = "CANCELLED"
+            existing.message = "favorite cancelled"
         else:
             existing.status = "COMPLETED"
-            existing.message = existing.message or message
+            existing.message = message if payload.action_key in {"favorite", "follow"} else existing.message or message
             existing.result_json = existing.result_json or result
         self.session.commit()
+        status_value = "cancelled" if existing.status == "CANCELLED" else "completed"
         return {
-            "status": "completed",
+            "status": status_value,
             "message": existing.message,
             "action": self._action_payload(existing),
             "download": download,
@@ -282,6 +426,217 @@ class PortalService:
             )
         )
         return {"actions": [self._action_payload(record) for record in records]}
+
+    def _detail_context(self, *, tenant_id: str, detail_path: str) -> tuple[str, ContentItem, dict]:
+        path = _normalize_detail_path(detail_path)
+        rows = self._items_for_path(tenant_id=tenant_id, detail_path=path)
+        if not rows:
+            raise ValueError("detail not found")
+        item = rows[0][0]
+        return path, item, _detail_metadata(item, path=path)
+
+    def _detail_document(self, *, tenant_id: str, path: str) -> PortalDetailDocument | None:
+        return self.session.scalar(
+            select(PortalDetailDocument).where(
+                PortalDetailDocument.tenant_id == tenant_id,
+                PortalDetailDocument.detail_path == path,
+            )
+        )
+
+    def _ensure_document(
+        self,
+        *,
+        tenant_id: str,
+        path: str,
+        item: ContentItem,
+        base_detail: dict,
+    ) -> PortalDetailDocument:
+        document = self._detail_document(tenant_id=tenant_id, path=path)
+        if document is not None:
+            return document
+        fallback = self._fallback_document(tenant_id=tenant_id, path=path, item=item, base_detail=base_detail)
+        document = PortalDetailDocument(
+            tenant_id=tenant_id,
+            detail_path=path,
+            title=fallback["title"],
+            summary=fallback["summary"],
+            body_markdown=fallback["body_markdown"],
+            tags=fallback["tags"],
+            visibility=fallback["visibility"],
+            author_user_id=fallback["author_user_id"],
+            current_version=1,
+            release_note="初始版本",
+            status="PUBLISHED",
+            published_at=utcnow(),
+        )
+        self.session.add(document)
+        self.session.flush()
+        self._snapshot_document(document=document, version=1, release_note="初始版本", actor=None)
+        return document
+
+    def _fallback_document(self, *, tenant_id: str, path: str, item: ContentItem, base_detail: dict) -> dict:
+        metadata = item.metadata_json or {}
+        author_user_id = (
+            metadata.get("authorUserId")
+            or metadata.get("author_user_id")
+            or (metadata.get("detail") or {}).get("authorUserId")
+            or ""
+        )
+        return {
+            "id": "",
+            "title": item.title,
+            "summary": base_detail.get("summary") or item.subtitle,
+            "body_markdown": _default_body_markdown(title=item.title, detail=base_detail),
+            "tags": _clean_tags(item.tags or [item.category, "Markdown"]),
+            "visibility": str(metadata.get("visibility") or "community"),
+            "author_user_id": str(author_user_id),
+            "current_version": 1,
+            "release_note": "初始版本",
+            "created_at": None,
+            "updated_at": None,
+            "published_at": None,
+        }
+
+    def _document_payload(
+        self,
+        *,
+        document: PortalDetailDocument | None,
+        tenant_id: str,
+        path: str,
+        item: ContentItem,
+        base_detail: dict,
+    ) -> dict:
+        if document is None:
+            fallback = self._fallback_document(tenant_id=tenant_id, path=path, item=item, base_detail=base_detail)
+            versions = [
+                {
+                    "id": "",
+                    "version": fallback["current_version"],
+                    "title": fallback["title"],
+                    "summary": fallback["summary"],
+                    "body_markdown": fallback["body_markdown"],
+                    "tags": fallback["tags"],
+                    "visibility": fallback["visibility"],
+                    "release_note": fallback["release_note"],
+                    "author_user_id": fallback["author_user_id"],
+                    "created_at": None,
+                }
+            ]
+            return {
+                **fallback,
+                "version": versions[0],
+                "versions": versions,
+                "publish_info": _publish_info(item=item, version=fallback["current_version"], visibility=fallback["visibility"]),
+            }
+        versions = self._versions_payload(document=document)
+        current = next((version for version in versions if version["version"] == document.current_version), versions[0] if versions else None)
+        return {
+            "id": document.id,
+            "title": document.title,
+            "summary": document.summary,
+            "body_markdown": document.body_markdown,
+            "tags": _clean_tags(document.tags or item.tags or [item.category, "Markdown"]),
+            "visibility": document.visibility,
+            "author_user_id": document.author_user_id,
+            "current_version": document.current_version,
+            "release_note": document.release_note,
+            "created_at": document.created_at.isoformat() if document.created_at else None,
+            "updated_at": document.updated_at.isoformat() if document.updated_at else None,
+            "published_at": document.published_at.isoformat() if document.published_at else None,
+            "version": current,
+            "versions": versions,
+            "publish_info": _publish_info(item=item, version=document.current_version, visibility=document.visibility),
+        }
+
+    def _versions_payload(self, *, document: PortalDetailDocument) -> list[dict]:
+        records = list(
+            self.session.scalars(
+                select(PortalDetailVersion)
+                .where(
+                    PortalDetailVersion.tenant_id == document.tenant_id,
+                    PortalDetailVersion.document_id == document.id,
+                )
+                .order_by(PortalDetailVersion.version.desc())
+            )
+        )
+        return [self._version_payload(record) for record in records]
+
+    def _comments_payload(self, *, tenant_id: str, path: str, author_user_id: str) -> list[dict]:
+        records = list(
+            self.session.scalars(
+                select(PortalDetailComment)
+                .where(
+                    PortalDetailComment.tenant_id == tenant_id,
+                    PortalDetailComment.detail_path == path,
+                    PortalDetailComment.status == "VISIBLE",
+                )
+                .order_by(PortalDetailComment.created_at.asc())
+            )
+        )
+        return [self._comment_payload(record, author_user_id=author_user_id) for record in records]
+
+    def _snapshot_document(
+        self,
+        *,
+        document: PortalDetailDocument,
+        version: int,
+        release_note: str,
+        actor: User | None,
+    ) -> PortalDetailVersion:
+        record = PortalDetailVersion(
+            tenant_id=document.tenant_id,
+            document_id=document.id,
+            detail_path=document.detail_path,
+            version=version,
+            title=document.title,
+            summary=document.summary,
+            body_markdown=document.body_markdown,
+            tags=document.tags or [],
+            visibility=document.visibility,
+            release_note=release_note.strip(),
+            author_user_id=actor.id if actor is not None else document.author_user_id,
+        )
+        self.session.add(record)
+        return record
+
+    def _require_detail_editor(self, *, document: PortalDetailDocument, actor: User) -> None:
+        if not self._can_edit_document(document_author_id=document.author_user_id, actor=actor):
+            raise PermissionError("detail editor permission required")
+
+    @staticmethod
+    def _can_edit_document(*, document_author_id: str, actor: User | None) -> bool:
+        if actor is None:
+            return False
+        if has_min_role(actor.role, "CONTENT_EDITOR"):
+            return True
+        return bool(document_author_id) and actor.id == document_author_id
+
+    @staticmethod
+    def _version_payload(record: PortalDetailVersion) -> dict:
+        return {
+            "id": record.id,
+            "version": record.version,
+            "title": record.title,
+            "summary": record.summary,
+            "body_markdown": record.body_markdown,
+            "tags": record.tags or [],
+            "visibility": record.visibility,
+            "release_note": record.release_note,
+            "author_user_id": record.author_user_id,
+            "created_at": record.created_at.isoformat() if record.created_at else None,
+        }
+
+    @staticmethod
+    def _comment_payload(record: PortalDetailComment, *, author_user_id: str) -> dict:
+        return {
+            "id": record.id,
+            "detail_path": record.detail_path,
+            "user_id": record.user_id,
+            "author_name": record.author_name,
+            "content": record.content,
+            "is_author": bool(author_user_id) and record.user_id == author_user_id,
+            "created_at": record.created_at.isoformat() if record.created_at else None,
+        }
 
     def _audio_catalog_sections(self, *, tenant_id: str, page: ContentPage) -> list[dict]:
         page_key = page.page_key
@@ -746,7 +1101,10 @@ class PortalService:
         return [
             {"page_key": "home", "label": "首页", "title": "首页", "subtitle": "", "icon": "Home"},
             {"page_key": "assistant", "label": "AI 助理", "title": "智能助理广场", "subtitle": "", "icon": "Bot"},
+            {"page_key": "workbench", "label": "工作台", "title": "AI 工作台", "subtitle": "", "icon": "LayoutDashboard"},
+            {"page_key": "communication", "label": "沟通大厅", "title": "沟通大厅", "subtitle": "", "icon": "MessageCircle"},
             {"page_key": "marketing", "label": "AI 营销", "title": "营销增长中心", "subtitle": "", "icon": "Megaphone"},
+            {"page_key": "image", "label": "AI 图片", "title": "AI图片创作中心", "subtitle": "", "icon": "Image"},
             {"page_key": "video", "label": "AI 视频", "title": "AI视频创作中心", "subtitle": "", "icon": "FileVideo"},
             {"page_key": "audio", "label": "AI 音频", "title": "AI音频创作中心", "subtitle": "", "icon": "Headphones"},
             {"page_key": "coding", "label": "AI 编程", "title": "AI编程工作台", "subtitle": "", "icon": "Workflow"},
@@ -793,6 +1151,55 @@ def _detail_metadata(item: ContentItem | None, *, path: str) -> dict:
     if isinstance(configured, dict):
         detail.update({key: value for key, value in configured.items() if value is not None})
     return detail
+
+
+def _default_body_markdown(*, title: str, detail: dict) -> str:
+    lines = [f"# {title}", "", str(detail.get("summary") or "").strip()]
+    highlights = [str(value).strip() for value in detail.get("highlights") or [] if str(value).strip()]
+    if highlights:
+        lines.extend(["", "## 亮点", *[f"- {value}" for value in highlights]])
+    steps = [str(value).strip() for value in detail.get("steps") or [] if str(value).strip()]
+    if steps:
+        lines.extend(["", "## 步骤/目录", *[f"{index}. {value}" for index, value in enumerate(steps, start=1)]])
+    deliverables = [str(value).strip() for value in detail.get("deliverables") or [] if str(value).strip()]
+    if deliverables:
+        lines.extend(["", "## 交付物", *[f"- {value}" for value in deliverables]])
+    return "\n".join(line for line in lines if line is not None).strip() + "\n"
+
+
+def _clean_tags(values: list[str] | None) -> list[str]:
+    tags: list[str] = []
+    for value in values or []:
+        tag = str(value).strip()
+        if tag and tag not in tags:
+            tags.append(tag)
+    return tags[:12]
+
+
+def _publish_info(*, item: ContentItem, version: int, visibility: str) -> dict:
+    type_labels = {
+        "resource": "资源合集",
+        "course": "课程内容",
+        "template": "模板内容",
+        "community": "社群入口",
+        "project": "项目共创",
+        "tool": "工具入口",
+    }
+    visibility_labels = {
+        "community": "社区成员",
+        "public": "公开可见",
+        "private": "仅作者可见",
+        "members": "会员可见",
+    }
+    return {
+        "type_label": type_labels.get(item.item_type, item.category or "详情内容"),
+        "type_hint": f"可被大厅「{item.category or item.item_type}」收录",
+        "version_label": f"v{version}",
+        "version_hint": "保留修改记录，支持回滚",
+        "visibility": visibility,
+        "visibility_label": visibility_labels.get(visibility, visibility or "社区成员"),
+        "visibility_hint": "作者和管理员可编辑，浏览者可查看与评论",
+    }
 
 
 def _default_detail(*, path: str, title: str, subtitle: str = "", category: str = "") -> dict:

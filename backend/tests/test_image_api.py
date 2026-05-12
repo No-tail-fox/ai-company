@@ -89,6 +89,64 @@ def test_image_generation_supports_workbench_surface(session):
     assert wallet.frozen_balance == 80
 
 
+def test_image_generation_persists_provider_options(session, monkeypatch):
+    seed_image_runtime(session)
+    monkeypatch.setattr(
+        image_module,
+        "enqueue_generation_task",
+        lambda *, tenant_id, task_id: False,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        image_module,
+        "process_generation_task_once",
+        lambda **kwargs: {"status": "PROCESSING"},
+        raising=False,
+    )
+    client = make_client(session)
+
+    response = client.post(
+        "/api/v1/image/generations",
+        headers={"X-Tenant-ID": "tenant-a"},
+        json={
+            "prompt": "生成商品海报",
+            "request_key": "image-options",
+            "options": {"size": "1024x1024", "quality": "high", "n": 2},
+        },
+    )
+
+    assert response.status_code == 201
+    task = session.query(GenerationTask).filter_by(request_key="portal:image-options").one()
+    assert task.options_json == {"size": "1024x1024", "quality": "high", "n": 2}
+
+
+def test_image_generation_runs_once_locally_when_queue_is_unavailable(session, monkeypatch):
+    seed_image_runtime(session)
+    processed = []
+    monkeypatch.setattr(
+        image_module,
+        "enqueue_generation_task",
+        lambda *, tenant_id, task_id: False,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        image_module,
+        "process_generation_task_once",
+        lambda **kwargs: processed.append(kwargs["task_id"]) or {"status": "PROCESSING"},
+        raising=False,
+    )
+    client = make_client(session)
+
+    response = client.post(
+        "/api/v1/image/generations",
+        headers={"X-Tenant-ID": "tenant-a"},
+        json={"prompt": "生成商品海报", "request_key": "image-local-run"},
+    )
+
+    assert response.status_code == 201
+    assert processed == [response.json()["id"]]
+
+
 def test_image_generation_request_key_is_idempotent(session):
     wallet = seed_image_runtime(session)
     client = make_client(session)

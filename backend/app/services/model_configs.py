@@ -232,10 +232,12 @@ class ModelConfigService:
             "base_url": channel.base_url,
             "api_key_mask": self.mask_api_key(channel.api_key),
             "channel_type": channel.channel_type,
+            "adapter_type": channel.adapter_type,
             "priority": channel.priority,
             "enabled": channel.enabled,
             "health_status": channel.health_status,
             "timeout_seconds": channel.timeout_seconds,
+            "metadata_json": channel.metadata_json or {},
         }
 
     def model_config_payload(self, model: ModelConfig | None) -> dict | None:

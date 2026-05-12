@@ -18,6 +18,9 @@ from app.models import (
     HomeHeroSlide,
     MembershipPlan,
     ModelConfig,
+    PortalDetailComment,
+    PortalDetailDocument,
+    PortalDetailVersion,
     PromptTemplate,
     Tenant,
     ToolModelBinding,
@@ -27,6 +30,7 @@ from app.models import (
     utcnow,
 )
 from app.services.auth import hash_password
+from app.services.communication import CommunicationService
 
 
 BRAND_NAME = "新商机"
@@ -71,11 +75,16 @@ def ensure_demo_data(session: Session, *, tenant_id: str = "demo") -> None:
                 password_hash=hash_password("admin123456"),
             )
         )
+        session.add(Wallet(id="demo-admin-wallet", tenant_id=tenant_id, user_id="demo-admin", balance=0, frozen_balance=0))
+    elif not session.scalar(select(Wallet.id).where(Wallet.tenant_id == tenant_id, Wallet.user_id == "demo-admin")):
+        session.add(Wallet(id="demo-admin-wallet", tenant_id=tenant_id, user_id="demo-admin", balance=0, frozen_balance=0))
 
     _add_pages(session, tenant_id)
     _add_home_hero_slides(session, tenant_id)
     _add_sections(session, tenant_id)
     _add_items(session, tenant_id)
+    _add_portal_detail_documents(session, tenant_id)
+    _add_communication_posts(session, tenant_id)
     _add_assistants(session, tenant_id)
     _add_templates(session, tenant_id)
     _add_memberships(session, tenant_id)
@@ -85,10 +94,15 @@ def ensure_demo_data(session: Session, *, tenant_id: str = "demo") -> None:
     session.commit()
 
 
+def _add_communication_posts(session: Session, tenant_id: str) -> None:
+    CommunicationService(session).ensure_seed_posts(tenant_id=tenant_id)
+
+
 PAGES = [
     ("page-home", "home", "首页", "常用AI学习中心", "学习、接单、社群和活动的统一入口", "Home", 10),
     ("page-assistant", "assistant", "AI 助理", "智能助理广场", "办公、营销、学习、法务等场景助理集合", "Bot", 20),
     ("page-workbench", "workbench", "工作台", "AI 工作台", "真实对话、队列和快捷操作的统一工作区", "LayoutDashboard", 25),
+    ("page-communication", "communication", "沟通大厅", "沟通大厅", "接单、模板、交流、资源对接都在这里沉淀", "MessageCircle", 27),
     ("page-marketing", "marketing", "AI 营销", "营销增长中心", "从内容生成到投放复盘的一站式工具台", "Megaphone", 30),
     ("page-image", "image", "AI 图片", "AI图片创作中心", "提示词、模板、批量出图和生成队列", "Image", 35),
     ("page-video", "video", "AI 视频", "AI视频创作中心", "脚本、数字人、剪辑、字幕和渲染队列", "FileVideo", 40),
@@ -250,6 +264,81 @@ def _add_items(session: Session, tenant_id: str) -> None:
             )
         elif not existing.metadata_json:
             existing.metadata_json = metadata
+
+
+def _add_portal_detail_documents(session: Session, tenant_id: str) -> None:
+    resource_item = session.get(ContentItem, "resource-01")
+    if resource_item is None:
+        return
+    detail_path = "/resources/tools"
+    body = """# 工具优惠合集：AI 创业者常用权益包
+
+本页面汇总模型调用、视频剪辑、设计协作、办公效率等工具权益，适合接单、内容制作、模板生产和轻量团队协作场景。管理员可用 Markdown 持续维护，用户可在下方评论区补充可用渠道。
+
+> 建议先确认权益有效期、账号归属和商用授权，再在项目交付中使用。
+
+## 亮点
+
+- 适合「资源对接」和「模板交付」场景
+- 支持站内状态记录，便于追踪可用性
+- 可由管理员继续编辑和补充内容
+- 评论区沉淀真实使用反馈
+
+| 权益类型 | 适用场景 | 状态 |
+| --- | --- | --- |
+| 模型调用券 | 文案、客服、代码、数据分析 | 可申请 |
+| 剪辑工具会员 | 短剧、口播、混剪、课程切片 | 限量 |
+| 设计与办公套件 | 海报、PPT、合同模板、资料包 | 持续更新 |
+"""
+    document = session.get(PortalDetailDocument, "detail-resources-tools")
+    if document is None:
+        document = PortalDetailDocument(
+            id="detail-resources-tools",
+            tenant_id=tenant_id,
+            detail_path=detail_path,
+            title="工具优惠合集",
+            summary="模型、剪辑、设计和办公工具权益；正文支持 Markdown 渲染、编辑、发布和版本更新。",
+            body_markdown=body,
+            tags=["工具权益", "Markdown", "模板交付", "资源对接", "可评论"],
+            visibility="community",
+            author_user_id="demo-admin",
+            current_version=1,
+            release_note="初始化资源详情",
+            status="PUBLISHED",
+            published_at=utcnow(),
+        )
+        session.add(document)
+    version = session.get(PortalDetailVersion, "detail-resources-tools-v1")
+    if version is None:
+        session.add(
+            PortalDetailVersion(
+                id="detail-resources-tools-v1",
+                tenant_id=tenant_id,
+                document_id="detail-resources-tools",
+                detail_path=detail_path,
+                version=1,
+                title=document.title,
+                summary=document.summary,
+                body_markdown=document.body_markdown,
+                tags=document.tags or [],
+                visibility=document.visibility,
+                release_note=document.release_note,
+                author_user_id=document.author_user_id,
+            )
+        )
+    comment = session.get(PortalDetailComment, "detail-resources-tools-comment-1")
+    if comment is None:
+        session.add(
+            PortalDetailComment(
+                id="detail-resources-tools-comment-1",
+                tenant_id=tenant_id,
+                detail_path=detail_path,
+                user_id="demo-user",
+                author_name="赵同学 · 模板创作者",
+                content="建议把「商用授权」单独做一列，后续接单时更好判断能不能交付给客户。",
+            )
+        )
+    resource_item.tags = resource_item.tags or ["工具权益", "Markdown", "模板交付", "资源对接", "可评论"]
 
 
 def _section_definitions() -> list[tuple[str, str, str, str, str, str, int]]:
@@ -745,8 +834,8 @@ def _add_chat_runtime(session: Session, tenant_id: str) -> None:
 def _add_provider_channels(session: Session, tenant_id: str) -> None:
     channels = [
         ("channel-demo-general", "demo-general-text", "通用文本渠道", "https://text-provider.example.com/generate", "replace-with-provider-key", "TEXT", 90, False),
-        ("channel-demo-image", "demo-image-http", "通用图片渠道", "https://image-provider.example.com/generate", "replace-with-provider-key", "IMAGE", 10, True),
-        ("channel-demo-video", "demo-video-http", "通用视频渠道", "https://video-provider.example.com/generate", "replace-with-provider-key", "VIDEO", 20, True),
+        ("channel-demo-image", "demo-image-http", "通用图片渠道", "https://image-provider.example.com/generate", "replace-with-provider-key", "IMAGE", 10, False),
+        ("channel-demo-video", "demo-video-http", "通用视频渠道", "https://video-provider.example.com/generate", "replace-with-provider-key", "VIDEO", 20, False),
         ("channel-demo-audio", "demo-audio-http", "通用音频 HTTP 渠道", "https://audio-provider.example.com/generate", "replace-with-provider-key", "AUDIO", 100, False),
     ]
     for id_, channel_key, display_name, base_url, api_key, channel_type, priority, enabled in channels:
@@ -767,6 +856,14 @@ def _add_provider_channels(session: Session, tenant_id: str) -> None:
                     ApiChannel.channel_key == channel_key,
                 )
             )
+        if existing is not None and _is_placeholder_channel(existing):
+            existing.enabled = False
+            existing.health_status = "DEGRADED"
+            existing.adapter_type = existing.adapter_type or "custom_http"
+            existing.metadata_json = {
+                **(existing.metadata_json or {}),
+                "note": "填入真实供应商地址和密钥后启用",
+            }
         if existing is None:
             session.add(
                 ApiChannel(
@@ -900,6 +997,10 @@ def _add_tool_model_bindings(session: Session, tenant_id: str) -> None:
     ]
     for target_type, target_key, model_key, cost in writing_bindings:
         bind(target_type, target_key, model_key, cost)
+
+
+def _is_placeholder_channel(channel: ApiChannel) -> bool:
+    return "example.com" in (channel.base_url or "") or channel.api_key == "replace-with-provider-key"
 
 
 def _default_item_metadata(*, title: str, subtitle: str, category: str, action_value: str) -> dict:

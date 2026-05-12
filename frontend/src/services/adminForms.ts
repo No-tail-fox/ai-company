@@ -10,9 +10,11 @@ export interface EditableProviderChannel {
   baseUrl: string;
   apiKey: string;
   channelType: string;
+  adapterType?: string;
   priority: number;
   enabled: boolean;
   timeoutSeconds: number;
+  metadataJson?: Record<string, unknown>;
 }
 
 export interface EditableModelConfig {
@@ -235,9 +237,11 @@ export function buildProviderChannelPayload(channel: EditableProviderChannel) {
     base_url: channel.baseUrl,
     api_key: channel.apiKey,
     channel_type: channel.channelType,
+    adapter_type: channel.adapterType ?? 'custom_http',
     priority: channel.priority,
     enabled: channel.enabled,
-    timeout_seconds: channel.timeoutSeconds
+    timeout_seconds: channel.timeoutSeconds,
+    ...(channel.metadataJson === undefined ? {} : { metadata_json: channel.metadataJson })
   };
 }
 

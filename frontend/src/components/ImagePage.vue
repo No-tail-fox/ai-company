@@ -3,26 +3,19 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
   Download,
   Expand,
-  Folder,
-  Grid3X3,
-  Heart,
   Image as ImageIcon,
   List,
-  Plus,
   Search,
-  Settings,
-  Sparkles,
-  UploadCloud,
-  WandSparkles
+  Sparkles
 } from 'lucide-vue-next';
-import { createImageGeneration, fetchImageWorkbench } from '../services/api';
+import { createImageGeneration, fetchImageWorkbench, fetchWorkbenchCapabilities } from '../services/api';
 import {
-  createFallbackImageWorkbench,
   getImageStatusMeta,
   loadWorkbenchDraft,
   saveWorkbenchDraft,
   type ImageTask,
-  type ImageWorkbench
+  type ImageWorkbench,
+  type WorkbenchCapability
 } from '../services/viewModel';
 import WorkspaceShell from './WorkspaceShell.vue';
 
@@ -52,6 +45,15 @@ interface PreviewCard {
 const SURFACE = 'workbench';
 const DRAFT_KEY = 'opc_workbench_image_draft';
 
+const emptyImageWorkbench: ImageWorkbench = {
+  tenantId: '',
+  userId: '',
+  surface: SURFACE,
+  wallet: { balance: 0, frozenBalance: 0 },
+  route: { routeKey: '', unitCost: 0 },
+  tasks: []
+};
+
 const defaultDraft: ImageDraft = {
   model: '通用绘图',
   size: '1024 x 1024',
@@ -66,12 +68,14 @@ const defaultDraft: ImageDraft = {
   streaming: true
 };
 
-const workbench = ref<ImageWorkbench>({ ...createFallbackImageWorkbench(), tasks: [] });
+const workbench = ref<ImageWorkbench>(emptyImageWorkbench);
 const draft = ref<ImageDraft>(loadWorkbenchDraft(DRAFT_KEY, defaultDraft));
+const capabilities = ref<WorkbenchCapability[]>([]);
+const selectedCapabilityKey = ref('');
 const isCreating = ref(false);
 const createError = ref('');
 const activeHistoryId = ref('');
-const viewMode = ref<'grid' | 'list'>('grid');
+const historyQuery = ref('');
 const pollTimer = ref<number | null>(null);
 
 const modelOptions = ['通用绘图', '商品摄影', '海报设计', '国风插画'];
@@ -80,13 +84,14 @@ const ratioOptions = ['1:1', '3:4', '4:3', '16:9', '9:16'];
 const styleOptions = ['写实', '插画', '国风', '赛博', '极简', '3D', '产品图', '海报'];
 
 const historyRows = computed(() => {
+  const keyword = historyQuery.value.trim().toLowerCase();
   const taskRows = workbench.value.tasks.slice(0, 4).map((task) => ({
     id: task.id,
     title: compact(task.prompt, 14),
     time: formatTime(task.createdAt),
     group: task.status === 'FAILED' ? '失败' : '任务'
   }));
-  return taskRows;
+  return keyword ? taskRows.filter((row) => row.title.toLowerCase().includes(keyword)) : taskRows;
 });
 
 const groupedHistory = computed(() => {
@@ -137,6 +142,16 @@ const recentRuns = computed(() =>
     icon: index % 3 === 0 ? 'MessageCircle' : index % 3 === 1 ? 'Image' : 'Headphones'
   }))
 );
+const latestImageResult = computed(() =>
+  workbench.value.tasks.find((task) => task.status === 'SUCCESS' && task.resultUrl) ?? null
+);
+const callableCapabilities = computed(() => capabilities.value.filter((capability) => capability.callable));
+const selectedCapability = computed(
+  () =>
+    callableCapabilities.value.find((capability) => capability.targetKey === selectedCapabilityKey.value) ??
+    callableCapabilities.value[0] ??
+    null
+);
 const hasActiveTasks = computed(() => workbench.value.tasks.some(isActiveTask));
 
 watch(
@@ -146,7 +161,7 @@ watch(
 );
 
 onMounted(async () => {
-  await loadWorkbench();
+  await Promise.all([loadWorkbench(), loadCapabilities()]);
   startTaskPolling();
 });
 
@@ -173,10 +188,30 @@ async function loadWorkbench(silent = false) {
   }
 }
 
+async function loadCapabilities(silent = false) {
+  try {
+    const payload = await fetchWorkbenchCapabilities(SURFACE);
+    capabilities.value = payload.groups.image ?? [];
+    if (!selectedCapabilityKey.value && callableCapabilities.value[0]) {
+      selectedCapabilityKey.value = callableCapabilities.value[0].targetKey;
+    }
+  } catch (error) {
+    capabilities.value = [];
+    if (!silent) {
+      createError.value = error instanceof Error ? error.message : '图像能力加载失败';
+    }
+  }
+}
+
 async function createFromPrompt() {
   const prompt = draft.value.prompt.trim();
   if (!prompt) {
     createError.value = '请输入图像提示词';
+    return;
+  }
+  const capability = selectedCapability.value;
+  if (!capability) {
+    createError.value = '后台未启用可调用的图像能力';
     return;
   }
   isCreating.value = true;
@@ -184,10 +219,11 @@ async function createFromPrompt() {
   try {
     const enrichedPrompt = `${prompt}；模型：${draft.value.model}；尺寸：${draft.value.size}；比例：${draft.value.ratio}；风格：${draft.value.style}`;
     const created = await createImageGeneration(enrichedPrompt, {
-      targetType: 'builtin',
-      targetId: 'image_text_to_image',
-      routeKey: 'image_text_to_image',
-      surface: SURFACE
+      targetType: capability.targetType,
+      targetId: capability.targetKey,
+      routeKey: capability.modelConfig?.modelKey ?? capability.actionValue ?? workbench.value.route.routeKey,
+      surface: SURFACE,
+      options: imageGenerationOptions()
     });
     const refreshed = await fetchImageWorkbench(SURFACE);
     if (!refreshed.tasks.some((task) => task.id === created.id)) {
@@ -201,6 +237,23 @@ async function createFromPrompt() {
   } finally {
     isCreating.value = false;
   }
+}
+
+function imageGenerationOptions() {
+  return {
+    size: draft.value.size.replace(/\s*x\s*/i, 'x'),
+    quality: draft.value.quality.includes('高') ? 'high' : 'standard',
+    n: Number.parseInt(draft.value.count, 10) || 1,
+    ratio: draft.value.ratio,
+    style: draft.value.style,
+    seed: draft.value.seed.trim() || undefined
+  };
+}
+
+function resetImageDraft() {
+  draft.value.prompt = '';
+  activeHistoryId.value = '';
+  createError.value = '';
 }
 
 function startTaskPolling() {
@@ -251,30 +304,19 @@ function compact(value: string, max = 18) {
     page-icon="Sparkles"
     variant="image"
   >
-    <template #headerActions>
-      <button class="workspace-icon-action" aria-label="素材库" title="素材库">
-        <Folder :size="20" />
-      </button>
-      <button class="workspace-icon-action" aria-label="设置" title="设置">
-        <Settings :size="20" />
-      </button>
-    </template>
-
     <template #leftFooter>
       <div class="wb-left-selects">
         <label>
-          <span>角色：</span>
-          <select>
-            <option>通用助手</option>
-            <option>品牌设计师</option>
+          <span>能力：</span>
+          <select v-model="selectedCapabilityKey" :disabled="!callableCapabilities.length">
+            <option v-for="capability in callableCapabilities" :key="capability.targetKey" :value="capability.targetKey">
+              {{ capability.title }}
+            </option>
           </select>
         </label>
         <label>
           <span>模型：</span>
-          <select>
-            <option>GPT-4.1</option>
-            <option>GPT Image</option>
-          </select>
+          <strong class="wb-managed-model">{{ selectedCapability?.modelConfig?.displayName ?? '后台未启用' }}</strong>
         </label>
       </div>
     </template>
@@ -326,7 +368,7 @@ function compact(value: string, max = 18) {
               <h2>历史记录</h2>
               <label class="wb-search">
                 <Search :size="18" />
-                <input placeholder="搜索提示词..." />
+                <input v-model="historyQuery" placeholder="搜索提示词..." />
               </label>
             </header>
             <div v-for="group in groupedHistory" :key="group.key" class="wb-history-group">
@@ -343,7 +385,7 @@ function compact(value: string, max = 18) {
                 <time>{{ row.time }}</time>
               </button>
             </div>
-            <button class="wb-link-button" type="button">
+            <button class="wb-link-button" type="button" @click="historyQuery = ''">
               查看全部记录
               <List :size="16" />
             </button>
@@ -352,14 +394,6 @@ function compact(value: string, max = 18) {
           <section class="wb-preview-panel">
             <header>
               <h2>生成预览</h2>
-              <div class="wb-view-toggle">
-                <button :class="{ active: viewMode === 'grid' }" type="button" aria-label="宫格视图" @click="viewMode = 'grid'">
-                  <Grid3X3 :size="18" />
-                </button>
-                <button :class="{ active: viewMode === 'list' }" type="button" aria-label="列表视图" @click="viewMode = 'list'">
-                  <List :size="18" />
-                </button>
-              </div>
             </header>
             <div v-if="previewCards.length" class="wb-preview-grid">
               <article
@@ -367,17 +401,15 @@ function compact(value: string, max = 18) {
                 :key="card.id"
                 :class="['wb-preview-card', card.accent, { featured: card.featured }]"
               >
-                <img v-if="card.url" :src="card.url" :alt="card.title" />
-                <div v-else class="wb-generated-scene" aria-hidden="true">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </div>
+                <img :src="card.url || ''" :alt="card.title" />
                 <footer>
                   <strong>{{ card.label }}</strong>
-                  <button type="button" aria-label="收藏"><Heart :size="18" /></button>
-                  <button type="button" aria-label="下载"><Download :size="18" /></button>
-                  <button type="button" aria-label="放大"><Expand :size="18" /></button>
+                  <a class="wb-card-action" :href="card.url || '#'" download aria-label="下载">
+                    <Download :size="18" />
+                  </a>
+                  <a class="wb-card-action" :href="card.url || '#'" target="_blank" rel="noreferrer" aria-label="打开">
+                    <Expand :size="18" />
+                  </a>
                 </footer>
               </article>
             </div>
@@ -389,27 +421,13 @@ function compact(value: string, max = 18) {
           </section>
         </div>
 
-        <section class="wb-reference-panel">
-          <header>
-            <h2>参考图（可选）</h2>
-          </header>
-          <div class="wb-reference-list">
-            <div class="wb-reference-thumb city">
-              <button type="button" aria-label="移除参考图">×</button>
-            </div>
-            <button v-for="index in 3" :key="index" class="wb-reference-add" type="button">
-              <Plus :size="20" />
-            </button>
-          </div>
-        </section>
-
         <section class="wb-prompt-composer">
           <label>
             <span>提示词</span>
             <textarea v-model="draft.prompt" maxlength="1000" placeholder="描述你想生成的画面、光线、材质与风格..." />
             <small>{{ draft.prompt.length }} / 1000</small>
           </label>
-          <button class="wb-generate-button" :disabled="isCreating" type="button" @click="createFromPrompt">
+          <button class="wb-generate-button" :disabled="isCreating || !selectedCapability" type="button" @click="createFromPrompt">
             <Sparkles :size="24" />
             {{ isCreating ? '生成中' : '生成图像' }}
           </button>
@@ -458,9 +476,12 @@ function compact(value: string, max = 18) {
           <h2>快捷操作</h2>
         </header>
         <div class="wb-quick-grid">
-          <button type="button"><Plus :size="24" />新建图像</button>
-          <button type="button"><UploadCloud :size="24" />导入参考</button>
-          <button type="button"><Download :size="24" />下载结果</button>
+          <button type="button" @click="resetImageDraft"><Sparkles :size="24" />新建图像</button>
+          <a v-if="latestImageResult" :href="latestImageResult.resultUrl || '#'" download>
+            <Download :size="24" />
+            下载结果
+          </a>
+          <button v-else type="button" disabled><Download :size="24" />下载结果</button>
         </div>
       </section>
 
@@ -502,7 +523,6 @@ function compact(value: string, max = 18) {
 .wb-image-config,
 .wb-history-panel,
 .wb-preview-panel,
-.wb-reference-panel,
 .wb-prompt-composer,
 .wb-side-panel {
   min-width: 0;
@@ -544,6 +564,13 @@ function compact(value: string, max = 18) {
   font: inherit;
 }
 
+.wb-managed-model {
+  overflow: hidden;
+  color: #172033;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .wb-image {
   display: grid;
   gap: 18px;
@@ -552,7 +579,6 @@ function compact(value: string, max = 18) {
 .wb-image-config,
 .wb-history-panel,
 .wb-preview-panel,
-.wb-reference-panel,
 .wb-prompt-composer,
 .wb-side-panel {
   border: 1px solid #dfe5ef;
@@ -599,11 +625,10 @@ function compact(value: string, max = 18) {
 
 .wb-ratio-group button,
 .wb-style-group button,
-.wb-view-toggle button,
 .wb-link-button,
-.wb-reference-add,
 .wb-task-row button,
 .wb-quick-grid button,
+.wb-quick-grid a,
 .wb-side-panel header button {
   border: 1px solid #dfe5ef;
   border-radius: 8px;
@@ -620,8 +645,7 @@ function compact(value: string, max = 18) {
 }
 
 .wb-ratio-group button.active,
-.wb-style-group button.active,
-.wb-view-toggle button.active {
+.wb-style-group button.active {
   border-color: #5964ff;
   color: #4f5cff;
   background: #f4f5ff;
@@ -635,14 +659,12 @@ function compact(value: string, max = 18) {
 
 .wb-history-panel,
 .wb-preview-panel,
-.wb-reference-panel,
 .wb-side-panel {
   padding: 18px;
 }
 
 .wb-history-panel h2,
 .wb-preview-panel h2,
-.wb-reference-panel h2,
 .wb-side-panel h2 {
   margin: 0;
   color: #111827;
@@ -652,7 +674,6 @@ function compact(value: string, max = 18) {
 
 .wb-history-panel header,
 .wb-preview-panel header,
-.wb-reference-panel header,
 .wb-side-panel header {
   display: flex;
   align-items: center;
@@ -746,18 +767,6 @@ function compact(value: string, max = 18) {
   color: #6b7280;
 }
 
-.wb-view-toggle {
-  display: flex;
-  gap: 6px;
-}
-
-.wb-view-toggle button {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-}
-
 .wb-preview-grid {
   display: grid;
   grid-template-columns: minmax(280px, 1.35fr) repeat(2, minmax(150px, 0.65fr));
@@ -796,75 +805,22 @@ function compact(value: string, max = 18) {
   min-height: 500px;
 }
 
-.wb-preview-card img,
-.wb-generated-scene {
+.wb-preview-card img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.wb-generated-scene {
-  position: relative;
-  overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(9, 22, 58, 0.2), rgba(5, 11, 28, 0.55)),
-    linear-gradient(135deg, #061833, #0f5e9c 42%, #fd3fa4 80%, #121a3d);
-}
-
-.wb-preview-card.street .wb-generated-scene {
-  background:
-    linear-gradient(180deg, rgba(9, 22, 58, 0.12), rgba(5, 11, 28, 0.55)),
-    linear-gradient(135deg, #153456, #1676b9 42%, #ff4e8f 78%, #111827);
-}
-
-.wb-preview-card.moon .wb-generated-scene {
-  background:
-    radial-gradient(circle at 72% 24%, #f8fbff 0 22px, transparent 23px),
-    linear-gradient(160deg, #10294a, #081426 62%, #07111f);
-}
-
-.wb-preview-card.alley .wb-generated-scene {
-  background: linear-gradient(135deg, #08233e, #065d7c 38%, #8a2df4 72%, #101827);
-}
-
-.wb-preview-card.car .wb-generated-scene {
-  background: linear-gradient(135deg, #081525, #0e4f87 42%, #df2f84 78%, #090e19);
-}
-
-.wb-generated-scene span {
-  position: absolute;
-  bottom: 0;
-  width: 16%;
-  border-radius: 8px 8px 0 0;
-  background: rgba(4, 12, 30, 0.68);
-  box-shadow: inset 0 18px 0 rgba(255, 255, 255, 0.08);
-}
-
-.wb-generated-scene span:nth-child(1) {
-  left: 8%;
-  height: 72%;
-}
-
-.wb-generated-scene span:nth-child(2) {
-  left: 35%;
-  height: 92%;
-}
-
-.wb-generated-scene span:nth-child(3) {
-  right: 12%;
-  height: 62%;
-}
-
 .wb-preview-card footer {
   display: grid;
-  grid-template-columns: 1fr repeat(3, 34px);
+  grid-template-columns: 1fr repeat(2, 34px);
   align-items: center;
   gap: 8px;
   padding: 0 14px;
   color: #6b7280;
 }
 
-.wb-preview-card footer button {
+.wb-card-action {
   width: 32px;
   height: 32px;
   display: grid;
@@ -873,47 +829,6 @@ function compact(value: string, max = 18) {
   border-radius: 8px;
   color: #5f6778;
   background: transparent;
-}
-
-.wb-reference-panel {
-  display: grid;
-}
-
-.wb-reference-list {
-  display: flex;
-  gap: 18px;
-  align-items: center;
-}
-
-.wb-reference-thumb,
-.wb-reference-add {
-  width: 92px;
-  height: 92px;
-  border-radius: 8px;
-}
-
-.wb-reference-thumb {
-  position: relative;
-  background: linear-gradient(135deg, #08233e, #0e6eb0 48%, #ca2cff);
-}
-
-.wb-reference-thumb button {
-  position: absolute;
-  right: -8px;
-  top: -8px;
-  width: 24px;
-  height: 24px;
-  border: 0;
-  border-radius: 50%;
-  color: #fff;
-  background: #1f2937;
-}
-
-.wb-reference-add {
-  display: grid;
-  place-items: center;
-  border-style: dashed;
-  color: #667085;
 }
 
 .wb-prompt-composer {
@@ -1087,12 +1002,19 @@ function compact(value: string, max = 18) {
   gap: 10px;
 }
 
-.wb-quick-grid button {
+.wb-quick-grid button,
+.wb-quick-grid a {
   min-height: 92px;
   display: grid;
   place-items: center;
   gap: 8px;
   color: #5264ff;
+  text-decoration: none;
+}
+
+.wb-quick-grid button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .wb-settings-panel {

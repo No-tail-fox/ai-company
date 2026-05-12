@@ -61,6 +61,7 @@ import {
   adminListUserMemberships,
   adminListUsers,
   adminListWalletTransactions,
+  adminListWorkbenchCapabilities,
   adminReorderHomeSlides,
   adminReorderItems,
   adminReorderPages,
@@ -75,6 +76,7 @@ import {
   adminUpdateToolModelBinding,
   adminUpdateUser,
   adminUpdateUserMembership,
+  adminUpdateWorkbenchCapability,
   adminUploadImage,
   clearAdminToken,
   getAdminToken,
@@ -116,7 +118,8 @@ import {
   type PortalPageConfig,
   type PortalSection,
   type ProviderChannelSummary,
-  type ToolModelBindingSummary
+  type ToolModelBindingSummary,
+  type WorkbenchCapability
 } from '../services/viewModel';
 
 type AdminModule = 'overview' | 'users' | 'memberships' | 'points' | 'redemptions' | 'content' | 'models' | 'audit';
@@ -133,7 +136,8 @@ type AdminPanel =
   | 'item'
   | 'provider-channel'
   | 'model-config'
-  | 'tool-binding';
+  | 'tool-binding'
+  | 'workbench-capability';
 type LoginUser = {
   id: string;
   displayName: string;
@@ -182,6 +186,7 @@ const homeSlides = ref<HomeDashboardSlide[]>([]);
 const providerChannels = ref<ProviderChannelSummary[]>([]);
 const modelConfigs = ref<ModelConfigSummary[]>([]);
 const toolModelBindings = ref<ToolModelBindingSummary[]>([]);
+const workbenchCapabilities = ref<WorkbenchCapability[]>([]);
 const pageConfig = ref<PortalPageConfig | null>(null);
 const selectedPageKey = ref(readStoredPageKey());
 const selectedUserId = ref(readStoredUserId());
@@ -323,9 +328,11 @@ const providerChannelForm = reactive({
   baseUrl: '',
   apiKey: '',
   channelType: 'TEXT',
+  adapterType: 'custom_http',
   priority: 100,
   enabled: true,
-  timeoutSeconds: 60
+  timeoutSeconds: 60,
+  metadataJsonText: ''
 });
 
 const modelConfigFormId = ref('');
@@ -343,6 +350,15 @@ const toolBindingFormId = ref('');
 const toolBindingForm = reactive({
   targetType: 'builtin',
   targetKey: '',
+  modelConfigId: '',
+  pointCostOverride: null as number | string | null,
+  enabled: true
+});
+
+const workbenchCapabilityForm = reactive({
+  targetType: '',
+  targetKey: '',
+  title: '',
   modelConfigId: '',
   pointCostOverride: null as number | string | null,
   enabled: true
@@ -472,6 +488,9 @@ const panelTitle = computed(() => {
   if (activePanel.value === 'tool-binding') {
     return toolBindingFormId.value ? '编辑绑定' : '新增绑定';
   }
+  if (activePanel.value === 'workbench-capability') {
+    return '工作台能力筛选';
+  }
   return '';
 });
 
@@ -579,7 +598,22 @@ async function submitLogin() {
 }
 
 async function refreshAdmin() {
-  const [overviewPayload, rawUsers, plans, memberships, transactions, logs, batches, codes, rawSlides, rawPages, channels, models, bindings] = await Promise.all([
+  const [
+    overviewPayload,
+    rawUsers,
+    plans,
+    memberships,
+    transactions,
+    logs,
+    batches,
+    codes,
+    rawSlides,
+    rawPages,
+    channels,
+    models,
+    bindings,
+    capabilityPayload
+  ] = await Promise.all([
     adminListOverview(),
     adminListUsers({ limit: 500 }),
     adminListMembershipPlans(),
@@ -592,7 +626,8 @@ async function refreshAdmin() {
     adminListPages(),
     adminListProviderChannels(),
     adminListModelConfigs(),
-    adminListToolModelBindings()
+    adminListToolModelBindings(),
+    adminListWorkbenchCapabilities()
   ]);
   overview.value = overviewPayload;
   users.value = rawUsers;
@@ -607,6 +642,7 @@ async function refreshAdmin() {
   providerChannels.value = channels;
   modelConfigs.value = models;
   toolModelBindings.value = bindings;
+  workbenchCapabilities.value = capabilityPayload.capabilities;
 
   if (!pages.value.some((page) => page.pageKey === selectedPageKey.value)) {
     selectedPageKey.value = pages.value[0]?.pageKey ?? 'home';
@@ -774,9 +810,11 @@ function openProviderChannelPanel(channel?: ProviderChannelSummary) {
   providerChannelForm.baseUrl = channel?.baseUrl ?? '';
   providerChannelForm.apiKey = '';
   providerChannelForm.channelType = channel?.channelType ?? 'TEXT';
+  providerChannelForm.adapterType = channel?.adapterType ?? 'custom_http';
   providerChannelForm.priority = channel?.priority ?? 100;
   providerChannelForm.enabled = channel?.enabled ?? true;
   providerChannelForm.timeoutSeconds = channel?.timeoutSeconds ?? 60;
+  providerChannelForm.metadataJsonText = channel?.metadataJson ? JSON.stringify(channel.metadataJson, null, 2) : '';
   activePanel.value = 'provider-channel';
 }
 
@@ -800,6 +838,16 @@ function openToolBindingPanel(binding?: ToolModelBindingSummary) {
   toolBindingForm.pointCostOverride = binding?.pointCostOverride ?? null;
   toolBindingForm.enabled = binding?.enabled ?? true;
   activePanel.value = 'tool-binding';
+}
+
+function openWorkbenchCapabilityPanel(capability: WorkbenchCapability) {
+  workbenchCapabilityForm.targetType = capability.targetType;
+  workbenchCapabilityForm.targetKey = capability.targetKey;
+  workbenchCapabilityForm.title = capability.title;
+  workbenchCapabilityForm.modelConfigId = capability.modelConfig?.id ?? modelConfigs.value[0]?.id ?? '';
+  workbenchCapabilityForm.pointCostOverride = capability.effectivePointCost;
+  workbenchCapabilityForm.enabled = capability.enabled;
+  activePanel.value = 'workbench-capability';
 }
 
 async function saveUser() {
@@ -1081,7 +1129,10 @@ async function disableItem(item: PortalItem) {
 
 async function saveProviderChannel() {
   await run(async () => {
-    const payload = buildProviderChannelPayload(providerChannelForm);
+    const payload = buildProviderChannelPayload({
+      ...providerChannelForm,
+      metadataJson: parseMetadataJson(providerChannelForm.metadataJsonText)
+    });
     if (providerChannelFormId.value) {
       await adminUpdateProviderChannel(providerChannelFormId.value, payload);
       notice.value = '渠道已更新';
@@ -1120,6 +1171,35 @@ async function saveToolBinding() {
       notice.value = '绑定已创建';
     }
     closePanel();
+    await refreshAdmin();
+  });
+}
+
+async function saveWorkbenchCapability() {
+  await run(async () => {
+    await adminUpdateWorkbenchCapability({
+      targetType: workbenchCapabilityForm.targetType,
+      targetKey: workbenchCapabilityForm.targetKey,
+      modelConfigId: workbenchCapabilityForm.modelConfigId,
+      pointCostOverride: workbenchCapabilityForm.pointCostOverride,
+      enabled: workbenchCapabilityForm.enabled
+    });
+    notice.value = '工作台能力已更新';
+    closePanel();
+    await refreshAdmin();
+  });
+}
+
+async function toggleWorkbenchCapability(capability: WorkbenchCapability) {
+  await run(async () => {
+    await adminUpdateWorkbenchCapability({
+      targetType: capability.targetType,
+      targetKey: capability.targetKey,
+      modelConfigId: capability.modelConfig?.id ?? modelConfigs.value[0]?.id ?? '',
+      pointCostOverride: capability.effectivePointCost,
+      enabled: !capability.enabled
+    });
+    notice.value = capability.enabled ? '工作台能力已停用' : '工作台能力已启用';
     await refreshAdmin();
   });
 }
@@ -1312,6 +1392,7 @@ function logout() {
   providerChannels.value = [];
   modelConfigs.value = [];
   toolModelBindings.value = [];
+  workbenchCapabilities.value = [];
   pageConfig.value = null;
   notice.value = '';
   errorMessage.value = '';
@@ -1397,6 +1478,18 @@ function joinSecondaryActions(value: unknown) {
     })
     .filter(Boolean)
     .join('\n');
+}
+
+function parseMetadataJson(value?: string): Record<string, unknown> | undefined {
+  const raw = String(value ?? '').trim();
+  if (!raw) {
+    return undefined;
+  }
+  const parsed = JSON.parse(raw);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('渠道元数据必须是 JSON 对象');
+  }
+  return parsed as Record<string, unknown>;
 }
 
 function toDateInput(value?: string) {
@@ -2449,6 +2542,53 @@ async function run(task: () => Promise<void>) {
           <section class="admin-table-panel">
             <header class="panel-header compact">
               <div>
+                <strong>工作台能力筛选</strong>
+                <span>控制对话、图像、视频和音频工作台的显示、模型和积分</span>
+              </div>
+            </header>
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>能力</th>
+                  <th>分组</th>
+                  <th>模型</th>
+                  <th>积分</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="capability in workbenchCapabilities" :key="capability.targetType + capability.targetKey">
+                  <td>
+                    <strong>{{ capability.title }}</strong>
+                    <small>{{ capability.targetType }} / {{ capability.targetKey }}</small>
+                  </td>
+                  <td>{{ capability.group }}</td>
+                  <td>{{ capability.modelConfig?.displayName || capability.modelConfig?.modelKey || '未绑定' }}</td>
+                  <td>{{ capability.effectivePointCost }}</td>
+                  <td>
+                    <span :class="['status-pill', capability.callable ? 'active' : 'inactive']">
+                      {{ capability.callable ? '可调用' : capability.unavailableReason || '停用' }}
+                    </span>
+                  </td>
+                  <td>
+                    <div class="row-actions">
+                      <button class="icon-btn" type="button" title="编辑" @click="openWorkbenchCapabilityPanel(capability)">
+                        <Pencil :size="16" />
+                      </button>
+                      <button class="icon-btn" type="button" title="启停" @click="toggleWorkbenchCapability(capability)">
+                        <EyeOff :size="16" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section class="admin-table-panel">
+            <header class="panel-header compact">
+              <div>
                 <strong>工具绑定列表</strong>
                 <span>把工具、模板和内容对象接到模型上</span>
               </div>
@@ -2810,8 +2950,16 @@ async function run(task: () => Promise<void>) {
               <option value="AUDIO">AUDIO</option>
             </select>
           </label>
+          <label>
+            适配器
+            <select v-model="providerChannelForm.adapterType">
+              <option value="openai_compatible">openai_compatible</option>
+              <option value="custom_http">custom_http</option>
+            </select>
+          </label>
           <label>优先级<input v-model.number="providerChannelForm.priority" type="number" /></label>
           <label>超时秒数<input v-model.number="providerChannelForm.timeoutSeconds" type="number" /></label>
+          <label class="field-span-2">适配元数据<textarea v-model="providerChannelForm.metadataJsonText" rows="4" placeholder='{"imageEndpoint":"/images/generations"}' /></label>
           <label class="check-label"><input v-model="providerChannelForm.enabled" type="checkbox" />启用</label>
           <button class="primary-btn" type="submit">{{ providerChannelFormId ? '更新渠道' : '创建渠道' }}</button>
         </form>
@@ -2860,6 +3008,21 @@ async function run(task: () => Promise<void>) {
           <label>覆盖积分<input v-model="toolBindingForm.pointCostOverride" type="number" placeholder="留空则使用模型默认积分" /></label>
           <label class="check-label"><input v-model="toolBindingForm.enabled" type="checkbox" />启用</label>
           <button class="primary-btn" type="submit">{{ toolBindingFormId ? '更新绑定' : '创建绑定' }}</button>
+        </form>
+
+        <form v-else-if="activePanel === 'workbench-capability'" class="form-card" @submit.prevent="saveWorkbenchCapability">
+          <label>能力名称<input v-model="workbenchCapabilityForm.title" disabled /></label>
+          <label>目标类型<input v-model="workbenchCapabilityForm.targetType" disabled /></label>
+          <label class="field-span-2">目标ID<input v-model="workbenchCapabilityForm.targetKey" disabled /></label>
+          <label>
+            绑定模型
+            <select v-model="workbenchCapabilityForm.modelConfigId">
+              <option v-for="model in modelConfigs" :key="model.id" :value="model.id">{{ model.displayName }} ({{ model.modelKey }})</option>
+            </select>
+          </label>
+          <label>覆盖积分<input v-model="workbenchCapabilityForm.pointCostOverride" type="number" placeholder="留空则使用模型默认积分" /></label>
+          <label class="check-label"><input v-model="workbenchCapabilityForm.enabled" type="checkbox" />启用</label>
+          <button class="primary-btn" type="submit">更新工作台能力</button>
         </form>
       </section>
     </div>

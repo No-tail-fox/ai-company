@@ -26,6 +26,7 @@ class GenerationService:
         route_key: str,
         estimated_cost: int,
         request_key: str,
+        options: dict | None = None,
     ) -> GenerationTask:
         existing = self.session.scalar(
             select(GenerationTask).where(
@@ -67,6 +68,7 @@ class GenerationService:
             reservation_key=reservation.request_key,
             estimated_cost=estimated_cost,
             actual_cost=None,
+            options_json=options or {},
         )
         self.session.add(task)
         self.session.commit()
@@ -146,4 +148,3 @@ class GenerationService:
         if task is None:
             raise GenerationTaskNotFoundError(f"generation task {task_id} does not exist")
         return task
-

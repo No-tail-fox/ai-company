@@ -111,7 +111,10 @@ test('builds audio task payload from selected tool and voice', () => {
     voice_key: 'voice-warm-female',
     target_type: 'builtin',
     target_id: 'audio_tts',
-    surface: 'portal'
+    surface: 'portal',
+    options: {
+      voice: 'voice-warm-female'
+    }
   });
 });
 
@@ -136,5 +139,34 @@ test('builds audio task payloads for the workbench namespace when requested', ()
     surface: 'workbench',
     route_key: 'audio_tts',
     task_type: 'TTS'
+  });
+});
+
+test('builds managed audio task payloads with capability target metadata', () => {
+  const selectedTool: PortalItem = {
+    id: 'audio-tool-managed',
+    itemType: 'tool',
+    title: '文本转语音',
+    subtitle: '后台启用的真实能力',
+    category: '音频工具',
+    icon: 'Headphones',
+    sortOrder: 10,
+    enabled: true,
+    actionType: 'workspace',
+    actionValue: 'audio_tts',
+    requiredMembership: false,
+    pointCost: 120,
+    metadata: {
+      targetType: 'content_item',
+      targetKey: 'audio-tool-managed',
+      routeKey: 'audio_tts'
+    }
+  };
+
+  expect(buildAudioTaskPayload(selectedTool, '工作台音频任务', undefined, '', 'workbench')).toMatchObject({
+    route_key: 'audio_tts',
+    target_type: 'content_item',
+    target_id: 'audio-tool-managed',
+    surface: 'workbench'
   });
 });

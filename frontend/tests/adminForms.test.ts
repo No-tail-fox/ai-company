@@ -102,9 +102,11 @@ test('builds provider channel payload for model center forms', () => {
       baseUrl: 'https://api.openai.example/v1/images',
       apiKey: 'sk-secret',
       channelType: 'IMAGE',
+      adapterType: 'openai_compatible',
       priority: 5,
       enabled: true,
-      timeoutSeconds: 90
+      timeoutSeconds: 90,
+      metadataJson: { imageEndpoint: '/images/generations' }
     })
   ).toEqual({
     channel_key: 'openai-image',
@@ -112,9 +114,11 @@ test('builds provider channel payload for model center forms', () => {
     base_url: 'https://api.openai.example/v1/images',
     api_key: 'sk-secret',
     channel_type: 'IMAGE',
+    adapter_type: 'openai_compatible',
     priority: 5,
     enabled: true,
-    timeout_seconds: 90
+    timeout_seconds: 90,
+    metadata_json: { imageEndpoint: '/images/generations' }
   });
 });
 

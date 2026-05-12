@@ -35,6 +35,12 @@ test('chat workbench request includes session and user query params', async () =
   expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/chat/workbench?user_id=demo-user&session_id=chat-123');
 });
 
+test('chat workbench surfaces backend failures instead of local fallback sessions', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503, json: async () => ({}) } as Response));
+
+  await expect(fetchChatWorkbench()).rejects.toThrow('503');
+});
+
 test('chat message request sends the active model and content', async () => {
   const fetchMock = vi.fn().mockResolvedValue(
     mockFetchResponse({

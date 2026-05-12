@@ -692,6 +692,12 @@ textarea:focus-visible {
   background: #f6f8fd;
 }
 
+.content.communication-content,
+.app-frame.no-sidebar .content.communication-content {
+  padding: 0;
+  background: #f6f7fb;
+}
+
 .app-frame.no-sidebar .content {
   padding-left: 64px;
 }

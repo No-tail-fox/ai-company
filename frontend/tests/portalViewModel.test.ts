@@ -46,6 +46,7 @@ test('fallback portal config contains learning, orders and community sections', 
     'home',
     'assistant',
     'workbench',
+    'communication',
     'marketing',
     'image',
     'video',
@@ -95,6 +96,29 @@ test('normalizes portal config pages and page sections from snake case API paylo
     enabled: true
   });
   expect(config.channels[0].key).toBe('marketing');
+});
+
+test('normalizes older portal configs by inserting the communication hall after workbench', () => {
+  const config = normalizePortalConfig({
+    tenant_id: 'demo',
+    pages: [
+      { id: 'page-home', page_key: 'home', label: '首页', title: '首页', icon: 'Home', sort_order: 10, enabled: true },
+      { id: 'page-assistant', page_key: 'assistant', label: 'AI 助理', title: '智能助理广场', icon: 'Bot', sort_order: 20, enabled: true },
+      { id: 'page-workbench', page_key: 'workbench', label: '工作台', title: 'AI 工作台', icon: 'LayoutDashboard', sort_order: 25, enabled: true },
+      { id: 'page-marketing', page_key: 'marketing', label: 'AI 营销', title: '营销增长中心', icon: 'Megaphone', sort_order: 30, enabled: true }
+    ],
+    channels: [
+      { key: 'home', label: '首页' },
+      { key: 'assistant', label: 'AI 助理' },
+      { key: 'workbench', label: '工作台' },
+      { key: 'marketing', label: 'AI 营销' }
+    ],
+    left_nav: [],
+    home_sections: []
+  });
+
+  expect(config.pages.map((page) => page.pageKey)).toEqual(['home', 'assistant', 'workbench', 'communication', 'marketing']);
+  expect(config.channels.map((channel) => channel.key)).toEqual(['home', 'assistant', 'workbench', 'communication', 'marketing']);
 });
 
 test('normalizes model binding metadata on portal items, assistants and prompt templates', () => {
@@ -639,6 +663,16 @@ test('fallback navigation places AI image between marketing and video', () => {
   const channels = createFallbackPortalConfig().channels.map((channel) => channel.key);
 
   expect(channels.slice(channels.indexOf('marketing'), channels.indexOf('video') + 1)).toEqual(['marketing', 'image', 'video']);
+});
+
+test('fallback navigation places communication hall after workbench', () => {
+  const channels = createFallbackPortalConfig().channels.map((channel) => channel.key);
+
+  expect(channels.slice(channels.indexOf('workbench'), channels.indexOf('marketing') + 1)).toEqual([
+    'workbench',
+    'communication',
+    'marketing'
+  ]);
 });
 
 test('normalizes image workbench payloads from snake case API responses', () => {

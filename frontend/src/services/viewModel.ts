@@ -40,10 +40,12 @@ export interface ProviderChannelSummary {
   baseUrl: string;
   apiKeyMask?: string;
   channelType: string;
+  adapterType: string;
   priority: number;
   enabled: boolean;
   healthStatus?: string;
   timeoutSeconds?: number;
+  metadataJson: Record<string, any>;
 }
 
 export interface PortalItem {
@@ -329,6 +331,7 @@ export interface AudioTaskPayload {
   target_id?: string;
   request_key?: string;
   surface?: GenerationSurface;
+  options?: Record<string, unknown>;
 }
 
 export interface AudioTask {
@@ -595,6 +598,39 @@ export interface PortalDetailFaq {
   answer: string;
 }
 
+export interface PortalDetailVersion {
+  id: string;
+  version: number;
+  title: string;
+  summary: string;
+  bodyMarkdown: string;
+  tags: string[];
+  visibility: string;
+  releaseNote: string;
+  authorUserId: string;
+  createdAt: string | null;
+}
+
+export interface PortalDetailComment {
+  id: string;
+  detailPath: string;
+  userId: string;
+  authorName: string;
+  content: string;
+  isAuthor: boolean;
+  createdAt: string | null;
+}
+
+export interface PortalDetailPublishInfo {
+  typeLabel: string;
+  typeHint: string;
+  versionLabel: string;
+  versionHint: string;
+  visibility: string;
+  visibilityLabel: string;
+  visibilityHint: string;
+}
+
 export interface PortalDetailContent {
   summary: string;
   highlights: string[];
@@ -604,6 +640,16 @@ export interface PortalDetailContent {
   primaryAction: PortalDetailAction;
   secondaryActions: PortalDetailAction[];
   download?: PortalDetailDownload | null;
+  title: string;
+  bodyMarkdown: string;
+  tags: string[];
+  visibility: string;
+  authorUserId: string;
+  currentVersion: number;
+  version: PortalDetailVersion | null;
+  versions: PortalDetailVersion[];
+  comments: PortalDetailComment[];
+  publishInfo: PortalDetailPublishInfo;
 }
 
 export interface PortalDetailUserState {
@@ -623,6 +669,10 @@ export interface PortalDetailPayload {
   items: PortalItem[];
   detail: PortalDetailContent;
   userState: PortalDetailUserState;
+  permissions: {
+    canEdit: boolean;
+    canComment: boolean;
+  };
 }
 
 export interface PortalActionRequest {
@@ -664,10 +714,38 @@ export interface PortalSearchResult {
   icon: string;
 }
 
+export interface WorkbenchCapability {
+  id: string;
+  group: 'chat' | 'image' | 'video' | 'audio' | string;
+  targetType: string;
+  targetKey: string;
+  title: string;
+  subtitle: string;
+  category: string;
+  icon: string;
+  actionType: string;
+  actionValue: string;
+  sortOrder: number;
+  enabled: boolean;
+  callable: boolean;
+  unavailableReason: string;
+  requiredMembership: boolean;
+  effectivePointCost: number;
+  modelConfig?: ModelConfigSummary | null;
+}
+
+export interface WorkbenchCapabilitiesPayload {
+  tenantId: string;
+  surface: GenerationSurface;
+  capabilities: WorkbenchCapability[];
+  groups: Record<string, WorkbenchCapability[]>;
+}
+
 const fallbackPages: PageConfigSummary[] = [
   page('home', '首页', '常用AI学习中心', '学习、接单、社群和活动的统一入口', 'Home', 10),
   page('assistant', 'AI 助理', '智能助理广场', '办公、营销、学习、法务等场景助理集合', 'Bot', 20),
   page('workbench', '工作台', 'AI 工作台', '真实对话、队列和快捷操作的统一工作区', 'LayoutDashboard', 25),
+  page('communication', '沟通大厅', '沟通大厅', '接单、模板、交流、资源对接都在这里沉淀', 'MessageCircle', 27),
   page('marketing', 'AI 营销', '营销增长中心', '从内容生成到投放复盘的一站式工具台', 'Megaphone', 30),
   page('image', 'AI 图片', 'AI图片创作中心', '提示词、模板、批量出图和生成队列', 'Image', 35),
   page('video', 'AI 视频', 'AI视频创作中心', '脚本、数字人、剪辑、字幕和渲染队列', 'FileVideo', 40),
@@ -689,6 +767,7 @@ const VIDEO_PAGE_KEY = 'video';
 const CODING_PAGE_KEY = 'coding';
 const WRITING_PAGE_KEY = 'writing';
 const WORKBENCH_PAGE_KEY = 'workbench';
+const COMMUNICATION_PAGE_KEY = 'communication';
 
 interface HomeMenuRule {
   key: string;
@@ -789,6 +868,10 @@ export function shouldUseWorkbenchPage(pageKey: string): boolean {
   return pageKey === WORKBENCH_PAGE_KEY;
 }
 
+export function shouldUseCommunicationPage(pageKey: string): boolean {
+  return pageKey === COMMUNICATION_PAGE_KEY;
+}
+
 export function shouldUseMarketingPage(pageKey: string): boolean {
   return pageKey === MARKETING_PAGE_KEY;
 }
@@ -823,16 +906,23 @@ export function buildAudioTaskPayload(
   sourceUrl = '',
   surface: GenerationSurface = 'portal'
 ): AudioTaskPayload {
-  const targetId = selectedTool.actionValue || selectedTool.id;
+  const metadata = selectedTool.metadata ?? {};
+  const routeKey = String(metadata.routeKey ?? metadata.route_key ?? selectedTool.actionValue ?? '');
+  const targetType = String(metadata.targetType ?? metadata.target_type ?? 'builtin');
+  const targetId = String(metadata.targetKey ?? metadata.target_key ?? selectedTool.actionValue ?? selectedTool.id);
   return {
-    task_type: audioTaskTypeForRoute(selectedTool.actionValue),
-    route_key: selectedTool.actionValue,
+    task_type: audioTaskTypeForRoute(routeKey),
+    route_key: routeKey,
     prompt,
     source_url: sourceUrl,
     voice_key: selectedVoice?.actionValue ?? '',
-    target_type: 'builtin',
+    target_type: targetType,
     target_id: targetId,
-    surface
+    surface,
+    options: {
+      ...(sourceUrl ? { source_url: sourceUrl } : {}),
+      ...(selectedVoice?.actionValue ? { voice: selectedVoice.actionValue } : {})
+    }
   };
 }
 
@@ -841,7 +931,7 @@ export function shouldUseVideoPage(pageKey: string): boolean {
 }
 
 export function shouldHideWorkspaceDock(pageKey: string): boolean {
-  return shouldUseHomeDashboardPage(pageKey) || shouldUseCodingPage(pageKey) || shouldUseWritingPage(pageKey);
+  return shouldUseHomeDashboardPage(pageKey) || shouldUseCommunicationPage(pageKey) || shouldUseCodingPage(pageKey) || shouldUseWritingPage(pageKey);
 }
 
 export function groupChatSessionsByRecency(
@@ -1617,11 +1707,19 @@ export function createFallbackAssistantCenter(): AssistantCenter {
 }
 
 export function normalizePortalConfig(payload: any): PortalConfig {
-  const pages = (payload.pages ?? []).map(normalizePageSummary);
+  const normalizedPages = (payload.pages ?? []).map(normalizePageSummary);
+  const normalizedChannels = Array.isArray(payload.channels)
+    ? payload.channels.map(normalizePortalChannel)
+    : normalizedPages.map((pageItem: PageConfigSummary) => ({ key: pageItem.pageKey, label: pageItem.label }));
+  const shouldPatchCommunication = hasPortalKey(normalizedPages, normalizedChannels, WORKBENCH_PAGE_KEY);
+  const pages = shouldPatchCommunication ? ensureCommunicationPage(normalizedPages) : normalizedPages;
+  const channels = shouldPatchCommunication
+    ? ensureCommunicationChannel(normalizedChannels.length > 0 ? normalizedChannels : pages.map((pageItem: PageConfigSummary) => ({ key: pageItem.pageKey, label: pageItem.label })))
+    : normalizedChannels;
   return {
     tenantId: payload.tenant_id ?? payload.tenantId ?? 'demo',
     pages,
-    channels: payload.channels ?? pages.map((pageItem: PageConfigSummary) => ({ key: pageItem.pageKey, label: pageItem.label })),
+    channels,
     leftNav: (payload.left_nav ?? payload.leftNav ?? []).map((nav: any) => ({
       key: nav.key,
       label: nav.label,
@@ -1851,6 +1949,57 @@ export function normalizeAudioTask(payload: any): AudioTask {
   };
 }
 
+export function normalizeWorkbenchCapabilities(payload: any): WorkbenchCapabilitiesPayload {
+  const capabilities = (payload.capabilities ?? []).map(normalizeWorkbenchCapability);
+  const rawGroups = payload.groups ?? {};
+  const groups: Record<string, WorkbenchCapability[]> = {};
+  for (const [key, records] of Object.entries(rawGroups)) {
+    groups[key] = Array.isArray(records) ? records.map(normalizeWorkbenchCapability) : [];
+  }
+  for (const capability of capabilities) {
+    if (!groups[capability.group]) {
+      groups[capability.group] = [];
+    }
+    if (!groups[capability.group].some((item) => item.id === capability.id)) {
+      groups[capability.group].push(capability);
+    }
+  }
+  return {
+    tenantId: payload.tenant_id ?? payload.tenantId ?? 'demo',
+    surface: normalizeGenerationSurface(payload.surface ?? payload.surfaceKey ?? 'workbench'),
+    capabilities,
+    groups: {
+      chat: groups.chat ?? [],
+      image: groups.image ?? [],
+      video: groups.video ?? [],
+      audio: groups.audio ?? [],
+      ...groups
+    }
+  };
+}
+
+export function normalizeWorkbenchCapability(payload: any): WorkbenchCapability {
+  return {
+    id: payload.id ?? payload.target_key ?? payload.targetKey ?? '',
+    group: payload.group ?? 'chat',
+    targetType: payload.target_type ?? payload.targetType ?? '',
+    targetKey: payload.target_key ?? payload.targetKey ?? '',
+    title: payload.title ?? '',
+    subtitle: payload.subtitle ?? '',
+    category: payload.category ?? '',
+    icon: payload.icon ?? 'Sparkles',
+    actionType: payload.action_type ?? payload.actionType ?? 'workspace',
+    actionValue: payload.action_value ?? payload.actionValue ?? '',
+    sortOrder: Number(payload.sort_order ?? payload.sortOrder ?? 100),
+    enabled: Boolean(payload.enabled ?? false),
+    callable: Boolean(payload.callable ?? false),
+    unavailableReason: payload.unavailable_reason ?? payload.unavailableReason ?? '',
+    requiredMembership: Boolean(payload.required_membership ?? payload.requiredMembership ?? false),
+    effectivePointCost: Number(payload.effective_point_cost ?? payload.effectivePointCost ?? 0),
+    modelConfig: normalizeModelConfig(payload.model_config ?? payload.modelConfig)
+  };
+}
+
 function homeSectionOrder(sectionItem: PortalSection, rule: HomeMenuRule): number {
   const index = rule.sectionKeys.indexOf(sectionItem.sectionKey);
   return index === -1 ? Number.MAX_SAFE_INTEGER : index;
@@ -1925,7 +2074,8 @@ export function normalizePortalDetail(payload: any): PortalDetailPayload {
     effectivePointCost: effectivePointCostValue == null ? 0 : Number(effectivePointCostValue),
     items: (payload.items ?? []).map(normalizePortalItem),
     detail: normalizePortalDetailContent(payload.detail ?? {}),
-    userState: normalizePortalDetailUserState(payload.user_state ?? payload.userState ?? {})
+    userState: normalizePortalDetailUserState(payload.user_state ?? payload.userState ?? {}),
+    permissions: normalizePortalDetailPermissions(payload.permissions ?? {})
   };
 }
 
@@ -2008,7 +2158,17 @@ function normalizePortalDetailContent(payload: any): PortalDetailContent {
     secondaryActions: (payload.secondary_actions ?? payload.secondaryActions ?? []).map((action: any) =>
       normalizePortalAction(action, 'favorite', '收藏')
     ),
-    download: normalizePortalDownload(payload.download)
+    download: normalizePortalDownload(payload.download),
+    title: payload.title ?? '',
+    bodyMarkdown: payload.body_markdown ?? payload.bodyMarkdown ?? '',
+    tags: normalizeStringList(payload.tags),
+    visibility: payload.visibility ?? 'community',
+    authorUserId: payload.author_user_id ?? payload.authorUserId ?? '',
+    currentVersion: Number(payload.current_version ?? payload.currentVersion ?? payload.version?.version ?? 1),
+    version: normalizePortalDetailVersion(payload.version),
+    versions: (payload.versions ?? []).map(normalizePortalDetailVersion).filter(Boolean) as PortalDetailVersion[],
+    comments: (payload.comments ?? []).map(normalizePortalDetailComment),
+    publishInfo: normalizePortalDetailPublishInfo(payload.publish_info ?? payload.publishInfo ?? {})
   };
 }
 
@@ -2045,6 +2205,48 @@ function normalizePortalFaq(payload: any): PortalDetailFaq {
   };
 }
 
+function normalizePortalDetailVersion(payload: any): PortalDetailVersion | null {
+  if (!payload) {
+    return null;
+  }
+  return {
+    id: payload.id ?? '',
+    version: Number(payload.version ?? 1),
+    title: payload.title ?? '',
+    summary: payload.summary ?? '',
+    bodyMarkdown: payload.body_markdown ?? payload.bodyMarkdown ?? '',
+    tags: normalizeStringList(payload.tags),
+    visibility: payload.visibility ?? 'community',
+    releaseNote: payload.release_note ?? payload.releaseNote ?? '',
+    authorUserId: payload.author_user_id ?? payload.authorUserId ?? '',
+    createdAt: payload.created_at ?? payload.createdAt ?? null
+  };
+}
+
+function normalizePortalDetailComment(payload: any): PortalDetailComment {
+  return {
+    id: payload.id ?? '',
+    detailPath: payload.detail_path ?? payload.detailPath ?? '',
+    userId: payload.user_id ?? payload.userId ?? '',
+    authorName: payload.author_name ?? payload.authorName ?? '',
+    content: payload.content ?? '',
+    isAuthor: Boolean(payload.is_author ?? payload.isAuthor),
+    createdAt: payload.created_at ?? payload.createdAt ?? null
+  };
+}
+
+function normalizePortalDetailPublishInfo(payload: any): PortalDetailPublishInfo {
+  return {
+    typeLabel: payload.type_label ?? payload.typeLabel ?? '详情内容',
+    typeHint: payload.type_hint ?? payload.typeHint ?? '',
+    versionLabel: payload.version_label ?? payload.versionLabel ?? 'v1',
+    versionHint: payload.version_hint ?? payload.versionHint ?? '',
+    visibility: payload.visibility ?? 'community',
+    visibilityLabel: payload.visibility_label ?? payload.visibilityLabel ?? '社区成员',
+    visibilityHint: payload.visibility_hint ?? payload.visibilityHint ?? ''
+  };
+}
+
 function normalizeStringList(value: any): string[] {
   if (Array.isArray(value)) {
     return value.map((item) => String(item).trim()).filter(Boolean);
@@ -2071,6 +2273,57 @@ function normalizePageSummary(payload: any): PageConfigSummary {
     sortOrder: Number(payload.sort_order ?? payload.sortOrder ?? 100),
     enabled: Boolean(payload.enabled ?? true)
   };
+}
+
+function normalizePortalChannel(payload: any): { key: string; label: string } {
+  const key = payload.key ?? payload.page_key ?? payload.pageKey ?? '';
+  return {
+    key,
+    label: payload.label ?? payload.title ?? key
+  };
+}
+
+function hasPortalKey(
+  pages: PageConfigSummary[],
+  channels: Array<{ key: string; label: string }>,
+  pageKey: string
+): boolean {
+  return pages.some((pageItem) => pageItem.pageKey === pageKey) || channels.some((channel) => channel.key === pageKey);
+}
+
+function ensureCommunicationPage(pages: PageConfigSummary[]): PageConfigSummary[] {
+  if (pages.some((pageItem) => pageItem.pageKey === COMMUNICATION_PAGE_KEY)) {
+    return pages;
+  }
+  const communicationPage = fallbackPages.find((pageItem) => pageItem.pageKey === COMMUNICATION_PAGE_KEY);
+  if (!communicationPage) {
+    return pages;
+  }
+  return insertAfterWorkbenchBeforeMarketing(pages, { ...communicationPage });
+}
+
+function ensureCommunicationChannel(channels: Array<{ key: string; label: string }>): Array<{ key: string; label: string }> {
+  if (channels.some((channel) => channel.key === COMMUNICATION_PAGE_KEY)) {
+    return channels;
+  }
+  return insertAfterWorkbenchBeforeMarketing(channels, { key: COMMUNICATION_PAGE_KEY, label: '沟通大厅' });
+}
+
+function insertAfterWorkbenchBeforeMarketing<T extends { key?: string; pageKey?: string }>(items: T[], item: T): T[] {
+  const copy = [...items];
+  const keyOf = (entry: T) => entry.pageKey ?? entry.key ?? '';
+  const workbenchIndex = copy.findIndex((entry) => keyOf(entry) === WORKBENCH_PAGE_KEY);
+  if (workbenchIndex >= 0) {
+    copy.splice(workbenchIndex + 1, 0, item);
+    return copy;
+  }
+  const marketingIndex = copy.findIndex((entry) => keyOf(entry) === MARKETING_PAGE_KEY);
+  if (marketingIndex >= 0) {
+    copy.splice(marketingIndex, 0, item);
+    return copy;
+  }
+  copy.push(item);
+  return copy;
 }
 
 function normalizeSection(payload: any): PortalSection {
@@ -2179,10 +2432,19 @@ export function normalizeProviderChannel(payload: any): ProviderChannelSummary {
     baseUrl: payload.base_url ?? payload.baseUrl ?? '',
     apiKeyMask: payload.api_key_mask ?? payload.apiKeyMask ?? '',
     channelType: payload.channel_type ?? payload.channelType ?? '',
+    adapterType: payload.adapter_type ?? payload.adapterType ?? 'custom_http',
     priority: Number(payload.priority ?? 100),
     enabled: Boolean(payload.enabled ?? true),
     healthStatus: payload.health_status ?? payload.healthStatus,
-    timeoutSeconds: Number(payload.timeout_seconds ?? payload.timeoutSeconds ?? 60)
+    timeoutSeconds: Number(payload.timeout_seconds ?? payload.timeoutSeconds ?? 60),
+    metadataJson: normalizeMetadata(payload.metadata_json ?? payload.metadataJson ?? payload.metadata)
+  };
+}
+
+function normalizePortalDetailPermissions(payload: any): PortalDetailPayload['permissions'] {
+  return {
+    canEdit: Boolean(payload.can_edit ?? payload.canEdit),
+    canComment: Boolean(payload.can_comment ?? payload.canComment)
   };
 }
 

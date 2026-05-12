@@ -1,6 +1,5 @@
 import {
   createFallbackAssistantCenter,
-  createFallbackChatWorkbench,
   createFallbackImageWorkbench,
   createFallbackPageConfig,
   createFallbackPortalConfig,
@@ -23,6 +22,7 @@ import {
   normalizeModelConfig,
   normalizeProviderChannel,
   normalizeToolModelBinding,
+  normalizeWorkbenchCapabilities,
   normalizeAssistantCenter,
   normalizeAudioTask,
   normalizeChatActiveSession,
@@ -73,8 +73,17 @@ import {
   type ToolModelBindingSummary,
   type UserPortalAction,
   type VideoTask,
-  type VideoWorkbench
+  type VideoWorkbench,
+  type WorkbenchCapabilitiesPayload
 } from './viewModel';
+import {
+  createFallbackCommunicationHallPayload,
+  normalizeCommunicationHallPayload,
+  normalizeCommunicationHallPost,
+  type CommunicationHallPayload,
+  type CommunicationHallPostCreateRequest,
+  type CommunicationHallPostResponse
+} from './communicationHall';
 
 const tenantId = 'demo';
 const tokenKey = 'opc_admin_token';
@@ -89,6 +98,23 @@ export interface GenerationRequestOptions {
   targetId?: string;
   routeKey?: string;
   surface?: GenerationSurface;
+  options?: Record<string, unknown>;
+}
+
+export interface WorkbenchCapabilityRequest {
+  targetType: string;
+  targetKey: string;
+  modelConfigId?: string;
+  pointCostOverride?: number | string | null;
+  enabled?: boolean;
+}
+
+export interface PortalDetailUpdateRequest {
+  title?: string;
+  summary?: string;
+  bodyMarkdown?: string;
+  tags?: string[];
+  visibility?: string;
 }
 
 export interface ChatSessionRequest {
@@ -401,7 +427,9 @@ export async function fetchHomeDashboard(): Promise<HomeDashboardModel> {
 export async function fetchPortalDetail(detailPath: string, userId = 'demo-user'): Promise<PortalDetailPayload> {
   const normalizedPath = encodeDetailPath(detailPath);
   const params = new URLSearchParams({ user_id: userId });
-  return normalizePortalDetail(await request(`/api/v1/portal/details/${normalizedPath}?${params.toString()}`));
+  return normalizePortalDetail(
+    await request(`/api/v1/portal/details/${normalizedPath}?${params.toString()}`, portalAuthOptions())
+  );
 }
 
 export async function searchPortal(query: string, pageKey = '', limit = 8): Promise<PortalSearchResult[]> {
@@ -434,6 +462,32 @@ export async function fetchPortalUserActions(userId = 'demo-user', kind = 'all')
   return normalizePortalUserActions(payload);
 }
 
+export async function fetchCommunicationHall(userId = getCurrentUserId('demo-user')): Promise<CommunicationHallPayload> {
+  const params = new URLSearchParams({ user_id: userId });
+  try {
+    return normalizeCommunicationHallPayload(await request(`/api/v1/communication/posts?${params.toString()}`, portalAuthOptions()));
+  } catch {
+    return createFallbackCommunicationHallPayload();
+  }
+}
+
+export async function createCommunicationHallPost(payload: CommunicationHallPostCreateRequest): Promise<CommunicationHallPostResponse> {
+  const response = await request('/api/v1/communication/posts', {
+    method: 'POST',
+    body: JSON.stringify({
+      category_key: payload.categoryKey,
+      title: payload.title,
+      body_markdown: payload.bodyMarkdown
+    }),
+    userAuth: true
+  });
+  const post = normalizeCommunicationHallPost(response.post ?? response);
+  return {
+    post,
+    detailPath: String(response.detail_path ?? response.detailPath ?? post.detailPath ?? '')
+  };
+}
+
 export async function fetchMembershipStatus(userId = 'demo-user') {
   const params = new URLSearchParams({ user_id: userId });
   return request(`/api/v1/memberships/status?${params.toString()}`);
@@ -448,15 +502,11 @@ export async function fetchAssistantCenter(): Promise<AssistantCenter> {
 }
 
 export async function fetchChatWorkbench(sessionId?: string): Promise<ChatWorkbench> {
-  const params = new URLSearchParams({ user_id: 'demo-user' });
+  const params = new URLSearchParams({ user_id: getCurrentUserId() });
   if (sessionId) {
     params.set('session_id', sessionId);
   }
-  try {
-    return normalizeChatWorkbench(await request(`/api/v1/chat/workbench?${params.toString()}`));
-  } catch {
-    return createFallbackChatWorkbench();
-  }
+  return normalizeChatWorkbench(await request(`/api/v1/chat/workbench?${params.toString()}`));
 }
 
 export async function createChatSession(payload: ChatSessionRequest = {}): Promise<ChatActiveSession> {
@@ -465,7 +515,7 @@ export async function createChatSession(payload: ChatSessionRequest = {}): Promi
       method: 'POST',
       body: JSON.stringify({
         title: payload.title ?? '',
-        user_id: payload.userId ?? 'demo-user',
+        user_id: payload.userId ?? getCurrentUserId(),
         model_key: payload.modelKey ?? 'general_text_default',
         preset_role: payload.presetRole ?? 'assistant'
       })
@@ -513,7 +563,7 @@ export async function exportChatSession(sessionId: string): Promise<ChatExportRe
 }
 
 export async function fetchVideoWorkbench(surface: GenerationSurface = 'portal'): Promise<VideoWorkbench> {
-  const params = new URLSearchParams({ user_id: 'demo-user', surface });
+  const params = new URLSearchParams({ user_id: getCurrentUserId(), surface });
   return normalizeVideoWorkbench(await request(`/api/v1/video/workbench?${params.toString()}`));
 }
 
@@ -526,12 +576,13 @@ export async function createVideoGeneration(
     method: 'POST',
     body: JSON.stringify({
       prompt,
-      user_id: 'demo-user',
+      user_id: getCurrentUserId(),
       route_key: options.routeKey ?? DEFAULT_VIDEO_ROUTE_KEY,
       request_key: options.requestKey,
       target_type: options.targetType,
       target_id: options.targetId,
-      surface: options.surface ?? 'portal'
+      surface: options.surface ?? 'portal',
+      options: options.options ?? {}
     })
   });
   return normalizeVideoWorkbench({
@@ -544,7 +595,7 @@ export async function createVideoGeneration(
 }
 
 export async function fetchImageWorkbench(surface: GenerationSurface = 'portal'): Promise<ImageWorkbench> {
-  const params = new URLSearchParams({ user_id: 'demo-user', surface });
+  const params = new URLSearchParams({ user_id: getCurrentUserId(), surface });
   return normalizeImageWorkbench(await request(`/api/v1/image/workbench?${params.toString()}`));
 }
 
@@ -557,12 +608,13 @@ export async function createImageGeneration(
     method: 'POST',
     body: JSON.stringify({
       prompt,
-      user_id: 'demo-user',
+      user_id: getCurrentUserId(),
       route_key: options.routeKey ?? DEFAULT_IMAGE_ROUTE_KEY,
       request_key: options.requestKey,
       target_type: options.targetType,
       target_id: options.targetId,
-      surface: options.surface ?? 'portal'
+      surface: options.surface ?? 'portal',
+      options: options.options ?? {}
     })
   });
   return normalizeImageWorkbench({
@@ -578,6 +630,11 @@ export async function fetchAudioTasks(surface: GenerationSurface = 'portal'): Pr
   const params = new URLSearchParams({ surface });
   const payload = await request(`/api/v1/audio/tasks?${params.toString()}`);
   return (payload.tasks ?? []).map(normalizeAudioTask);
+}
+
+export async function fetchWorkbenchCapabilities(surface: GenerationSurface = 'workbench'): Promise<WorkbenchCapabilitiesPayload> {
+  const params = new URLSearchParams({ surface });
+  return normalizeWorkbenchCapabilities(await request(`/api/v1/workbench/capabilities?${params.toString()}`));
 }
 
 export async function createAudioTask(payload: AudioTaskPayload): Promise<AudioTask> {
@@ -892,6 +949,84 @@ export async function adminListToolModelBindings(): Promise<ToolModelBindingSumm
   return (payload.bindings ?? payload ?? []).map(normalizeToolModelBinding);
 }
 
+export async function adminListWorkbenchCapabilities(): Promise<WorkbenchCapabilitiesPayload> {
+  return normalizeWorkbenchCapabilities(await request('/api/v1/admin/workbench-capabilities', { auth: true }));
+}
+
+export async function adminUpdateWorkbenchCapability(payload: WorkbenchCapabilityRequest): Promise<ToolModelBindingSummary> {
+  const pointCostOverride =
+    payload.pointCostOverride === undefined ||
+    payload.pointCostOverride === null ||
+    payload.pointCostOverride === ''
+      ? null
+      : Number(payload.pointCostOverride);
+  return normalizeToolModelBinding(
+    await request('/api/v1/admin/workbench-capabilities', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        target_type: payload.targetType,
+        target_key: payload.targetKey,
+        model_config_id: payload.modelConfigId,
+        point_cost_override: pointCostOverride,
+        enabled: payload.enabled
+      }),
+      auth: true
+    })
+  );
+}
+
+export async function updatePortalDetail(detailPath: string, payload: PortalDetailUpdateRequest): Promise<PortalDetailPayload> {
+  const normalizedPath = encodeDetailPath(detailPath);
+  return normalizePortalDetail(
+    await request(`/api/v1/portal/details/${normalizedPath}`, {
+      ...portalAuthOptions(),
+      method: 'PATCH',
+      body: JSON.stringify({
+        title: payload.title,
+        summary: payload.summary,
+        body_markdown: payload.bodyMarkdown,
+        tags: payload.tags,
+        visibility: payload.visibility
+      })
+    })
+  );
+}
+
+export async function publishPortalDetail(detailPath: string, releaseNote = ''): Promise<PortalDetailPayload> {
+  const normalizedPath = encodeDetailPath(detailPath);
+  return normalizePortalDetail(
+    await request(`/api/v1/portal/details/${normalizedPath}/versions`, {
+      ...portalAuthOptions(),
+      method: 'POST',
+      body: JSON.stringify({ release_note: releaseNote })
+    })
+  );
+}
+
+export async function rollbackPortalDetailVersion(detailPath: string, versionId: string, releaseNote = ''): Promise<PortalDetailPayload> {
+  const normalizedPath = encodeDetailPath(detailPath);
+  return normalizePortalDetail(
+    await request(`/api/v1/portal/details/${normalizedPath}/versions/${encodeURIComponent(versionId)}/rollback`, {
+      ...portalAuthOptions(),
+      method: 'POST',
+      body: JSON.stringify({ release_note: releaseNote })
+    })
+  );
+}
+
+export async function createPortalDetailComment(detailPath: string, content: string) {
+  const normalizedPath = encodeDetailPath(detailPath);
+  const payload = await request(`/api/v1/portal/details/${normalizedPath}/comments`, {
+    ...portalAuthOptions(),
+    method: 'POST',
+    body: JSON.stringify({ content })
+  });
+  return {
+    comment: payload.comment,
+    detail: normalizePortalDetail({ detail: payload.detail }).detail
+  };
+}
+
 export async function adminCreateToolModelBinding(payload: Record<string, unknown>): Promise<ToolModelBindingSummary> {
   return normalizeToolModelBinding(
     await request('/api/v1/admin/tool-model-bindings', {
@@ -1034,6 +1169,11 @@ async function request(path: string, options: RequestInit & { auth?: boolean; us
     const session = getUserSession();
     if (session?.accessToken) {
       headers.set('Authorization', `Bearer ${session.accessToken}`);
+    } else if (!headers.has('Authorization')) {
+      const token = getAdminToken();
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
     }
   }
   const response = await fetch(path, { ...options, headers });
@@ -1041,6 +1181,12 @@ async function request(path: string, options: RequestInit & { auth?: boolean; us
     throw new Error(`request failed: ${response.status}`);
   }
   return response.json();
+}
+
+function portalAuthOptions(): { auth?: boolean; userAuth?: boolean } {
+  return getUserSession()?.accessToken || getAdminToken()
+    ? { auth: true, userAuth: true }
+    : {};
 }
 
 function normalizeLoginResult(payload: any): LoginResult {

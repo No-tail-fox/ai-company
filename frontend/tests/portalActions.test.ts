@@ -1,13 +1,16 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import {
+  createCommunicationHallPost,
   createRechargeOrder,
   fetchAccountSummary,
+  fetchCommunicationHall,
   updateAccountProfile,
   fetchPortalDetail,
   fetchPortalUserActions,
   runPortalAction,
   searchPortal
 } from '../src/services/api';
+import * as api from '../src/services/api';
 import { buildItemPayload } from '../src/services/adminForms';
 
 function mockFetchResponse(payload: any) {
@@ -78,6 +81,129 @@ test('portal action request posts snake case body', async () => {
     item_id: 'quick-03',
     action_key: 'download'
   });
+});
+
+test('communication hall APIs fetch posts and create persistent detail-backed posts', async () => {
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(
+      mockFetchResponse({
+        categories: [{ key: 'all', label: '全部' }, { key: 'talk', label: '交流' }],
+        hot_tags: ['RAG'],
+        hot_topics: [{ title: '企业知识库', count: 3 }],
+        posts: [
+          {
+            id: 'rag-project-notes',
+            item_id: 'rag-project-notes',
+            detail_path: '/communication/detail/rag-project-notes',
+            category_key: 'talk',
+            category_label: '交流',
+            badge_label: '交流',
+            title: 'RAG project notes',
+            summary: 'First version',
+            tags: ['RAG']
+          }
+        ]
+      })
+    )
+    .mockResolvedValueOnce(
+      mockFetchResponse({
+        detail_path: '/communication/detail/new-note',
+        post: {
+          id: 'new-note',
+          item_id: 'new-note',
+          detail_path: '/communication/detail/new-note',
+          category_key: 'talk',
+          category_label: '交流',
+          badge_label: '交流',
+          title: 'New note',
+          summary: 'Body',
+          tags: ['交流']
+        }
+      })
+    );
+  vi.stubGlobal('fetch', fetchMock);
+
+  const hall = await fetchCommunicationHall('author-a');
+  const created = await createCommunicationHallPost({
+    categoryKey: 'talk',
+    title: 'New note',
+    bodyMarkdown: 'Body'
+  });
+
+  expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/communication/posts?user_id=author-a');
+  expect(hall.posts[0].detailPath).toBe('/communication/detail/rag-project-notes');
+  expect(fetchMock.mock.calls[1][0]).toBe('/api/v1/communication/posts');
+  expect(JSON.parse(fetchMock.mock.calls[1][1]?.body as string)).toEqual({
+    category_key: 'talk',
+    title: 'New note',
+    body_markdown: 'Body'
+  });
+  expect(created.post.detailPath).toBe('/communication/detail/new-note');
+  expect(created.detailPath).toBe('/communication/detail/new-note');
+});
+
+test('portal detail API normalizes markdown documents, versions, comments, and permissions', async () => {
+  const fetchMock = vi.fn().mockResolvedValue(
+    mockFetchResponse({
+      path: '/resources/tools',
+      title: '工具优惠合集',
+      detail: {
+        summary: '模型、剪辑、设计和办公工具权益',
+        body_markdown: '# 工具优惠合集\n\n正文',
+        tags: ['工具权益', 'Markdown'],
+        version: { id: 'ver-2', version: 2, release_note: '补充权益' },
+        versions: [
+          { id: 'ver-2', version: 2, release_note: '补充权益' },
+          { id: 'ver-1', version: 1, release_note: '初始版本' }
+        ],
+        comments: [{ id: 'comment-1', content: '建议增加商用授权列。', author_name: '浏览者' }],
+        publish_info: { type_label: '资源合集', version_label: 'v2', visibility_label: '社区成员' }
+      },
+      permissions: { can_edit: true, can_comment: true },
+      userState: {}
+    })
+  );
+  vi.stubGlobal('fetch', fetchMock);
+
+  const detail = await fetchPortalDetail('/resources/tools', 'viewer-user');
+
+  expect(detail.detail.bodyMarkdown).toBe('# 工具优惠合集\n\n正文');
+  expect(detail.detail.tags).toEqual(['工具权益', 'Markdown']);
+  expect(detail.detail.version?.version).toBe(2);
+  expect(detail.detail.versions).toHaveLength(2);
+  expect(detail.detail.comments[0].authorName).toBe('浏览者');
+  expect(detail.detail.publishInfo.typeLabel).toBe('资源合集');
+  expect(detail.permissions.canEdit).toBe(true);
+});
+
+test('portal detail mutation APIs post snake case bodies with auth', async () => {
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(mockFetchResponse({ detail: {} }))
+    .mockResolvedValueOnce(mockFetchResponse({ detail: {} }))
+    .mockResolvedValueOnce(mockFetchResponse({ detail: {}, comment: { id: 'comment-1' } }));
+  vi.stubGlobal('fetch', fetchMock);
+
+  await (api as any).updatePortalDetail('/resources/tools', {
+    title: '工具优惠合集 v1.5',
+    bodyMarkdown: '# 新正文',
+    tags: ['工具权益'],
+    visibility: 'community'
+  });
+  await (api as any).publishPortalDetail('/resources/tools', '补充权益');
+  await (api as any).createPortalDetailComment('/resources/tools', '建议增加商用授权列。');
+
+  expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/portal/details/resources/tools');
+  expect(fetchMock.mock.calls[0][1]?.method).toBe('PATCH');
+  expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string)).toEqual({
+    title: '工具优惠合集 v1.5',
+    body_markdown: '# 新正文',
+    tags: ['工具权益'],
+    visibility: 'community'
+  });
+  expect(fetchMock.mock.calls[1][0]).toBe('/api/v1/portal/details/resources/tools/versions');
+  expect(JSON.parse(fetchMock.mock.calls[1][1]?.body as string)).toEqual({ release_note: '补充权益' });
+  expect(fetchMock.mock.calls[2][0]).toBe('/api/v1/portal/details/resources/tools/comments');
+  expect(JSON.parse(fetchMock.mock.calls[2][1]?.body as string)).toEqual({ content: '建议增加商用授权列。' });
 });
 
 test('account summary and profile APIs normalize and post snake case payloads', async () => {

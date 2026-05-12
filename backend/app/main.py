@@ -20,6 +20,7 @@ from app.schemas import (
     ChatMessageCreate,
     ChatSessionCreate,
     ChatSessionUpdate,
+    CommunicationPostCreate,
     ContentItemCreate,
     ContentItemUpdate,
     ContentPageCreate,
@@ -40,6 +41,9 @@ from app.schemas import (
     PasswordChangeRequest,
     PasswordResetRequest,
     PortalActionCreate,
+    PortalDetailCommentCreate,
+    PortalDetailPublishCreate,
+    PortalDetailUpdate,
     ProviderChannelCreate,
     ProviderChannelUpdate,
     RechargeOrderCreate,
@@ -56,6 +60,7 @@ from app.schemas import (
     VideoGenerationCreate,
     VideoTaskPayload,
     VideoWorkbenchPayload,
+    WorkbenchCapabilityUpdate,
 )
 from app.seed import ensure_demo_data
 from app.services.account import AccountNotFoundError, AccountService
@@ -65,6 +70,7 @@ from app.services.chat import ChatNotFoundError, ChatProviderError, ChatService,
 from app.services.admin_content import AdminContentService
 from app.services.auth import AuthService
 from app.services.channel_router import ChannelTransport, HttpChannelTransport, RouteNotFoundError
+from app.services.communication import CommunicationService
 from app.services.image import DEMO_IMAGE_USER_ID, ImageService, ImageUserNotFoundError, ImageValidationError
 from app.services.home_dashboard import HomeDashboardService
 from app.services.memberships import MembershipService
@@ -76,6 +82,7 @@ from app.services.redemptions import RedemptionNotFoundError, RedemptionService,
 from app.services.uploads import UploadService, UploadValidationError
 from app.services.video import DEMO_VIDEO_USER_ID, VideoService, VideoUserNotFoundError, VideoValidationError
 from app.services.wallet import InsufficientBalanceError, WalletNotFoundError
+from app.services.workbench_capabilities import WorkbenchCapabilityService
 from app.settings import get_settings
 
 
@@ -152,6 +159,16 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
             raise HTTPException(status_code=401, detail="invalid bearer token")
         return user
 
+    def optional_user(
+        tenant_id: TenantHeader,
+        authorization: AuthorizationHeader = None,
+        db: Session = Depends(get_session),
+    ) -> User | None:
+        if not authorization or not authorization.startswith("Bearer "):
+            return None
+        token = authorization.removeprefix("Bearer ").strip()
+        return AuthService(db).user_from_token(tenant_id=tenant_id, token=token)
+
     @app.get(f"{settings.api_prefix}/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
@@ -188,11 +205,77 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         tenant_id: TenantHeader,
         user_id: str = "demo-user",
         db: Session = Depends(get_session),
+        actor: User | None = Depends(optional_user),
     ) -> dict:
-        payload = PortalService(db).get_detail(tenant_id=tenant_id, detail_path=detail_path, user_id=user_id)
+        payload = PortalService(db).get_detail(tenant_id=tenant_id, detail_path=detail_path, user_id=user_id, actor=actor)
         if payload is None:
             raise HTTPException(status_code=404, detail="detail not found")
         return payload
+
+    @app.patch(f"{settings.api_prefix}/portal/details/{{detail_path:path}}")
+    def update_portal_detail(
+        detail_path: str,
+        payload: PortalDetailUpdate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        actor: User = Depends(require_user),
+    ) -> dict:
+        try:
+            return PortalService(db).update_detail(tenant_id=tenant_id, detail_path=detail_path, payload=payload, actor=actor)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post(f"{settings.api_prefix}/portal/details/{{detail_path:path}}/versions")
+    def publish_portal_detail_version(
+        detail_path: str,
+        payload: PortalDetailPublishCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        actor: User = Depends(require_user),
+    ) -> dict:
+        try:
+            return PortalService(db).publish_detail_version(tenant_id=tenant_id, detail_path=detail_path, payload=payload, actor=actor)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post(f"{settings.api_prefix}/portal/details/{{detail_path:path}}/versions/{{version_id}}/rollback")
+    def rollback_portal_detail_version(
+        detail_path: str,
+        version_id: str,
+        payload: PortalDetailPublishCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        actor: User = Depends(require_user),
+    ) -> dict:
+        try:
+            return PortalService(db).rollback_detail_version(
+                tenant_id=tenant_id,
+                detail_path=detail_path,
+                version_id=version_id,
+                payload=payload,
+                actor=actor,
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post(f"{settings.api_prefix}/portal/details/{{detail_path:path}}/comments", status_code=status.HTTP_201_CREATED)
+    def create_portal_detail_comment(
+        detail_path: str,
+        payload: PortalDetailCommentCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        actor: User = Depends(require_user),
+    ) -> dict:
+        try:
+            return PortalService(db).create_detail_comment(tenant_id=tenant_id, detail_path=detail_path, payload=payload, actor=actor)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     @app.get(f"{settings.api_prefix}/portal/search")
     def portal_search(
@@ -229,6 +312,26 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         db: Session = Depends(get_session),
     ) -> dict:
         return PortalService(db).user_actions(tenant_id=tenant_id, user_id=user_id, kind=kind, limit=limit)
+
+    @app.get(f"{settings.api_prefix}/communication/posts")
+    def communication_posts(
+        tenant_id: TenantHeader,
+        user_id: str = "demo-user",
+        db: Session = Depends(get_session),
+    ) -> dict:
+        return CommunicationService(db).hall_payload(tenant_id=tenant_id, user_id=user_id)
+
+    @app.post(f"{settings.api_prefix}/communication/posts", status_code=status.HTTP_201_CREATED)
+    def create_communication_post(
+        payload: CommunicationPostCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        actor: User = Depends(require_user),
+    ) -> dict:
+        try:
+            return CommunicationService(db).create_post(tenant_id=tenant_id, payload=payload, actor=actor)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get(f"{settings.api_prefix}/admin/overview")
     def admin_overview(
@@ -678,6 +781,14 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         except (RouteNotFoundError, WalletNotFoundError, ImageUserNotFoundError, ImageValidationError, InsufficientBalanceError, ModelConfigError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @app.get(f"{settings.api_prefix}/workbench/capabilities")
+    def workbench_capabilities(
+        tenant_id: TenantHeader,
+        surface: GenerationSurface = "workbench",
+        db: Session = Depends(get_session),
+    ) -> dict:
+        return WorkbenchCapabilityService(db).list_capabilities(tenant_id=tenant_id, surface=surface)
+
     @app.get(f"{settings.api_prefix}/memberships/status")
     def membership_status(
         tenant_id: TenantHeader,
@@ -898,6 +1009,28 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
         require_admin_role(admin, "OPERATOR")
         try:
             return ModelConfigService(db).update_tool_model_binding(tenant_id=tenant_id, binding_id=binding_id, payload=payload)
+        except ModelConfigError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get(f"{settings.api_prefix}/admin/workbench-capabilities")
+    def admin_workbench_capabilities(
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        return WorkbenchCapabilityService(db).list_capabilities(tenant_id=tenant_id, surface="workbench")
+
+    @app.patch(f"{settings.api_prefix}/admin/workbench-capabilities")
+    def update_workbench_capability(
+        payload: WorkbenchCapabilityUpdate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "OPERATOR")
+        try:
+            return WorkbenchCapabilityService(db).update_capability(tenant_id=tenant_id, payload=payload)
         except ModelConfigError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import type { Component } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   AlertCircle,
@@ -8,19 +9,13 @@ import {
   Circle,
   FileDown,
   FileText,
-  Folder,
-  Image as ImageIcon,
   Loader2,
   MessageSquare,
-  Music,
-  Paperclip,
   Plus,
   RefreshCw,
   Search,
   Send,
-  Settings,
   Sparkles,
-  UploadCloud,
   UserRound,
 } from 'lucide-vue-next';
 import WorkspaceShell from './WorkspaceShell.vue';
@@ -32,7 +27,6 @@ import {
   updateChatSession
 } from '../services/api';
 import {
-  createFallbackChatWorkbench,
   groupChatSessionsByRecency,
   type ChatActiveSession,
   type ChatExportFile,
@@ -52,34 +46,32 @@ interface WorkbenchSettings {
 
 const SETTINGS_KEY = 'opc_workbench_settings';
 const EXPORT_CACHE_KEY = 'opc_workbench_exports';
-const DEFAULT_MODEL_KEY = 'general_text_default';
 
-const fallbackWorkbench = createFallbackChatWorkbench();
+const emptyWorkbench: ChatWorkbench = {
+  tenantId: 'demo',
+  userId: '',
+  sessions: [],
+  activeSession: null,
+  models: []
+};
 const route = useRoute();
 const router = useRouter();
-const workbench = ref<ChatWorkbench>(fallbackWorkbench);
+const workbench = ref<ChatWorkbench>(emptyWorkbench);
 const threadRef = ref<HTMLElement | null>(null);
-const fileInput = ref<HTMLInputElement | null>(null);
 const isLoading = ref(false);
 const isSending = ref(false);
 const isExporting = ref(false);
 const searchQuery = ref('');
 const draft = ref('');
 const errorMessage = ref('');
-const selectedModelKey = ref(DEFAULT_MODEL_KEY);
+const selectedModelKey = ref('');
 const selectedRole = ref('通用助手');
-const uploadedFileName = ref('');
 const settings = ref<WorkbenchSettings>(loadSettings());
 
 const roleOptions = ['通用助手', '产品经理', '文案顾问', '技术顾问'];
 
 const activeSession = computed(() => workbench.value.activeSession);
-const availableModels = computed<ChatModelSummary[]>(() =>
-  workbench.value.models.length > 0 ? workbench.value.models : fallbackWorkbench.models
-);
-const activeModel = computed(() =>
-  availableModels.value.find((model) => model.modelKey === selectedModelKey.value) ?? availableModels.value[0]
-);
+const availableModels = computed<ChatModelSummary[]>(() => workbench.value.models);
 const filteredSessions = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
   if (!keyword) {
@@ -98,41 +90,38 @@ const modelConfigNotice = computed(() =>
 const threadStyle = computed(() => ({
   fontSize: `${settings.value.fontSize}px`
 }));
-const queueItems = computed(() => [
-  {
-    id: 'chat-active',
-    title: '对话任务 #1024',
-    subtitle: activeSession.value?.title || '等待新对话',
-    status: isSending.value ? '生成中' : '排队中',
-    tone: isSending.value ? 'blue' : 'orange',
-    time: '刚刚',
-    icon: MessageSquare
-  },
-  {
-    id: 'export-active',
-    title: '导出任务 #1025',
-    subtitle: 'Markdown 文件生成',
-    status: isExporting.value ? '生成中' : '就绪',
-    tone: isExporting.value ? 'blue' : 'green',
-    time: isExporting.value ? '刚刚' : '待触发',
-    icon: FileText
-  },
-  {
-    id: 'image-link',
-    title: '图像生成 #1023',
-    subtitle: '跳转到图像工作台',
-    status: '可用',
-    tone: 'blue',
-    time: '3 分钟前',
-    icon: ImageIcon
+const queueItems = computed(() => {
+  const items: Array<{ id: string; title: string; subtitle: string; status: string; tone: string; time: string; icon: Component }> = [];
+  if (isSending.value) {
+    items.push({
+      id: 'chat-active',
+      title: '对话生成',
+      subtitle: activeSession.value?.title || '新对话',
+      status: '生成中',
+      tone: 'blue',
+      time: '刚刚',
+      icon: MessageSquare
+    });
   }
-]);
+  if (isExporting.value) {
+    items.push({
+      id: 'export-active',
+      title: '导出 Markdown',
+      subtitle: activeSession.value?.title || '当前对话',
+      status: '生成中',
+      tone: 'green',
+      time: '刚刚',
+      icon: FileText
+    });
+  }
+  return items;
+});
 const recentRuns = computed(() =>
   workbench.value.sessions.slice(0, 4).map((session, index) => ({
     id: session.id,
     title: session.title || '未命名对话',
     meta: formatDateTime(session.updatedAt ?? session.createdAt),
-    icon: index % 3 === 0 ? MessageSquare : index % 3 === 1 ? ImageIcon : Music
+    icon: MessageSquare
   }))
 );
 
@@ -163,7 +152,7 @@ async function loadWorkbench(sessionId = '', syncQuery = true) {
     const payload = applyCachedExports(await fetchChatWorkbench(sessionId || undefined));
     workbench.value = payload;
     if (payload.activeSession) {
-      selectedModelKey.value = payload.activeSession.modelKey || DEFAULT_MODEL_KEY;
+      selectedModelKey.value = payload.activeSession.modelKey || availableModels.value[0]?.modelKey || '';
       selectedRole.value = payload.activeSession.presetRole || selectedRole.value;
       if (syncQuery && !sessionId) {
         await router.replace({ path: '/workbench', query: { ...route.query, session: payload.activeSession.id } });
@@ -173,6 +162,10 @@ async function loadWorkbench(sessionId = '', syncQuery = true) {
     }
     errorMessage.value = '';
     await nextTick(scrollThreadToBottom);
+  } catch (error) {
+    workbench.value = emptyWorkbench;
+    selectedModelKey.value = '';
+    errorMessage.value = friendlyError(error);
   } finally {
     isLoading.value = false;
   }
@@ -180,10 +173,14 @@ async function loadWorkbench(sessionId = '', syncQuery = true) {
 
 async function createNewChat() {
   errorMessage.value = '';
+  if (!selectedModelKey.value) {
+    errorMessage.value = '后台尚未启用可用的 TEXT 模型渠道，无法创建对话。';
+    return null;
+  }
   try {
     const session = await createChatSession({
       title: '',
-      modelKey: selectedModelKey.value || DEFAULT_MODEL_KEY,
+      modelKey: selectedModelKey.value,
       presetRole: selectedRole.value
     });
     applyActiveSession(session);
@@ -239,7 +236,7 @@ async function sendDraft() {
   try {
     const result = await sendChatMessage(session.id, {
       content,
-      modelKey: selectedModelKey.value || DEFAULT_MODEL_KEY
+      modelKey: selectedModelKey.value
     });
     applyActiveSession(result.session);
     await nextTick(scrollThreadToBottom);
@@ -282,15 +279,6 @@ function handleComposerKey(event: KeyboardEvent) {
     event.preventDefault();
     void sendDraft();
   }
-}
-
-function openFilePicker() {
-  fileInput.value?.click();
-}
-
-function handleFileChange(event: Event) {
-  const input = event.target as HTMLInputElement;
-  uploadedFileName.value = input.files?.[0]?.name ?? '';
 }
 
 function toggleSetting(key: 'autoSave' | 'codeHighlight' | 'streaming') {
@@ -476,12 +464,6 @@ function formatFileSize(size?: number): string {
       <button class="workspace-icon-action" aria-label="刷新" @click="loadWorkbench(currentRouteSessionId())">
         <RefreshCw :size="20" />
       </button>
-      <button class="workspace-icon-action" aria-label="文件">
-        <Folder :size="20" />
-      </button>
-      <button class="workspace-icon-action" aria-label="设置">
-        <Settings :size="20" />
-      </button>
     </template>
 
     <template #leftFooter>
@@ -494,7 +476,8 @@ function formatFileSize(size?: number): string {
         </label>
         <label>
           <span>模型：</span>
-          <select v-model="selectedModelKey" @change="saveSessionPreferences">
+          <select v-model="selectedModelKey" :disabled="!availableModels.length" @change="saveSessionPreferences">
+            <option v-if="!availableModels.length" value="">后台未启用</option>
             <option v-for="model in availableModels" :key="model.modelKey" :value="model.modelKey">
               {{ model.displayName }}
             </option>
@@ -508,7 +491,8 @@ function formatFileSize(size?: number): string {
           <div class="workbench-toolbar">
             <label>
               <span>模型选择</span>
-              <select v-model="selectedModelKey" @change="saveSessionPreferences">
+              <select v-model="selectedModelKey" :disabled="!availableModels.length" @change="saveSessionPreferences">
+                <option v-if="!availableModels.length" value="">后台未启用</option>
                 <option v-for="model in availableModels" :key="model.modelKey" :value="model.modelKey">
                   {{ model.displayName }}
                 </option>
@@ -520,7 +504,7 @@ function formatFileSize(size?: number): string {
                 <option v-for="role in roleOptions" :key="role" :value="role">{{ role }}</option>
               </select>
             </label>
-            <button class="workbench-new-chat" @click="createNewChat">
+            <button class="workbench-new-chat" :disabled="!selectedModelKey" @click="createNewChat">
               <Plus :size="18" />
               新建对话
             </button>
@@ -611,27 +595,23 @@ function formatFileSize(size?: number): string {
               </div>
 
               <footer class="workbench-composer">
-                <button aria-label="添加附件" @click="openFilePicker">
-                  <Paperclip :size="25" />
-                </button>
                 <textarea
                   v-model="draft"
                   rows="2"
                   placeholder="输入消息，Enter 发送"
                   @keydown="handleComposerKey"
                 />
-                <select v-model="selectedModelKey" @change="saveSessionPreferences">
+                <select v-model="selectedModelKey" :disabled="!availableModels.length" @change="saveSessionPreferences">
+                  <option v-if="!availableModels.length" value="">后台未启用</option>
                   <option v-for="model in availableModels" :key="model.modelKey" :value="model.modelKey">
                     {{ model.displayName }}
                   </option>
                 </select>
-                <button class="workbench-send" :disabled="isSending || !draft.trim()" @click="sendDraft">
+                <button class="workbench-send" :disabled="isSending || !draft.trim() || !selectedModelKey" @click="sendDraft">
                   <Loader2 v-if="isSending" :size="21" />
                   <Send v-else :size="21" />
                   发送
                 </button>
-                <input ref="fileInput" type="file" hidden @change="handleFileChange" />
-                <span v-if="uploadedFileName" class="workbench-uploaded">已选择：{{ uploadedFileName }}</span>
               </footer>
             </section>
           </div>
@@ -642,7 +622,7 @@ function formatFileSize(size?: number): string {
         <section class="workbench-side-card">
           <header>
             <h2>任务队列</h2>
-            <button>查看全部</button>
+            <button type="button" @click="loadWorkbench(currentRouteSessionId())">刷新</button>
           </header>
           <article v-for="item in queueItems" :key="item.id" class="workbench-queue-item">
             <span :class="['workbench-queue-icon', item.tone]">
@@ -655,6 +635,7 @@ function formatFileSize(size?: number): string {
             <em :class="item.tone">{{ item.status }}</em>
             <time>{{ item.time }}</time>
           </article>
+          <p v-if="!queueItems.length" class="workbench-empty-side">暂无进行中的真实任务</p>
         </section>
 
         <section class="workbench-side-card">
@@ -676,15 +657,11 @@ function formatFileSize(size?: number): string {
             <h2>快捷操作</h2>
           </header>
           <div class="workbench-quick-actions">
-            <button @click="createNewChat">
+            <button :disabled="!selectedModelKey" @click="createNewChat">
               <Plus :size="29" />
               <span>新建任务</span>
             </button>
-            <button @click="openFilePicker">
-              <UploadCloud :size="29" />
-              <span>导入素材</span>
-            </button>
-            <button :disabled="isExporting" @click="exportCurrentSession">
+            <button :disabled="isExporting || !activeSession" @click="exportCurrentSession">
               <FileDown :size="29" />
               <span>下载结果</span>
             </button>
@@ -1071,7 +1048,7 @@ function formatFileSize(size?: number): string {
 .workbench-composer {
   position: relative;
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 120px 118px;
+  grid-template-columns: minmax(0, 1fr) 140px 118px;
   align-items: end;
   gap: 12px;
   margin: 0 20px 18px;
@@ -1079,12 +1056,6 @@ function formatFileSize(size?: number): string {
   border: 1px solid #aeaaff;
   border-radius: 12px;
   background: #fff;
-}
-
-.workbench-composer > button:first-child {
-  width: 38px;
-  height: 38px;
-  color: #4b5563;
 }
 
 .workbench-composer textarea {
@@ -1113,17 +1084,10 @@ function formatFileSize(size?: number): string {
 }
 
 .workbench-send:disabled,
+.workbench-new-chat:disabled,
 .workbench-quick-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.58;
-}
-
-.workbench-uploaded {
-  position: absolute;
-  left: 58px;
-  bottom: -22px;
-  color: #64748b;
-  font-size: 12px;
 }
 
 .workbench-side-card {
@@ -1237,6 +1201,16 @@ function formatFileSize(size?: number): string {
   font-size: 12px;
 }
 
+.workbench-empty-side {
+  margin: 0;
+  padding: 14px 12px;
+  border: 1px dashed #dfe5ef;
+  border-radius: 8px;
+  color: #6b7280;
+  background: #fbfcff;
+  font-size: 13px;
+}
+
 .workbench-run-item {
   min-height: 54px;
   display: grid;
@@ -1254,7 +1228,7 @@ function formatFileSize(size?: number): string {
 
 .workbench-quick-actions {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 

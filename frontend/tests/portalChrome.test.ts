@@ -5,6 +5,7 @@ import audioPage from '../src/components/AudioPage.vue?raw';
 import adminView from '../src/views/AdminView.vue?raw';
 import app from '../src/App.vue?raw';
 import imagePage from '../src/components/ImagePage.vue?raw';
+import communicationHallPage from '../src/components/CommunicationHallPage.vue?raw';
 import dynamicPage from '../src/components/DynamicPage.vue?raw';
 import indexHtml from '../index.html?raw';
 import portalChrome from '../src/components/PortalChrome.vue?raw';
@@ -38,11 +39,17 @@ test('portal chrome keeps the brand header and top tabs while removing browser c
   expect(app).toContain("route.path.startsWith('/workbench')");
   expect(portalView).not.toContain('PortalChrome');
   expect(portalView).toContain('HomeDashboardPage');
+  expect(portalView).toContain('CommunicationHallPage');
   expect(portalView).toContain('DynamicPage');
   expect(portalView).toContain('fetchHomeDashboard');
   expect(portalView).not.toContain('ImagePage');
   expect(portalView).not.toContain('VideoPage');
   expect(portalView).not.toContain('AudioPage');
+  expect(communicationHallPage).toContain('communication-hall-page');
+  expect(communicationHallPage).toContain('发布到大厅');
+  expect(communicationHallPage).toContain('buildCommunicationDetailPath');
+  expect(communicationHallPage).toContain('fetchCommunicationHall');
+  expect(communicationHallPage).toContain('createCommunicationHallPost');
   expect(imagePage).toContain('WorkspaceShell');
   expect(videoPage).toContain('WorkspaceShell');
   expect(audioPage).toContain('WorkspaceShell');
@@ -83,6 +90,15 @@ test('home page exposes a direct workbench entry and the shared shell exists', (
   expect(portalView).toContain("title: '视频生成工作台'");
   expect(portalView).toContain("title: '音频生成工作台'");
   expect(workspaceShell).toContain('workspace-shared-shell');
+});
+
+test('communication hall route uses a dedicated page and no workspace dock', () => {
+  expect(portalView).toContain('isCommunicationPage');
+  expect(portalView).toContain("activePageKey.value === 'communication'");
+  expect(portalView).toContain('v-else-if="isCommunicationPage"');
+  expect(portalView).toContain('isCommunicationPage');
+  expect(portalView).toContain('hideFloatTools = computed(() =>');
+  expect(portalView).toContain('hideWorkspaceDock = computed(() =>');
 });
 
 test('professional toolkit page has a dedicated third-party tools display area', () => {

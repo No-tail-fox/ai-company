@@ -20,6 +20,13 @@ test('admin view exposes a standard SaaS management shell', () => {
   expect(adminView).toContain('新增模型');
 });
 
+test('admin model center exposes managed workbench capability controls', () => {
+  expect(adminView).toContain('adminListWorkbenchCapabilities');
+  expect(adminView).toContain('adminUpdateWorkbenchCapability');
+  expect(adminView).toContain('工作台能力筛选');
+  expect(adminView).toContain('workbench-capability');
+});
+
 test('admin view exposes configurable home carousel management', () => {
   expect(adminView).toContain('adminListHomeSlides');
   expect(adminView).toContain('adminCreateHomeSlide');

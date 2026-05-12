@@ -35,6 +35,7 @@ const defaultChannels: ChromeChannel[] = [
   { key: 'home', label: '首页' },
   { key: 'assistant', label: 'AI 助理' },
   { key: 'workbench', label: '工作台' },
+  { key: 'communication', label: '沟通大厅' },
   { key: 'marketing', label: 'AI 营销' },
   { key: 'image', label: 'AI 图片' },
   { key: 'video', label: 'AI 视频' },
