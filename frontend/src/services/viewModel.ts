@@ -771,6 +771,28 @@ export interface WorkbenchCapabilitiesPayload {
   groups: Record<string, WorkbenchCapability[]>;
 }
 
+export interface CourseCatalogItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  category: string;
+  tags: string[];
+  detailPath: string;
+  requiredMembership: boolean;
+  updatedAt: string | null;
+  sourcePath: string[];
+  dirty?: boolean;
+}
+
+export interface CourseCatalogPayload {
+  tenantId: string;
+  total: number;
+  page: number;
+  pageSize: number;
+  categories: string[];
+  items: CourseCatalogItem[];
+}
+
 const fallbackPages: PageConfigSummary[] = [
   page('home', '首页', '常用AI学习中心', '学习、接单、社群和活动的统一入口', 'Home', 10),
   page('assistant', 'AI 助理', '智能助理广场', '办公、营销、学习、法务等场景助理集合', 'Bot', 20),
@@ -2451,6 +2473,32 @@ export function normalizeModelConfig(payload: any): ModelConfigSummary | null {
     defaultPointCost: Number(payload.default_point_cost ?? payload.defaultPointCost ?? 0),
     enabled: Boolean(payload.enabled ?? true),
     metadataJson: normalizeMetadata(payload.metadata_json ?? payload.metadataJson ?? payload.metadata)
+  };
+}
+
+export function normalizeCourseCatalog(payload: any): CourseCatalogPayload {
+  return {
+    tenantId: payload.tenant_id ?? payload.tenantId ?? 'demo',
+    total: Number(payload.total ?? 0),
+    page: Number(payload.page ?? 1),
+    pageSize: Number(payload.page_size ?? payload.pageSize ?? 20),
+    categories: normalizeStringList(payload.categories ?? []),
+    items: (payload.items ?? []).map(normalizeCourseCatalogItem)
+  };
+}
+
+function normalizeCourseCatalogItem(payload: any): CourseCatalogItem {
+  return {
+    id: payload.id ?? '',
+    title: payload.title ?? '',
+    subtitle: payload.subtitle ?? '',
+    category: payload.category ?? '',
+    tags: normalizeStringList(payload.tags ?? []),
+    detailPath: payload.detail_path ?? payload.detailPath ?? '',
+    requiredMembership: Boolean(payload.required_membership ?? payload.requiredMembership),
+    updatedAt: payload.updated_at ?? payload.updatedAt ?? null,
+    sourcePath: normalizeStringList(payload.source_path ?? payload.sourcePath ?? []),
+    dirty: Boolean(payload.dirty ?? false)
   };
 }
 

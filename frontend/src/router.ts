@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import AdminView from './views/AdminView.vue';
 import AuthView from './views/AuthView.vue';
 import AudioPage from './components/AudioPage.vue';
+import CourseLibraryPage from './components/CourseLibraryPage.vue';
 import ImagePage from './components/ImagePage.vue';
 import MembershipBenefitsPage from './components/MembershipBenefitsPage.vue';
 import PortalDetailPage from './components/PortalDetailPage.vue';
@@ -20,6 +21,7 @@ export const router = createRouter({
     { path: '/workbench/audio', name: 'workbench-audio', component: AudioPage },
     { path: '/', redirect: '/home' },
     { path: '/membership/benefits', name: 'membership-benefits', component: MembershipBenefitsPage },
+    { path: '/learning', name: 'course-library', component: CourseLibraryPage },
     { path: '/workspace/:detailPath(.*)*', name: 'portal-detail-workspace', component: PortalDetailPage },
     { path: '/community/:detailPath(.*)*', name: 'portal-detail-community', component: PortalDetailPage },
     { path: '/templates/:detailPath(.*)*', name: 'portal-detail-templates', component: PortalDetailPage },

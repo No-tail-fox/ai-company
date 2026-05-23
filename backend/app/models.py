@@ -377,6 +377,48 @@ class PortalDetailComment(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
 
+class FeishuSyncRun(Base):
+    __tablename__ = "feishu_sync_runs"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(32), ForeignKey("tenants.id"), index=True)
+    actor_user_id: Mapped[str] = mapped_column(String(32), ForeignKey("users.id"), default="", index=True)
+    space_id: Mapped[str] = mapped_column(String(128), default="", index=True)
+    root_node_token: Mapped[str] = mapped_column(String(128), default="", index=True)
+    status: Mapped[str] = mapped_column(String(32), default="RUNNING", index=True)
+    total_nodes: Mapped[int] = mapped_column(Integer, default=0)
+    created_count: Mapped[int] = mapped_column(Integer, default=0)
+    updated_count: Mapped[int] = mapped_column(Integer, default=0)
+    skipped_count: Mapped[int] = mapped_column(Integer, default=0)
+    unsupported_count: Mapped[int] = mapped_column(Integer, default=0)
+    failed_count: Mapped[int] = mapped_column(Integer, default=0)
+    error_summary: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class FeishuSyncNode(Base):
+    __tablename__ = "feishu_sync_nodes"
+    __table_args__ = (UniqueConstraint("tenant_id", "node_token", name="uq_feishu_sync_nodes_tenant_node"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(32), ForeignKey("tenants.id"), index=True)
+    run_id: Mapped[str] = mapped_column(String(32), ForeignKey("feishu_sync_runs.id"), index=True)
+    node_token: Mapped[str] = mapped_column(String(128), index=True)
+    obj_token: Mapped[str] = mapped_column(String(128), default="", index=True)
+    obj_type: Mapped[str] = mapped_column(String(64), default="", index=True)
+    title: Mapped[str] = mapped_column(String(500), default="")
+    source_path: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    detail_path: Mapped[str] = mapped_column(String(500), default="", index=True)
+    content_hash: Mapped[str] = mapped_column(String(64), default="", index=True)
+    status: Mapped[str] = mapped_column(String(32), default="PENDING", index=True)
+    error_message: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+    synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class HomeHeroSlide(Base):
     __tablename__ = "home_hero_slides"
 

@@ -131,7 +131,7 @@ function buildLearningCards(items: PortalItem[]) {
     fallbackLearningCard('home-learning-fallback-4', '《AI 爆款内容创作》', '短视频脚本、标题、封面和投放流程', 'AI 营销', 'Presentation', '/workspace/course', 40),
     fallbackLearningCard('home-learning-fallback-5', '《AI高阶实战》', '从工具使用到项目交付训练', '学习成长', 'NotebookTabs', '/workspace/course/advanced', 50),
     fallbackLearningCard('home-learning-fallback-6', '《AI项目交付训练》', '拆解真实客户需求并完成可复用方案', '项目共创', 'BriefcaseBusiness', '/workspace/course/project', 60),
-    fallbackLearningCard('home-learning-fallback-7', '查看更多课程', '打开学习成长查看完整课程路径', '课程目录', 'ChevronRight', '/learning/daily', 999)
+    fallbackLearningCard('home-learning-fallback-7', '查看更多课程', '打开学习成长查看完整课程路径', '课程目录', 'ChevronRight', '/learning', 999)
   ];
   for (const fallback of fallbackCards) {
     if (cards.length >= 7) {
@@ -505,7 +505,7 @@ function lowerGridClass(layout: string) {
           <span class="panel-kicker">{{ learningSection?.title ?? '常用AI学习中心' }}</span>
           <p>{{ learningSection?.subtitle ?? '课程、实战和变现路径' }}</p>
         </div>
-        <button class="section-link" type="button" @click="openDestination('route', '/learning/daily')">
+        <button class="section-link" type="button" @click="openDestination('route', '/learning')">
           <span>查看全部</span>
           <ChevronRight :size="16" />
         </button>

@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Sparkles,
   Ticket,
   Trash2,
   UserPlus,
@@ -38,6 +39,7 @@ import {
   adminCreateSection,
   adminCreateToolModelBinding,
   adminCreateUser,
+  adminCleanupCourses,
   adminDeleteHomeSlide,
   adminDeleteItem,
   adminDeleteMembershipPlan,
@@ -50,6 +52,7 @@ import {
   adminGetChatModelProfile,
   adminGrantMembership,
   adminListAuditLogs,
+  adminListCourses,
   adminListHomeSlides,
   adminListMembershipPlans,
   adminListModelConfigs,
@@ -117,6 +120,8 @@ import {
   type AdminUserSummary,
   type AdminWalletTransactionSummary,
   type ChatModelProfilePayload,
+  type CourseCatalogItem,
+  type CourseCatalogPayload,
   type HomeDashboardSlide,
   type ModelConfigSummary,
   type PageConfigSummary,
@@ -128,7 +133,7 @@ import {
   type WorkbenchCapability
 } from '../services/viewModel';
 
-type AdminModule = 'overview' | 'users' | 'memberships' | 'points' | 'redemptions' | 'content' | 'models' | 'audit';
+type AdminModule = 'overview' | 'users' | 'memberships' | 'points' | 'redemptions' | 'content' | 'courses' | 'models' | 'audit';
 type AdminPanel =
   | ''
   | 'home-slide'
@@ -169,6 +174,7 @@ const adminModules: Array<{ key: AdminModule; label: string; icon: Component; de
   { key: 'memberships', label: '会员管理', icon: UserPlus, description: '会员计划和开通记录' },
   { key: 'points', label: '积分管理', icon: Coins, description: '积分账户、流水和调账' },
   { key: 'content', label: '内容管理', icon: FileText, description: '页面、模块、卡片和预览' },
+  { key: 'courses', label: '课程管理', icon: Sparkles, description: '飞书课程、格式清洗和批量导入' },
   { key: 'models', label: '模型中心', icon: Layers3, description: '渠道、模型和工具绑定' },
   { key: 'audit', label: '审计日志', icon: ShieldCheck, description: '查看关键管理操作' }
 ];
@@ -186,6 +192,18 @@ const auditLogs = ref<AdminAuditLogSummary[]>([]);
 const redemptionBatches = ref<AdminRedemptionBatchSummary[]>([]);
 const redemptionCodes = ref<AdminRedemptionCodeSummary[]>([]);
 const generatedRedemptionCodes = ref<AdminRedemptionCodeSummary[]>([]);
+const courseCatalog = ref<CourseCatalogPayload>({
+  tenantId: 'demo',
+  total: 0,
+  page: 1,
+  pageSize: 50,
+  categories: [],
+  items: []
+});
+const courseQuery = ref('');
+const courseCategory = ref('');
+const coursePage = ref(1);
+const courseCleanupBusy = ref(false);
 
 const pages = ref<PageConfigSummary[]>([]);
 const homeSlides = ref<HomeDashboardSlide[]>([]);
@@ -757,6 +775,9 @@ function readStoredUserId() {
 function setActiveModule(moduleKey: AdminModule) {
   activeModule.value = moduleKey;
   window.localStorage.setItem(moduleStorageKey, moduleKey);
+  if (moduleKey === 'courses') {
+    void loadAdminCourses();
+  }
 }
 
 function setSelectedPage(pageKey: string) {
@@ -848,6 +869,16 @@ async function refreshAdmin() {
     membershipUserFilterId.value = selectedUserId.value;
   }
   await loadSelectedPage();
+  await loadAdminCourses();
+}
+
+async function loadAdminCourses() {
+  courseCatalog.value = await adminListCourses({
+    query: courseQuery.value.trim(),
+    category: courseCategory.value,
+    page: coursePage.value,
+    pageSize: 50
+  });
 }
 
 async function loadSelectedPage() {
@@ -866,6 +897,44 @@ async function refreshWithNotice() {
     await refreshAdmin();
     notice.value = '后台数据已刷新';
   });
+}
+
+async function searchAdminCourses() {
+  await run(async () => {
+    coursePage.value = 1;
+    await loadAdminCourses();
+  });
+}
+
+async function changeCoursePage(offset: number) {
+  const totalPages = Math.max(1, Math.ceil(courseCatalog.value.total / courseCatalog.value.pageSize));
+  const nextPage = Math.min(totalPages, Math.max(1, coursePage.value + offset));
+  if (nextPage === coursePage.value) {
+    return;
+  }
+  await run(async () => {
+    coursePage.value = nextPage;
+    await loadAdminCourses();
+  });
+}
+
+async function cleanupAdminCourses() {
+  await run(async () => {
+    courseCleanupBusy.value = true;
+    try {
+      const result = await adminCleanupCourses();
+      await loadAdminCourses();
+      notice.value = `已清洗 ${result.changed} / ${result.scanned} 个课程，剩余异常 ${result.dirtyRemaining}`;
+    } finally {
+      courseCleanupBusy.value = false;
+    }
+  });
+}
+
+function openCourseDetail(course: CourseCatalogItem) {
+  if (course.detailPath) {
+    void router.push(course.detailPath);
+  }
 }
 
 function openUserPanel(user?: AdminUserSummary) {
@@ -2727,6 +2796,94 @@ async function run(task: () => Promise<void>) {
               </div>
             </div>
           </aside>
+        </section>
+
+        <section v-else-if="activeModule === 'courses'" class="admin-panel">
+          <header class="panel-header">
+            <div>
+              <strong>课程管理</strong>
+              <span>管理飞书导入课程、查看格式异常并批量清洗 Markdown</span>
+            </div>
+            <div class="panel-actions">
+              <button class="ghost-btn" type="button" @click="loadAdminCourses">
+                <RefreshCw :size="18" />
+                刷新课程
+              </button>
+              <button class="primary-btn" type="button" :disabled="courseCleanupBusy" @click="cleanupAdminCourses">
+                <Sparkles :size="18" />
+                {{ courseCleanupBusy ? '清洗中' : '批量清洗' }}
+              </button>
+            </div>
+          </header>
+
+          <div class="admin-filters">
+            <label class="search-field">
+              <Search :size="16" />
+              <input v-model="courseQuery" placeholder="搜索课程标题、摘要或分类" @keyup.enter="searchAdminCourses" />
+            </label>
+            <select v-model="courseCategory" @change="searchAdminCourses">
+              <option value="">全部分类</option>
+              <option v-for="category in courseCatalog.categories" :key="category" :value="category">{{ category }}</option>
+            </select>
+            <button class="ghost-btn" type="button" @click="searchAdminCourses">搜索</button>
+          </div>
+
+          <section class="admin-table-panel">
+            <header class="panel-header compact">
+              <div>
+                <strong>{{ courseCatalog.total }} 个课程</strong>
+                <span>当前第 {{ courseCatalog.page }} 页，每页 {{ courseCatalog.pageSize }} 条</span>
+              </div>
+              <div class="panel-actions">
+                <button class="ghost-btn" type="button" :disabled="courseCatalog.page <= 1" @click="changeCoursePage(-1)">上一页</button>
+                <button
+                  class="ghost-btn"
+                  type="button"
+                  :disabled="courseCatalog.page >= Math.max(1, Math.ceil(courseCatalog.total / courseCatalog.pageSize))"
+                  @click="changeCoursePage(1)"
+                >
+                  下一页
+                </button>
+              </div>
+            </header>
+
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>课程</th>
+                  <th>分类</th>
+                  <th>来源路径</th>
+                  <th>权限</th>
+                  <th>格式</th>
+                  <th>更新时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="course in courseCatalog.items" :key="course.id">
+                  <td>
+                    <strong>{{ course.title }}</strong>
+                    <small>{{ course.subtitle }}</small>
+                  </td>
+                  <td>{{ course.category || '未分类' }}</td>
+                  <td class="path-cell">{{ course.sourcePath.join(' / ') || course.detailPath }}</td>
+                  <td>{{ course.requiredMembership ? '会员' : '公开' }}</td>
+                  <td>
+                    <span :class="['status-pill', course.dirty ? 'inactive' : 'active']">
+                      {{ course.dirty ? '待清洗' : '正常' }}
+                    </span>
+                  </td>
+                  <td>{{ formatDateTime(course.updatedAt) }}</td>
+                  <td>
+                    <button class="ghost-btn" type="button" @click="openCourseDetail(course)">打开</button>
+                  </td>
+                </tr>
+                <tr v-if="courseCatalog.items.length === 0">
+                  <td colspan="7">暂无课程，完成飞书导入后会显示在这里。</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
         </section>
 
         <section v-else-if="activeModule === 'models'" class="admin-panel">

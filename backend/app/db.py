@@ -44,6 +44,9 @@ def ensure_lightweight_schema_updates(target_engine: Engine) -> None:
         "ai_generations": [
             ("options_json", "JSON"),
         ],
+        "feishu_sync_runs": [
+            ("error_summary", "TEXT DEFAULT ''"),
+        ],
     }
     with target_engine.begin() as connection:
         for table, columns in additions.items():

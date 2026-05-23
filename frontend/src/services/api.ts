@@ -30,6 +30,7 @@ import {
   normalizeChatModelProfile,
   normalizeChatSendResult,
   normalizeChatWorkbench,
+  normalizeCourseCatalog,
   normalizeImageWorkbench,
   normalizePageConfig,
   normalizePortalActionResult,
@@ -57,6 +58,7 @@ import {
   type ChatModelProfilePayload,
   type ChatSendResult,
   type ChatWorkbench,
+  type CourseCatalogPayload,
   type GenerationSurface,
   type HomeDashboardModel,
   type HomeDashboardSlide,
@@ -206,6 +208,13 @@ export interface AccountProfileUpdateRequest {
 export interface RechargeOrderRequest {
   userId: string;
   packageKey: string;
+}
+
+export interface CourseCatalogRequest {
+  query?: string;
+  category?: string;
+  page?: number;
+  pageSize?: number;
 }
 
 export interface AdminUserRequest {
@@ -483,6 +492,37 @@ export async function fetchPortalUserActions(userId = 'demo-user', kind = 'all')
   const params = new URLSearchParams({ user_id: userId, kind });
   const payload = await request(`/api/v1/portal/user-actions?${params.toString()}`);
   return normalizePortalUserActions(payload);
+}
+
+export async function fetchCourses(options: CourseCatalogRequest = {}): Promise<CourseCatalogPayload> {
+  const params = new URLSearchParams();
+  params.set('q', options.query ?? '');
+  params.set('category', options.category ?? '');
+  params.set('page', String(options.page ?? 1));
+  params.set('page_size', String(options.pageSize ?? 20));
+  return normalizeCourseCatalog(await request(`/api/v1/courses?${params.toString()}`));
+}
+
+export async function adminListCourses(options: CourseCatalogRequest = {}): Promise<CourseCatalogPayload> {
+  const params = new URLSearchParams();
+  if (options.query) {
+    params.set('q', options.query);
+  }
+  if (options.category) {
+    params.set('category', options.category);
+  }
+  params.set('page', String(options.page ?? 1));
+  params.set('page_size', String(options.pageSize ?? 50));
+  return normalizeCourseCatalog(await request(`/api/v1/admin/courses?${params.toString()}`, { auth: true }));
+}
+
+export async function adminCleanupCourses(): Promise<{ scanned: number; changed: number; dirtyRemaining: number }> {
+  const payload = await request('/api/v1/admin/courses/cleanup', { method: 'POST', body: JSON.stringify({}), auth: true });
+  return {
+    scanned: Number(payload.scanned ?? 0),
+    changed: Number(payload.changed ?? 0),
+    dirtyRemaining: Number(payload.dirty_remaining ?? payload.dirtyRemaining ?? 0)
+  };
 }
 
 export async function fetchCommunicationHall(userId = getCurrentUserId('demo-user')): Promise<CommunicationHallPayload> {

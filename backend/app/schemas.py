@@ -376,6 +376,22 @@ class PortalDetailCommentCreate(BaseModel):
     content: str = Field(min_length=1, max_length=2000)
 
 
+class FeishuWikiSyncCreate(BaseModel):
+    space_id: str | None = None
+    root_node_token: str | None = None
+    required_membership: bool | None = None
+
+
+class FeishuBrowserSnapshotImport(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    source_url: str = Field(min_length=1, max_length=1000)
+    node_token: str | None = Field(default=None, max_length=128)
+    source_path: list[str] = Field(default_factory=list)
+    body_markdown: str = Field(min_length=1)
+    asset_url_map: dict[str, str] = Field(default_factory=dict)
+    required_membership: bool | None = None
+
+
 class CommunicationPostCreate(BaseModel):
     category_key: str = Field(min_length=1, max_length=64)
     title: str = Field(min_length=1, max_length=120)

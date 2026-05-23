@@ -28,6 +28,8 @@ from app.schemas import (
     ContentPageUpdate,
     ContentSectionCreate,
     ContentSectionUpdate,
+    FeishuBrowserSnapshotImport,
+    FeishuWikiSyncCreate,
     GenerationSurface,
     ImageGenerationCreate,
     ImageTaskPayload,
@@ -72,6 +74,7 @@ from app.services.admin_content import AdminContentService
 from app.services.auth import AuthService
 from app.services.channel_router import ChannelTransport, HttpChannelTransport, RouteNotFoundError
 from app.services.communication import CommunicationService
+from app.services.feishu_import import CourseAdminService, CourseCatalogService, FeishuImportService
 from app.services.image import DEMO_IMAGE_USER_ID, ImageService, ImageUserNotFoundError, ImageValidationError
 from app.services.home_dashboard import HomeDashboardService
 from app.services.memberships import MembershipService
@@ -85,6 +88,7 @@ from app.services.video import DEMO_VIDEO_USER_ID, VideoService, VideoUserNotFou
 from app.services.wallet import InsufficientBalanceError, WalletNotFoundError
 from app.services.workbench_capabilities import WorkbenchCapabilityService
 from app.settings import get_settings
+from app.tasks.feishu_import import enqueue_feishu_wiki_sync
 
 
 TenantHeader = Annotated[str, Header(alias="X-Tenant-ID")]
@@ -314,6 +318,51 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
     ) -> dict:
         return PortalService(db).user_actions(tenant_id=tenant_id, user_id=user_id, kind=kind, limit=limit)
 
+    @app.get(f"{settings.api_prefix}/courses")
+    def course_catalog(
+        tenant_id: TenantHeader,
+        q: str = "",
+        category: str = "",
+        page: int = 1,
+        page_size: int = 20,
+        db: Session = Depends(get_session),
+    ) -> dict:
+        return CourseCatalogService(db).list_courses(
+            tenant_id=tenant_id,
+            query=q,
+            category=category,
+            page=page,
+            page_size=page_size,
+        )
+
+    @app.get(f"{settings.api_prefix}/admin/courses")
+    def admin_course_catalog(
+        tenant_id: TenantHeader,
+        q: str = "",
+        category: str = "",
+        page: int = 1,
+        page_size: int = 50,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "CONTENT_EDITOR")
+        return CourseAdminService(db).list_courses(
+            tenant_id=tenant_id,
+            query=q,
+            category=category,
+            page=page,
+            page_size=page_size,
+        )
+
+    @app.post(f"{settings.api_prefix}/admin/courses/cleanup")
+    def admin_cleanup_courses(
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "CONTENT_EDITOR")
+        return CourseAdminService(db).cleanup_courses(tenant_id=tenant_id)
+
     @app.get(f"{settings.api_prefix}/communication/posts")
     def communication_posts(
         tenant_id: TenantHeader,
@@ -342,6 +391,86 @@ def create_app(*, audio_transport: ChannelTransport | None = None, chat_transpor
     ) -> dict:
         del admin
         return AdminManagementService(db).overview(tenant_id=tenant_id)
+
+    @app.post(f"{settings.api_prefix}/admin/imports/feishu/wiki/sync")
+    def start_feishu_wiki_sync(
+        payload: FeishuWikiSyncCreate,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "CONTENT_EDITOR")
+        space_id = (payload.space_id or settings.feishu_wiki_space_id).strip()
+        root_node_token = (payload.root_node_token or settings.feishu_wiki_root_node_token).strip()
+        required_membership = settings.feishu_sync_required_membership if payload.required_membership is None else payload.required_membership
+        if not space_id or not root_node_token:
+            raise HTTPException(status_code=400, detail="space_id and root_node_token are required")
+        if enqueue_feishu_wiki_sync(
+            tenant_id=tenant_id,
+            actor_user_id=admin.id,
+            space_id=space_id,
+            root_node_token=root_node_token,
+            required_membership=required_membership,
+        ):
+            return {
+                "queued": True,
+                "run": {
+                    "status": "QUEUED",
+                    "space_id": space_id,
+                    "root_node_token": root_node_token,
+                    "stats": {"total": 0, "created": 0, "updated": 0, "skipped": 0, "unsupported": 0, "failed": 0},
+                },
+            }
+        try:
+            return {
+                "queued": False,
+                **FeishuImportService(db).sync_wiki(
+                    tenant_id=tenant_id,
+                    actor_user_id=admin.id,
+                    space_id=space_id,
+                    root_node_token=root_node_token,
+                    required_membership=required_membership,
+                ),
+            }
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    @app.get(f"{settings.api_prefix}/admin/imports/feishu/wiki/runs/{{run_id}}")
+    def get_feishu_wiki_sync_run(
+        run_id: str,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        del admin
+        payload = FeishuImportService(db).get_run(tenant_id=tenant_id, run_id=run_id)
+        if payload is None:
+            raise HTTPException(status_code=404, detail="sync run not found")
+        return payload
+
+    @app.post(f"{settings.api_prefix}/admin/imports/feishu/browser/snapshot")
+    def import_feishu_browser_snapshot(
+        payload: FeishuBrowserSnapshotImport,
+        tenant_id: TenantHeader,
+        db: Session = Depends(get_session),
+        admin: User = Depends(require_admin),
+    ) -> dict:
+        require_admin_role(admin, "CONTENT_EDITOR")
+        required_membership = settings.feishu_sync_required_membership if payload.required_membership is None else payload.required_membership
+        try:
+            return FeishuImportService(db).import_browser_snapshot(
+                tenant_id=tenant_id,
+                actor_user_id=admin.id,
+                title=payload.title,
+                source_url=payload.source_url,
+                node_token=payload.node_token,
+                source_path=payload.source_path,
+                body_markdown=payload.body_markdown,
+                asset_url_map=payload.asset_url_map,
+                required_membership=required_membership,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     @app.get(f"{settings.api_prefix}/admin/users")
     def list_admin_users(

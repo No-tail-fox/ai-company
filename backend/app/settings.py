@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://localhost:6379/0"
     celery_result_backend: str = "redis://localhost:6379/1"
     storage_dir: str = str((BACKEND_ROOT / "storage").as_posix())
+    feishu_app_id: str = ""
+    feishu_app_secret: str = ""
+    feishu_wiki_space_id: str = ""
+    feishu_wiki_root_node_token: str = ""
+    feishu_sync_required_membership: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

@@ -41,7 +41,7 @@ else:
         "ai_company",
         broker=settings.celery_broker_url,
         backend=settings.celery_result_backend,
-        include=["app.tasks.generation"],
+        include=["app.tasks.generation", "app.tasks.feishu_import"],
     )
 
     celery_app.conf.update(
